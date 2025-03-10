@@ -1,6 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 
+//imports 
+const userRoutes = require('./routes/userRoutes');
+
 //express app declared within app constant 
 const app = express(); 
 
@@ -8,11 +11,11 @@ const app = express();
 app.use(express.json()); // allows for the request to send attachments (json objects)
 
 app.use((req, res, next) => { // prints to console every request sent (for debugging / testing purposes)
-    console.log(req.path, req.method);
+    console.log(req.method, req.path);
     next();
 });
 
-
-
+//routes
+app.use('/api/user', userRoutes);
 // export app constant 
 module.exports = app;

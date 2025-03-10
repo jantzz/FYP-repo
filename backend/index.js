@@ -2,26 +2,25 @@ require('dotenv').config();
 //imports 
 const mysql = require('mysql2/promise');
 const app = require('./app');
+const db = require('./database/db');
 
 // get values from .env file 
-const pass = process.env.password;
-const dbname = process.env.dbname;
 const port = process.env.PORT || 8800;
 
-//db connection
-mysql.createConnection({ //returns promise because mysql2/promise was imported
-    host: "localhost",
-    user: "root",
-    password: pass,
-    database: dbname
-}).then((db) => {
-        console.log("Connected to mysql database");
+//start server function 
+async function start() { 
+    try{
+        const connection = await db.getConnection();
+        console.log("Connected to the database");
 
-        //start the server only after the connection with database is established 
-        app.listen(port, () => {
-            console.log("App listening on port", port);
+        app.listen(port, ()=> {
+            console.log("server now running on port:", port);
         })
-    }).catch((err) => {
-        console.error("Database connection failed: ", err);
-    });
 
+    }catch(err) {
+        console.error("Database connection failed:", err);
+        //process.exit(1);
+    }
+}
+
+start();
