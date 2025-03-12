@@ -1,11 +1,14 @@
 const express = require('express');
 
 //imports
-const { loginUser } = require('../controllers/userController');
+const { loginUser, createUser } = require('../controllers/userController');
 
 //router object from express 
 const router = express.Router(); 
 
-router.get('/login' , loginUser);
+router.post('/login' , loginUser);
+
+// to be moved to protected route
+router.post('/createUser', createUser);
 
 module.exports = router;

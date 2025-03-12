@@ -46,6 +46,42 @@ const loginUser = async (req, res) => {
 
 }
 
+const createUser = async (req, res) => {
+    const { name, email, password, role, birthday, gender } = req.body;
+
+    const department = req.body.department ? req.body.department: null; 
+    const assignedTask = req.body.assignedTask ? req.body.assignedTask: null;
+
+    if(!name || ! email || !password || !role || !birthday ) return res.status(400).json({error: "certain fields cannot be left empty"});
+
+    let connection;
+
+    try{
+        connection = await db.getConnection();
+    
+        const q = "INSERT INTO user (name, email, password, role, birthday, gender, department, assignedTask) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        const salt = await bcrypt.genSalt(10);
+
+        const hashed = await bcrypt.hash(password, salt);
+
+        const data = [
+            name, email, hashed , role, birthday, gender, department, assignedTask
+        ];
+
+        connection.execute(q, data);
+
+        return res.status(200).json({message: "User created successfully"});
+
+    }catch(err) {
+        console.error(err);
+        res.status(500).json({error: "Internal Server Error"});
+    }finally {
+        if (connection) connection.release();
+    }
+}
+
 module.exports = {
-    loginUser
+    loginUser,
+    createUser
 }
