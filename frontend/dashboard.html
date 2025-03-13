@@ -44,6 +44,10 @@
                 <i class="fas fa-th-large"></i>
                 Dashboard
             </div>
+            <div class="nav-item" id="employee-management">
+                <i class="fas fa-users-cog"></i>
+                Employee Management
+            </div>
             <div class="nav-item">
                 <i class="fas fa-calendar-alt"></i>
                 Schedule
@@ -80,10 +84,83 @@
                 <div id="calendar"></div>
             </div>
 
+            <div class="employee-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Employee Management</h2>
+                    <button class="btn-primary" onclick="showCreateEmployeeModal()">
+                        <i class="fas fa-plus"></i> Create New Employee
+                    </button>
+                </div>
+                <div class="employee-list">
+                    <table id="employeeTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Department</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeTableBody">
+                            <!-- Employee data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="report-section">
                 <h2>Report Analysis</h2>
                 <!-- Report content will go here -->
             </div>
+        </div>
+    </div>
+
+    <!-- Create Employee Modal -->
+    <div id="createEmployeeModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Create New Employee</h2>
+            <form id="createEmployeeForm">
+                <div class="form-group">
+                    <label for="name">Full Name</label>
+                    <input type="text" id="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Initial Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                <div class="form-group">
+                    <label for="birthday">Birthday</label>
+                    <input type="date" id="birthday" required>
+                </div>
+                <div class="form-group">
+                    <label for="gender">Gender</label>
+                    <select id="gender" required>
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="role">Role</label>
+                    <select id="role" required>
+                        <option value="Employee">Employee</option>
+                        <option value="Manager">Manager</option>
+                        <option value="Admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="department">Department</label>
+                    <input type="text" id="department">
+                </div>
+                <button type="submit" class="btn-primary">Create Employee</button>
+            </form>
         </div>
     </div>
 
@@ -190,6 +267,119 @@
                 }
             }
         });
+
+        // Employee Management
+        document.getElementById('employee-management').addEventListener('click', function() {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            this.classList.add('active');
+            document.querySelector('.calendar-section').style.display = 'none';
+            document.querySelector('.employee-section').style.display = 'block';
+            loadEmployees();
+        });
+
+        // Modal handling
+        const modal = document.getElementById('createEmployeeModal');
+        const span = document.getElementsByClassName('close')[0];
+
+        function showCreateEmployeeModal() {
+            modal.style.display = 'block';
+        }
+
+        span.onclick = function() {
+            modal.style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Handle employee creation
+        document.getElementById('createEmployeeForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                birthday: document.getElementById('birthday').value,
+                gender: document.getElementById('gender').value,
+                role: document.getElementById('role').value,
+                department: document.getElementById('department').value
+            };
+
+            try {
+                // First create the role if it doesn't exist
+                await fetch('http://localhost:3000/api/role/createRole', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        roleName: formData.role,
+                        description: `${formData.role} role`
+                    })
+                });
+
+                // Then create the user
+                const response = await fetch('http://localhost:3000/api/user/createUser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    alert('Employee created successfully');
+                    modal.style.display = 'none';
+                    document.getElementById('createEmployeeForm').reset();
+                    loadEmployees();
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Failed to create employee');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to create employee');
+            }
+        });
+
+        // Load employees
+        async function loadEmployees() {
+            try {
+                const response = await fetch('http://localhost:3000/api/user/getAllUsers', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const employees = await response.json();
+                    const tbody = document.getElementById('employeeTableBody');
+                    tbody.innerHTML = '';
+
+                    employees.forEach(emp => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${emp.name}</td>
+                                <td>${emp.email}</td>
+                                <td>${emp.role}</td>
+                                <td>${emp.department || '-'}</td>
+                                <td>
+                                    <button onclick="editEmployee(${emp.userId})">Edit</button>
+                                    <button onclick="deleteEmployee(${emp.userId})">Delete</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading employees:', error);
+            }
+        }
     </script>
 </body>
 </html> 
