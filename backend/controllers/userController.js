@@ -84,7 +84,51 @@ const createUser = async (req, res) => {
     }
 }
 
+const updateUser = async (req, res) => {
+    const { email, data } = req.body; 
+
+    //check if any of the fields are empty or if no data is being changed 
+    if (!email || !data || Object.keys(data).legnth === 0) return res.status(400).json({error: "Please fill out the form"});
+
+    let connection; 
+
+    try{
+        connection = await db.getConnection();
+
+        //check if password is being changed 
+        if(data.password) { //if its being changed hash the password 
+            const salt = await bcrypt.genSalt(10);
+            data.password = await bcrypt.hash(data.password, salt);
+        }
+        
+        //fields constructs it so that you get i.e. name = ?, password = ? etc.
+        const fields = Object.keys(data).map(field => `${field} = ?`).join(", ");
+        const values = Object.values(data); // get all the values into one array 
+
+        values.push(email); //add in email for the last WHERE email = ? clause 
+
+        const q = `UPDATE user SET ${fields} WHERE email = ?`;
+
+        const [result] = await connection.execute(q, values); // execute and return for checking
+
+        // check if any users were affected 
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        res.status(200).json({ message: "User updated successfully" });
+
+    }catch(err) {
+        console.error(err);
+        res.status(500).json({error: "Internal Server Error"});
+    }finally {
+        if(connection) connection.release();
+    }
+
+}
+
 module.exports = {
     loginUser,
-    createUser
+    createUser,
+    updateUser
 }
