@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Employee Smart Roster</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <!-- FullCalendar Dependencies -->
+    <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core/index.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid/index.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/interaction/index.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid/index.global.min.js'></script>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">ShiftRoster</div>
+        <div class="search-bar">
+            <input type="text" placeholder="Search...">
+        </div>
+        <div class="header-right">
+            <div class="notification-icon">
+                <i class="fas fa-bell"></i>
+            </div>
+            <div class="profile-icon">
+                <i class="fas fa-user"></i>
+            </div>
+            <div class="settings-dropdown">
+                <i class="fas fa-cog" onclick="toggleDropdown()"></i>
+                <div id="settingsDropdown" class="dropdown-content">
+                    <a href="#"><i class="fas fa-user-cog"></i> Settings</a>
+                    <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="nav-item active">
+                <i class="fas fa-th-large"></i>
+                Dashboard
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-calendar-alt"></i>
+                Schedule
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-clock"></i>
+                Time Off
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-chart-bar"></i>
+                Reports
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-money-bill-wave"></i>
+                Payroll
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="content-header">
+                <h1>Master Roster</h1>
+            </div>
+
+            <div class="calendar-section">
+                <div class="calendar-header">
+                    <h2>Calendar</h2>
+                    <div class="calendar-actions">
+                        <button class="calendar-btn" onclick="addShift()">
+                            <i class="fas fa-plus"></i> Add Shift
+                        </button>
+                    </div>
+                </div>
+                <div id="calendar"></div>
+            </div>
+
+            <div class="report-section">
+                <h2>Report Analysis</h2>
+                <!-- Report content will go here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+        }
+
+        function toggleDropdown() {
+            document.getElementById("settingsDropdown").classList.toggle("show");
+        }
+
+        // Close dropdown when clicking outside
+        window.onclick = function(event) {
+            if (!event.target.matches('.fa-cog')) {
+                const dropdowns = document.getElementsByClassName("dropdown-content");
+                for (let dropdown of dropdowns) {
+                    if (dropdown.classList.contains('show')) {
+                        dropdown.classList.remove('show');
+                    }
+                }
+            }
+        }
+
+        // Check authentication when page loads
+        checkAuth();
+
+        // Add click event listeners to nav items
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                // Remove active class from all items
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                // Add active class to clicked item
+                this.classList.add('active');
+            });
+        });
+
+        // Initialize calendar
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('calendar');
+            const calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'timeGridWeek',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                },
+                editable: true,
+                selectable: true,
+                selectMirror: true,
+                dayMaxEvents: true,
+                height: '100%',
+                events: [], // Will be populated from backend
+                select: function(info) {
+                    handleDateSelect(info, calendar);
+                },
+                eventClick: function(info) {
+                    handleEventClick(info.event);
+                }
+            });
+
+            calendar.render();
+
+            // Function to handle date selection
+            function handleDateSelect(selectInfo, calendar) {
+                const title = prompt('Enter shift title:');
+                if (title) {
+                    calendar.addEvent({
+                        title: title,
+                        start: selectInfo.start,
+                        end: selectInfo.end,
+                        allDay: selectInfo.allDay
+                    });
+                }
+                calendar.unselect();
+            }
+
+            // Function to handle event click
+            function handleEventClick(event) {
+                if (confirm(`Are you sure you want to delete '${event.title}'?`)) {
+                    event.remove();
+                }
+            }
+
+            // Function to add new shift
+            window.addShift = function() {
+                const now = new Date();
+                const title = prompt('Enter shift title:');
+                if (title) {
+                    calendar.addEvent({
+                        title: title,
+                        start: now,
+                        end: new Date(now.getTime() + 3600000) // 1 hour later
+                    });
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

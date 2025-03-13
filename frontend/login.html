@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Smart Roster - Login</title>
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <div class="container">
+        <div class="forms-container">
+            <!-- Login Form -->
+            <div class="form-section" id="login-section">
+                <div class="login-header">
+                    <h1>Employee Smart Roster</h1>
+                    <p>Sign in to access your account</p>
+                </div>
+                
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="login-email">Email</label>
+                        <input type="email" id="login-email" name="email" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" name="password" required>
+                    </div>
+                    
+                    <button type="submit" class="btn">Sign In</button>
+                    
+                    <div id="login-error" class="error-message"></div>
+                    
+                    <p class="switch-form">
+                        Don't have an account? <a href="#" id="show-signup">Sign Up</a>
+                    </p>
+                </form>
+            </div>
+
+            <!-- Signup Form -->
+            <div class="form-section" id="signup-section" style="display: none;">
+                <div class="login-header">
+                    <h1>Create Account</h1>
+                    <p>Sign up for Employee Smart Roster</p>
+                </div>
+                
+                <form id="signup-form">
+                    <div class="form-group">
+                        <label for="signup-name">Full Name</label>
+                        <input type="text" id="signup-name" name="name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signup-email">Email</label>
+                        <input type="email" id="signup-email" name="email" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="signup-password">Password</label>
+                        <input type="password" id="signup-password" name="password" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signup-birthday">Birthday</label>
+                        <input type="date" id="signup-birthday" name="birthday" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signup-gender">Gender</label>
+                        <select id="signup-gender" name="gender" required>
+                            <option value="">Select Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn">Sign Up</button>
+                    
+                    <div id="signup-error" class="error-message"></div>
+                    
+                    <p class="switch-form">
+                        Already have an account? <a href="#" id="show-login">Login</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Handle extension errors
+        window.addEventListener('error', function(e) {
+            // Ignore crypto wallet and React DevTools errors
+            if (e.message.includes('ethereum') || e.message.includes('React')) {
+                e.stopPropagation();
+                return;
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginSection = document.getElementById('login-section');
+            const signupSection = document.getElementById('signup-section');
+            const showSignup = document.getElementById('show-signup');
+            const showLogin = document.getElementById('show-login');
+
+            // Switch between login and signup forms
+            showSignup.addEventListener('click', (e) => {
+                e.preventDefault();
+                loginSection.style.display = 'none';
+                signupSection.style.display = 'block';
+            });
+
+            showLogin.addEventListener('click', (e) => {
+                e.preventDefault();
+                signupSection.style.display = 'none';
+                loginSection.style.display = 'block';
+            });
+
+            // Handle login form submission
+            document.getElementById('login-form').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+                const errorMessage = document.getElementById('login-error');
+                
+                errorMessage.style.display = 'none';
+                
+                try {
+                    const response = await fetch('http://localhost:3000/api/user/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        localStorage.setItem('token', data.token);
+                        window.location.href = '/dashboard.html';
+                    } else {
+                        errorMessage.textContent = data.error || 'Login failed. Please try again.';
+                        errorMessage.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Error during login:', error);
+                    errorMessage.textContent = 'An error occurred. Please try again later.';
+                    errorMessage.style.display = 'block';
+                }
+            });
+
+            // Handle signup form submission
+            document.getElementById('signup-form').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const formData = {
+                    name: document.getElementById('signup-name').value,
+                    email: document.getElementById('signup-email').value,
+                    password: document.getElementById('signup-password').value,
+                    birthday: document.getElementById('signup-birthday').value,
+                    gender: document.getElementById('signup-gender').value,
+                    role: 'Employee' // Default role for new signups
+                };
+
+                const errorMessage = document.getElementById('signup-error');
+                errorMessage.style.display = 'none';
+                
+                try {
+                    // Test if server is reachable
+                    try {
+                        await fetch('http://localhost:3000/');
+                    } catch (error) {
+                        throw new Error('Cannot connect to server. Please make sure the server is running.');
+                    }
+
+                    // First create the role if it doesn't exist
+                    await fetch('http://localhost:3000/api/role/createRole', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            roleName: 'Employee',
+                            description: 'Regular employee'
+                        })
+                    });
+
+                    // Then create the user
+                    const response = await fetch('http://localhost:3000/api/user/createUser', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(formData)
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        // Show success message and switch to login form
+                        alert('Account created successfully! Please login.');
+                        signupSection.style.display = 'none';
+                        loginSection.style.display = 'block';
+                        document.getElementById('signup-form').reset();
+                    } else {
+                        errorMessage.textContent = data.error || 'Signup failed. Please try again.';
+                        errorMessage.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Error during signup:', error);
+                    errorMessage.textContent = error.message || 'An error occurred. Please make sure the server is running.';
+                    errorMessage.style.display = 'block';
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
