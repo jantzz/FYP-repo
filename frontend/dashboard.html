@@ -197,14 +197,32 @@
         // Check authentication when page loads
         checkAuth();
 
-        // Add click event listeners to nav items
+        // Add click handlers for navigation
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', function() {
                 // Remove active class from all items
                 document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
                 // Add active class to clicked item
                 this.classList.add('active');
+
+                // Hide all sections first
+                document.querySelector('.calendar-section').style.display = 'none';
+                document.querySelector('.employee-section').style.display = 'none';
+                document.querySelector('.report-section').style.display = 'none';
+
+                // Show appropriate section based on clicked item
+                if (this.textContent.trim() === 'Dashboard') {
+                    document.querySelector('.calendar-section').style.display = 'block';
+                    document.querySelector('.report-section').style.display = 'block';
+                } else if (this.textContent.trim() === 'Employee Management') {
+                    document.querySelector('.employee-section').style.display = 'block';
+                }
             });
+        });
+
+        // Update employee management click handler
+        document.getElementById('employee-management').addEventListener('click', function() {
+            loadEmployees();
         });
 
         // Initialize calendar
@@ -266,15 +284,6 @@
                     });
                 }
             }
-        });
-
-        // Employee Management
-        document.getElementById('employee-management').addEventListener('click', function() {
-            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            this.classList.add('active');
-            document.querySelector('.calendar-section').style.display = 'none';
-            document.querySelector('.employee-section').style.display = 'block';
-            loadEmployees();
         });
 
         // Modal handling
