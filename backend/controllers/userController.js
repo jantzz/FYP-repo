@@ -49,6 +49,7 @@ const loginUser = async (req, res) => {
 const createUser = async (req, res) => {
     const { name, email, password, role, birthday, gender } = req.body;
 
+    //for dep and assignedTasks check if there are values, if not set null 
     const department = req.body.department ? req.body.department: null; 
     const assignedTask = req.body.assignedTask ? req.body.assignedTask: null;
 
@@ -61,6 +62,7 @@ const createUser = async (req, res) => {
     
         const q = "INSERT INTO user (name, email, password, role, birthday, gender, department, assignedTask) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         
+        //generate salt and hash password 
         const salt = await bcrypt.genSalt(10);
 
         const hashed = await bcrypt.hash(password, salt);
@@ -69,6 +71,7 @@ const createUser = async (req, res) => {
             name, email, hashed , role, birthday, gender, department, assignedTask
         ];
 
+        //command .execute is used over .query because we are handling async functions 
         connection.execute(q, data);
 
         return res.status(200).json({message: "User created successfully"});
@@ -76,7 +79,7 @@ const createUser = async (req, res) => {
     }catch(err) {
         console.error(err);
         res.status(500).json({error: "Internal Server Error"});
-    }finally {
+    }finally { //release the connection to avoid infinite wait times 
         if (connection) connection.release();
     }
 }
