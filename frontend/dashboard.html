@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Employee Smart Roster</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="css/dashboard.css">
     <!-- FullCalendar Dependencies -->
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core/index.global.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid/index.global.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/interaction/index.global.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid/index.global.min.js'></script>
+    <!-- Custom JavaScript -->
+    <script src="js/dashboard.js" defer></script>
 </head>
 <body>
     <!-- Header -->
@@ -71,15 +73,53 @@
             <div class="content-header">
                 <h1>Master Roster</h1>
             </div>
-
-            <div class="calendar-section">
-                <div class="calendar-header">
-                    <h2>Calendar</h2>
-                    <div class="calendar-actions">
-                        <button class="calendar-btn" onclick="addShift()">
-                            <i class="fas fa-plus"></i> Add Shift
-                        </button>
+            
+            <!-- Upcoming Shifts Section -->
+            <div class="upcoming-shifts-section">
+                <div class="section-header">
+                    <h2>Upcoming Shifts</h2>
+                </div>
+                <div class="shifts-container">
+                    <div class="shift-card">
+                        <div class="shift-date">Today</div>
+                        <div class="shift-time">9:00 AM - 5:00 PM</div>
+                        <div class="shift-details">
+                            <span class="shift-department">Front Desk</span>
+                            <span class="shift-status">Confirmed</span>
+                        </div>
                     </div>
+                    <div class="shift-card">
+                        <div class="shift-date">Tomorrow</div>
+                        <div class="shift-time">10:00 AM - 6:00 PM</div>
+                        <div class="shift-details">
+                            <span class="shift-department">Front Desk</span>
+                            <span class="shift-status">Confirmed</span>
+                        </div>
+                    </div>
+                    <div class="shift-card">
+                        <div class="shift-date">Mar 15, 2025</div>
+                        <div class="shift-time">8:00 AM - 4:00 PM</div>
+                        <div class="shift-details">
+                            <span class="shift-department">Back Office</span>
+                            <span class="shift-status">Pending</span>
+                        </div>
+                    </div>
+                    <div class="shift-card add-shift-card" onclick="addShift()">
+                        <div class="add-shift-icon">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <div class="add-shift-text">Add Shift</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Calendar Section -->
+            <div class="calendar-section">
+                <div class="section-header">
+                    <h2>Calendar</h2>
+                    <button class="btn-primary" id="add-shift-btn" onclick="addShift()">
+                        <i class="fas fa-plus"></i> Add Shift
+                    </button>
                 </div>
                 <div id="calendar"></div>
             </div>
@@ -244,366 +284,94 @@
         </div>
     </div>
 
-    <script>
-        // Check if user is logged in
-        function checkAuth() {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/login.html';
-            }
-        }
+    <!-- Edit Shift Modal -->
+    <div id="editShiftModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditShiftModal()">&times;</span>
+            <h2>Edit Shift</h2>
+            <form id="editShiftForm">
+                <div class="form-group">
+                    <label for="edit-shift-title">Shift Title</label>
+                    <input type="text" id="edit-shift-title" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="edit-shift-start-date">Start Date</label>
+                        <input type="date" id="edit-shift-start-date" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="edit-shift-start-time">Start Time</label>
+                        <input type="time" id="edit-shift-start-time" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="edit-shift-end-date">End Date</label>
+                        <input type="date" id="edit-shift-end-date" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="edit-shift-end-time">End Time</label>
+                        <input type="time" id="edit-shift-end-time" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-shift-status">Status</label>
+                    <select id="edit-shift-status" required>
+                        <option value="Pending">Pending</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <input type="hidden" id="edit-shift-id">
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                    <button type="button" class="btn-danger" onclick="deleteShift()">Delete Shift</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-        function logout() {
-            localStorage.removeItem('token');
-            window.location.href = '/login.html';
-        }
-
-        function toggleDropdown() {
-            document.getElementById("settingsDropdown").classList.toggle("show");
-        }
-
-        // Close dropdown when clicking outside
-        window.onclick = function(event) {
-            if (!event.target.matches('.fa-cog')) {
-                const dropdowns = document.getElementsByClassName("dropdown-content");
-                for (let dropdown of dropdowns) {
-                    if (dropdown.classList.contains('show')) {
-                        dropdown.classList.remove('show');
-                    }
-                }
-            }
-        }
-
-        // Check authentication when page loads
-        checkAuth();
-
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize calendar
-            const calendarEl = document.getElementById('calendar');
-            const calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
-                },
-                selectable: true,
-                editable: true,
-                select: function(selectInfo) {
-                    handleDateSelect(selectInfo, calendar);
-                },
-                eventClick: function(clickInfo) {
-                    handleEventClick(clickInfo.event);
-                }
-            });
-            
-            calendar.render();
-            
-            // Add click handlers for navigation
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.addEventListener('click', function() {
-                    // Remove active class from all items
-                    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-                    // Add active class to clicked item
-                    this.classList.add('active');
-                    
-                    // Hide all sections first
-                    document.querySelector('.calendar-section').style.display = 'none';
-                    document.querySelector('.employee-section').style.display = 'none';
-                    document.querySelector('.report-section').style.display = 'none';
-                    
-                    // Show appropriate section based on clicked item
-                    if (this.textContent.trim() === 'Dashboard') {
-                        document.querySelector('.calendar-section').style.display = 'block';
-                        document.querySelector('.report-section').style.display = 'block';
-                        // Refresh calendar when switching back to dashboard
-                        calendar.render();
-                    } else if (this.textContent.trim() === 'Employee Management') {
-                        document.querySelector('.employee-section').style.display = 'block';
-                    }
-                });
-            });
-            
-            // Function to handle date selection
-            function handleDateSelect(selectInfo, calendar) {
-                const title = prompt('Enter shift title:');
-                if (title) {
-                    calendar.addEvent({
-                        title: title,
-                        start: selectInfo.start,
-                        end: selectInfo.end,
-                        allDay: selectInfo.allDay
-                    });
-                }
-                calendar.unselect();
-            }
-            
-            // Function to handle event click
-            function handleEventClick(event) {
-                if (confirm(`Are you sure you want to delete '${event.title}'?`)) {
-                    event.remove();
-                }
-            }
-            
-            // Function to add new shift
-            window.addShift = function() {
-                const now = new Date();
-                const title = prompt('Enter shift title:');
-                if (title) {
-                    calendar.addEvent({
-                        title: title,
-                        start: now,
-                        end: new Date(now.getTime() + 3600000) // 1 hour later
-                    });
-                }
-            }
-        });
-
-        // Modal handling
-        const modal = document.getElementById('createEmployeeModal');
-        const span = document.getElementsByClassName('close')[0];
-
-        function showCreateEmployeeModal() {
-            modal.style.display = 'block';
-        }
-
-        span.onclick = function() {
-            modal.style.display = 'none';
-        }
-
-        window.onclick = function(event) {
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        }
-
-        // Handle employee creation
-        document.getElementById('createEmployeeForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = {
-                name: document.getElementById('name').value,
-                email: document.getElementById('email').value,
-                password: document.getElementById('password').value,
-                birthday: document.getElementById('birthday').value,
-                gender: document.getElementById('gender').value,
-                role: document.getElementById('role').value,
-                department: document.getElementById('department').value
-            };
-
-            try {
-                // First create the role if it doesn't exist
-                await fetch(
-                    '/api/role/createRole',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            roleName: formData.role,
-                            description: `${formData.role} role`
-                        })
-                    }
-                );
-
-                // Then create the user
-                const response = await fetch(
-                    '/api/user/createUser',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        },
-                        body: JSON.stringify(formData)
-                    }
-                );
-
-                if (response.ok) {
-                    alert('Employee created successfully');
-                    modal.style.display = 'none';
-                    document.getElementById('createEmployeeForm').reset();
-                    loadEmployees();
-                } else {
-                    const data = await response.json();
-                    alert(data.error || 'Failed to create employee');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Failed to create employee');
-            }
-        });
-
-        // Load employees
-        async function loadEmployees() {
-            try {
-                const response = await fetch('http://localhost:3000/api/user/getAllUsers', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-
-                if (response.ok) {
-                    const employees = await response.json();
-                    const tbody = document.getElementById('employeeTableBody');
-                    tbody.innerHTML = '';
-
-                    employees.forEach(emp => {
-                        tbody.innerHTML += `
-                            <tr>
-                                <td>${emp.name}</td>
-                                <td>${emp.email}</td>
-                                <td>${emp.role}</td>
-                                <td>${emp.department || '-'}</td>
-                                <td>
-                                    <button onclick="editEmployee(${emp.userId})">Edit</button>
-                                    <button onclick="deleteEmployee(${emp.userId})">Delete</button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading employees:', error);
-            }
-        }
-
-        // Profile Modal Functions
-        const profileModal = document.getElementById('profileModal');
-        const editProfileModal = document.getElementById('editProfileModal');
-        
-        function toggleProfileModal() {
-            profileModal.style.display = 'block';
-            loadUserProfile();
-        }
-        
-        function closeProfileModal() {
-            profileModal.style.display = 'none';
-        }
-        
-        function showEditProfileModal() {
-            profileModal.style.display = 'none';
-            editProfileModal.style.display = 'block';
-            
-            // Pre-fill the edit form with current values
-            document.getElementById('edit-name').value = document.getElementById('profile-name').textContent;
-            document.getElementById('edit-email').value = document.getElementById('profile-email').textContent;
-            document.getElementById('edit-department').value = document.getElementById('profile-department').textContent;
-            document.getElementById('edit-birthday').value = formatDateForInput(document.getElementById('profile-birthday').textContent);
-            document.getElementById('edit-gender').value = document.getElementById('profile-gender').textContent;
-        }
-        
-        function closeEditProfileModal() {
-            editProfileModal.style.display = 'none';
-        }
-        
-        // Format date from DD/MM/YYYY to YYYY-MM-DD for input field
-        function formatDateForInput(dateStr) {
-            if (!dateStr || dateStr === 'Loading...' || dateStr === '-') return '';
-            
-            const parts = dateStr.split('/');
-            if (parts.length !== 3) return '';
-            
-            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-        }
-        
-        // Load user profile data
-        async function loadUserProfile() {
-            try {
-                // Get the user info from localStorage if available
-                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-                
-                document.getElementById('profile-name').textContent = userInfo.name || '-';
-                document.getElementById('profile-email').textContent = userInfo.email || '-';
-                document.getElementById('profile-role').textContent = userInfo.role || '-';
-                document.getElementById('profile-department').textContent = userInfo.department || '-';
-                
-                // Format date as DD/MM/YYYY if available
-                const birthday = userInfo.birthday ? new Date(userInfo.birthday) : null;
-                document.getElementById('profile-birthday').textContent = birthday ? 
-                    `${birthday.getDate()}/${birthday.getMonth() + 1}/${birthday.getFullYear()}` : '-';
-                
-                document.getElementById('profile-gender').textContent = userInfo.gender || '-';
-                
-                /* Uncomment when implement the profile endpoint
-                const response = await fetch('/api/user/profile', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                
-                if (response.ok) {
-                    const userData = await response.json();
-                    
-                    document.getElementById('profile-name').textContent = userData.name || '-';
-                    document.getElementById('profile-email').textContent = userData.email || '-';
-                    document.getElementById('profile-role').textContent = userData.role || '-';
-                    document.getElementById('profile-department').textContent = userData.department || '-';
-                    
-                    // Format date as DD/MM/YYYY
-                    const birthday = userData.birthday ? new Date(userData.birthday) : null;
-                    document.getElementById('profile-birthday').textContent = birthday ? 
-                        `${birthday.getDate()}/${birthday.getMonth() + 1}/${birthday.getFullYear()}` : '-';
-                    
-                    document.getElementById('profile-gender').textContent = userData.gender || '-';
-                } else {
-                    console.error('Failed to load profile');
-                }
-                */
-            } catch (error) {
-                console.error('Error loading profile:', error);
-            }
-        }
-        
-        // Handle profile update
-        document.getElementById('editProfileForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = {
-                name: document.getElementById('edit-name').value,
-                email: document.getElementById('edit-email').value,
-                department: document.getElementById('edit-department').value,
-                birthday: document.getElementById('edit-birthday').value,
-                gender: document.getElementById('edit-gender').value
-            };
-            
-            try {
-                const response = await fetch('/api/user/updateUser', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify(formData)
-                });
-                
-                if (response.ok) {
-                    alert('Profile updated successfully');
-                    closeEditProfileModal();
-                    toggleProfileModal(); // Reload profile data
-                } else {
-                    const data = await response.json();
-                    alert(data.error || 'Failed to update profile');
-                }
-            } catch (error) {
-                console.error('Error updating profile:', error);
-                alert('An error occurred while updating your profile');
-            }
-        });
-
-        // Update window.onclick to handle both modals
-        window.onclick = function(event) {
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-            if (event.target == profileModal) {
-                profileModal.style.display = 'none';
-            }
-            if (event.target == editProfileModal) {
-                editProfileModal.style.display = 'none';
-            }
-        }
-    </script>
+    <!-- Add Shift Modal -->
+    <div id="addShiftModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddShiftModal()">&times;</span>
+            <h2>Add New Shift</h2>
+            <form id="addShiftForm">
+                <div class="form-group">
+                    <label for="add-shift-title">Shift Title</label>
+                    <input type="text" id="add-shift-title" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="add-shift-start-date">Start Date</label>
+                        <input type="date" id="add-shift-start-date" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="add-shift-start-time">Start Time</label>
+                        <input type="time" id="add-shift-start-time" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="add-shift-end-date">End Date</label>
+                        <input type="date" id="add-shift-end-date" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="add-shift-end-time">End Time</label>
+                        <input type="time" id="add-shift-end-time" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="add-shift-status">Status</label>
+                    <select id="add-shift-status" required>
+                        <option value="Pending">Pending</option>
+                        <option value="Confirmed">Confirmed</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Add Shift</button>
+            </form>
+        </div>
+    </div>
 </body>
 </html> 

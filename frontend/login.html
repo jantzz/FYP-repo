@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Smart Roster - Login</title>
-    <link rel="stylesheet" href="login.css">
+    <title>Login - Employee Smart Roster</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/login.css">
+    <script src="js/login.js" defer></script>
 </head>
 <body>
     <div class="container">
@@ -86,143 +88,5 @@
             </div>
         </div>
     </div>
-
-    <script>
-        // Handle extension errors
-        window.addEventListener('error', function(e) {
-            // Ignore crypto wallet and React DevTools errors
-            if (e.message.includes('ethereum') || e.message.includes('React')) {
-                e.stopPropagation();
-                return;
-            }
-        });
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const loginSection = document.getElementById('login-section');
-            const signupSection = document.getElementById('signup-section');
-            const showSignup = document.getElementById('show-signup');
-            const showLogin = document.getElementById('show-login');
-            
-            // Switch between login and signup forms
-            showSignup.addEventListener('click', (e) => {
-                e.preventDefault();
-                loginSection.style.display = 'none';
-                signupSection.style.display = 'block';
-            });
-            
-            showLogin.addEventListener('click', (e) => {
-                e.preventDefault();
-                signupSection.style.display = 'none';
-                loginSection.style.display = 'block';
-            });
-
-            // Handle login form submission
-            document.getElementById('login-form').addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                const email = document.getElementById('login-email').value;
-                const password = document.getElementById('login-password').value;
-                const errorMessage = document.getElementById('login-error');
-                
-                errorMessage.style.display = 'none';
-                
-                try {
-                    const response = await fetch(
-                        '/api/user/login',
-                        {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ email, password })
-                        }
-                    );
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok) {
-                        localStorage.setItem('token', data.token);
-                        // Store basic user info for profile display
-                        localStorage.setItem('userInfo', JSON.stringify({
-                            name: data.name,
-                            email: email,
-                            role: data.role,
-                            department: data.department,
-                            birthday: data.birthday,
-                            gender: data.gender
-                        }));
-                        window.location.href = '/dashboard.html';
-                    } else {
-                        errorMessage.textContent = data.error || 'Login failed. Please try again.';
-                        errorMessage.style.display = 'block';
-                    }
-                } catch (error) {
-                    console.error('Error during login:', error);
-                    errorMessage.textContent = 'An error occurred. Please try again later.';
-                    errorMessage.style.display = 'block';
-                }
-            });
-            
-            // Handle signup form submission
-            document.getElementById('signup-form').addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                const name = document.getElementById('signup-name').value;
-                const email = document.getElementById('signup-email').value;
-                const password = document.getElementById('signup-password').value;
-                const birthday = document.getElementById('signup-birthday').value;
-                const gender = document.getElementById('signup-gender').value;
-                const errorMessage = document.getElementById('signup-error');
-                
-                errorMessage.style.display = 'none';
-                
-                try {
-                    // First create the Employee role if it doesn't exist
-                    await fetch('/api/role/createRole', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            roleName: 'Employee',
-                            description: 'Regular employee role'
-                        })
-                    });
-                    
-                    // Then create the user
-                    const response = await fetch('/api/user/createUser', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            name,
-                            email,
-                            password,
-                            birthday,
-                            gender,
-                            role: 'Employee'
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok) {
-                        alert('Account created successfully! Please log in.');
-                        signupSection.style.display = 'none';
-                        loginSection.style.display = 'block';
-                        document.getElementById('signup-form').reset();
-                    } else {
-                        errorMessage.textContent = data.error || 'Signup failed. Please try again.';
-                        errorMessage.style.display = 'block';
-                    }
-                } catch (error) {
-                    console.error('Error during signup:', error);
-                    errorMessage.textContent = 'An error occurred. Please try again later.';
-                    errorMessage.style.display = 'block';
-                }
-            });
-        });
-    </script>
 </body>
 </html> 
