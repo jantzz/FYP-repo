@@ -277,60 +277,53 @@
         // Check authentication when page loads
         checkAuth();
 
-        // Add click handlers for navigation
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                // Remove active class from all items
-                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-                // Add active class to clicked item
-                this.classList.add('active');
-
-                // Hide all sections first
-                document.querySelector('.calendar-section').style.display = 'none';
-                document.querySelector('.employee-section').style.display = 'none';
-                document.querySelector('.report-section').style.display = 'none';
-
-                // Show appropriate section based on clicked item
-                if (this.textContent.trim() === 'Dashboard') {
-                    document.querySelector('.calendar-section').style.display = 'block';
-                    document.querySelector('.report-section').style.display = 'block';
-                } else if (this.textContent.trim() === 'Employee Management') {
-                    document.querySelector('.employee-section').style.display = 'block';
-                }
-            });
-        });
-
-        // Update employee management click handler
-        document.getElementById('employee-management').addEventListener('click', function() {
-            loadEmployees();
-        });
-
-        // Initialize calendar
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize calendar
             const calendarEl = document.getElementById('calendar');
             const calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'timeGridWeek',
+                initialView: 'dayGridMonth',
                 headerToolbar: {
                     left: 'prev,next today',
                     center: 'title',
                     right: 'dayGridMonth,timeGridWeek,timeGridDay'
                 },
-                editable: true,
                 selectable: true,
-                selectMirror: true,
-                dayMaxEvents: true,
-                height: '100%',
-                events: [], // Will be populated from backend
-                select: function(info) {
-                    handleDateSelect(info, calendar);
+                editable: true,
+                select: function(selectInfo) {
+                    handleDateSelect(selectInfo, calendar);
                 },
-                eventClick: function(info) {
-                    handleEventClick(info.event);
+                eventClick: function(clickInfo) {
+                    handleEventClick(clickInfo.event);
                 }
             });
-
+            
             calendar.render();
-
+            
+            // Add click handlers for navigation
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    // Remove active class from all items
+                    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                    // Add active class to clicked item
+                    this.classList.add('active');
+                    
+                    // Hide all sections first
+                    document.querySelector('.calendar-section').style.display = 'none';
+                    document.querySelector('.employee-section').style.display = 'none';
+                    document.querySelector('.report-section').style.display = 'none';
+                    
+                    // Show appropriate section based on clicked item
+                    if (this.textContent.trim() === 'Dashboard') {
+                        document.querySelector('.calendar-section').style.display = 'block';
+                        document.querySelector('.report-section').style.display = 'block';
+                        // Refresh calendar when switching back to dashboard
+                        calendar.render();
+                    } else if (this.textContent.trim() === 'Employee Management') {
+                        document.querySelector('.employee-section').style.display = 'block';
+                    }
+                });
+            });
+            
             // Function to handle date selection
             function handleDateSelect(selectInfo, calendar) {
                 const title = prompt('Enter shift title:');
@@ -344,14 +337,14 @@
                 }
                 calendar.unselect();
             }
-
+            
             // Function to handle event click
             function handleEventClick(event) {
                 if (confirm(`Are you sure you want to delete '${event.title}'?`)) {
                     event.remove();
                 }
             }
-
+            
             // Function to add new shift
             window.addShift = function() {
                 const now = new Date();
@@ -518,6 +511,22 @@
         // Load user profile data
         async function loadUserProfile() {
             try {
+                // Get the user info from localStorage if available
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                
+                document.getElementById('profile-name').textContent = userInfo.name || '-';
+                document.getElementById('profile-email').textContent = userInfo.email || '-';
+                document.getElementById('profile-role').textContent = userInfo.role || '-';
+                document.getElementById('profile-department').textContent = userInfo.department || '-';
+                
+                // Format date as DD/MM/YYYY if available
+                const birthday = userInfo.birthday ? new Date(userInfo.birthday) : null;
+                document.getElementById('profile-birthday').textContent = birthday ? 
+                    `${birthday.getDate()}/${birthday.getMonth() + 1}/${birthday.getFullYear()}` : '-';
+                
+                document.getElementById('profile-gender').textContent = userInfo.gender || '-';
+                
+                /* Uncomment when implement the profile endpoint
                 const response = await fetch('/api/user/profile', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -541,6 +550,7 @@
                 } else {
                     console.error('Failed to load profile');
                 }
+                */
             } catch (error) {
                 console.error('Error loading profile:', error);
             }

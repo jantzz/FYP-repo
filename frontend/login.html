@@ -142,6 +142,15 @@
                     
                     if (response.ok) {
                         localStorage.setItem('token', data.token);
+                        // Store basic user info for profile display
+                        localStorage.setItem('userInfo', JSON.stringify({
+                            name: data.name,
+                            email: email,
+                            role: data.role,
+                            department: data.department,
+                            birthday: data.birthday,
+                            gender: data.gender
+                        }));
                         window.location.href = '/dashboard.html';
                     } else {
                         errorMessage.textContent = data.error || 'Login failed. Please try again.';
