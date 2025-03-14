@@ -149,6 +149,133 @@
                 </div>
             </div>
 
+            <!-- Time Off Section -->
+            <div class="time-off-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Time Off</h2>
+                    <button class="btn-primary" onclick="showRequestTimeOffModal()">
+                        <i class="fas fa-plus"></i> Request Time Off
+                    </button>
+                </div>
+                
+                <div class="time-off-policies">
+                    <h3>Time Off Policies</h3>
+                    <div class="policy-cards">
+                        <div class="policy-card">
+                            <h4>PL</h4>
+                            <p>Paid Leave</p>
+                            <span class="policy-amount">10 days</span>
+                        </div>
+                        <div class="policy-card">
+                            <h4>NPL</h4>
+                            <p>Non-Paid Leave</p>
+                            <span class="policy-amount">5 days</span>
+                        </div>
+                        <div class="policy-card">
+                            <h4>MC</h4>
+                            <p>Medical Certificate</p>
+                            <span class="policy-amount">14 days</span>
+                        </div>
+                        <!-- More policy cards can be added here -->
+                    </div>
+                </div>
+                
+                <div class="request-history">
+                    <h3>Request History</h3>
+                    <table class="time-off-table">
+                        <thead>
+                            <tr>
+                                <th>Date Requested</th>
+                                <th>Type</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timeOffHistoryBody">
+                            <!-- Time off history will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Schedule Section -->
+            <div class="schedule-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Schedule</h2>
+                </div>
+                
+                <div class="schedule-tabs">
+                    <div class="tab active" data-tab="my-roster">My Roster</div>
+                    <div class="tab" data-tab="my-availability">My Availability</div>
+                    <div class="tab" data-tab="replacement">Replacement</div>
+                </div>
+                
+                <div class="tab-content">
+                    <!-- My Roster Tab -->
+                    <div class="tab-pane active" id="my-roster-tab">
+                        <div id="employee-calendar"></div>
+                    </div>
+                    
+                    <!-- My Availability Tab -->
+                    <div class="tab-pane" id="my-availability-tab">
+                        <div class="availability-header">
+                            <h3>My Availability Settings</h3>
+                            <button class="btn-primary" onclick="showAvailabilityModal()">
+                                <i class="fas fa-plus"></i> Add Availability
+                            </button>
+                        </div>
+                        
+                        <div class="availability-list">
+                            <table class="availability-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Time</th>
+                                        <th>Status</th>
+                                        <th>Note</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="availabilityTableBody">
+                                    <!-- Availability data will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Replacement Tab -->
+                    <div class="tab-pane" id="replacement-tab">
+                        <div class="replacement-header">
+                            <h3>Available Replacements</h3>
+                        </div>
+                        
+                        <div class="master-roster-view">
+                            <div class="roster-search">
+                                <input type="text" placeholder="Search employees..." id="roster-search">
+                            </div>
+                            
+                            <table class="roster-table">
+                                <thead>
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>Mon</th>
+                                        <th>Tue</th>
+                                        <th>Wed</th>
+                                        <th>Thu</th>
+                                        <th>Fri</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rosterTableBody">
+                                    <!-- Roster data will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="report-section">
                 <h2>Report Analysis</h2>
                 <!-- Report content will go here -->
@@ -370,6 +497,117 @@
                     </select>
                 </div>
                 <button type="submit" class="btn-primary">Add Shift</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Request Time Off Modal -->
+    <div id="requestTimeOffModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeRequestTimeOffModal()">&times;</span>
+            <h2>New Time Off Request</h2>
+            <form id="requestTimeOffForm">
+                <div class="form-group">
+                    <label for="time-off-policy">Time Off Policy</label>
+                    <select id="time-off-policy" required>
+                        <option value="">Select Type</option>
+                        <option value="PL">Paid Leave (PL)</option>
+                        <option value="NPL">Non-Paid Leave (NPL)</option>
+                        <option value="MC">Medical Certificate (MC)</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="time-off-start-date">Start Date</label>
+                        <input type="date" id="time-off-start-date" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="time-off-end-date">End Date</label>
+                        <input type="date" id="time-off-end-date" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="time-off-notes">Additional Notes</label>
+                    <textarea id="time-off-notes" rows="4"></textarea>
+                </div>
+                <button type="submit" class="btn-primary">Submit Request</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Time Off Request Details Modal (Manager View) -->
+    <div id="timeOffDetailsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeTimeOffDetailsModal()">&times;</span>
+            <h2>Time Off Request</h2>
+            <div class="employee-info">
+                <h3 id="request-employee-name">Employee Name</h3>
+            </div>
+            <div class="request-details" id="request-details-container">
+                <!-- Request details will be populated here -->
+            </div>
+            <div class="form-actions manager-actions">
+                <button type="button" class="btn-primary" onclick="approveTimeOff()">Accept</button>
+                <button type="button" class="btn-danger" onclick="rejectTimeOff()">Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Availability Modal -->
+    <div id="availabilityModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAvailabilityModal()">&times;</span>
+            <h2>Set Availability</h2>
+            <form id="availabilityForm">
+                <div class="form-group">
+                    <label>Availability Type</label>
+                    <div class="availability-toggle">
+                        <label class="toggle-label">
+                            <input type="radio" name="availability-type" value="unavailable" checked>
+                            <span>Unavailable</span>
+                        </label>
+                        <label class="toggle-label">
+                            <input type="radio" name="availability-type" value="prefer">
+                            <span>Prefer to Work</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="availability-date">Date</label>
+                    <div class="date-selection">
+                        <input type="date" id="availability-date" required>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="all-day-checkbox">
+                            <span>All Day</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-row" id="time-selection">
+                    <div class="form-group half-width">
+                        <label for="availability-start-time">From</label>
+                        <input type="time" id="availability-start-time" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="availability-end-time">To</label>
+                        <input type="time" id="availability-end-time" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="availability-note">Note (Optional)</label>
+                    <textarea id="availability-note" rows="2"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="repeat-checkbox">
+                        <span>Repeat</span>
+                    </label>
+                </div>
+                
+                <button type="submit" class="btn-primary">Save</button>
             </form>
         </div>
     </div>

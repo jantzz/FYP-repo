@@ -70,6 +70,8 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelector('.upcoming-shifts-section').style.display = 'none';
             document.querySelector('.calendar-section').style.display = 'none';
             document.querySelector('.employee-section').style.display = 'none';
+            document.querySelector('.time-off-section').style.display = 'none';
+            document.querySelector('.schedule-section').style.display = 'none';
             document.querySelector('.report-section').style.display = 'none';
             
             // Show appropriate section based on clicked item
@@ -81,10 +83,44 @@ document.addEventListener('DOMContentLoaded', function() {
                 calendar.render();
             } else if (this.textContent.trim() === 'Employee Management') {
                 document.querySelector('.employee-section').style.display = 'block';
+            } else if (this.textContent.trim() === 'Time Off') {
+                document.querySelector('.time-off-section').style.display = 'block';
+                // Load time off history
+                loadTimeOffHistory();
             } else if (this.textContent.trim() === 'Schedule') {
-                document.querySelector('.calendar-section').style.display = 'block';
-                // Refresh calendar when switching to schedule
-                calendar.render();
+                document.querySelector('.schedule-section').style.display = 'block';
+                // Initialize employee calendar if not already done
+                if (!employeeCalendar) {
+                    initEmployeeCalendar();
+                } else {
+                    employeeCalendar.render();
+                }
+                // Load availability data
+                loadAvailabilityData();
+                // Load roster data
+                loadRosterData();
+            }
+        });
+    });
+    
+    // Tab switching functionality
+    document.querySelectorAll('.schedule-tabs .tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Remove active class from all tabs
+            document.querySelectorAll('.schedule-tabs .tab').forEach(t => t.classList.remove('active'));
+            // Add active class to clicked tab
+            this.classList.add('active');
+            
+            // Hide all tab panes
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+            
+            // Show the corresponding tab pane
+            const tabId = this.getAttribute('data-tab');
+            document.getElementById(`${tabId}-tab`).classList.add('active');
+            
+            // Refresh calendar if showing the roster tab
+            if (tabId === 'my-roster' && employeeCalendar) {
+                employeeCalendar.render();
             }
         });
     });
@@ -661,4 +697,548 @@ function formatDateForDisplay(date) {
     } else {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
-} 
+}
+
+// Time Off variables
+let currentTimeOffRequest = null;
+
+// Function to show the Time Off section
+function showTimeOffSection() {
+    // Hide all sections first
+    document.querySelector('.upcoming-shifts-section').style.display = 'none';
+    document.querySelector('.calendar-section').style.display = 'none';
+    document.querySelector('.employee-section').style.display = 'none';
+    document.querySelector('.report-section').style.display = 'none';
+    document.querySelector('.time-off-section').style.display = 'none';
+    
+    // Show Time Off section
+    document.querySelector('.time-off-section').style.display = 'block';
+    
+    // Load time off history
+    loadTimeOffHistory();
+}
+
+// Function to load time off history
+function loadTimeOffHistory() {
+    // This would typically fetch from an API
+    // For now, we'll use sample data
+    const sampleRequests = [
+        {
+            id: 1,
+            dateRequested: '2023-05-10',
+            type: 'PL',
+            startDate: '2023-06-01',
+            endDate: '2023-06-05',
+            status: 'Approved',
+            notes: 'Annual vacation'
+        },
+        {
+            id: 2,
+            dateRequested: '2023-07-15',
+            type: 'MC',
+            startDate: '2023-07-16',
+            endDate: '2023-07-17',
+            status: 'Approved',
+            notes: 'Doctor appointment'
+        },
+        {
+            id: 3,
+            dateRequested: '2023-08-20',
+            type: 'NPL',
+            startDate: '2023-09-10',
+            endDate: '2023-09-12',
+            status: 'Pending',
+            notes: 'Personal matters'
+        }
+    ];
+    
+    const tableBody = document.getElementById('timeOffHistoryBody');
+    tableBody.innerHTML = '';
+    
+    sampleRequests.forEach(request => {
+        const row = document.createElement('tr');
+        
+        // Format dates for display
+        const dateRequested = new Date(request.dateRequested).toLocaleDateString();
+        const startDate = new Date(request.startDate).toLocaleDateString();
+        const endDate = new Date(request.endDate).toLocaleDateString();
+        
+        // Determine status class
+        let statusClass = '';
+        if (request.status === 'Approved') {
+            statusClass = 'status-approved';
+        } else if (request.status === 'Rejected') {
+            statusClass = 'status-rejected';
+        } else {
+            statusClass = 'status-pending';
+        }
+        
+        row.innerHTML = `
+            <td>${dateRequested}</td>
+            <td>${request.type}</td>
+            <td>${startDate}</td>
+            <td>${endDate}</td>
+            <td><span class="request-status ${statusClass}">${request.status}</span></td>
+            <td class="request-actions">
+                <button class="action-btn view-btn" onclick="viewTimeOffRequest(${request.id})">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="action-btn delete-btn" onclick="deleteTimeOffRequest(${request.id})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+}
+
+// Function to show the request time off modal
+function showRequestTimeOffModal() {
+    const modal = document.getElementById('requestTimeOffModal');
+    modal.style.display = 'block';
+    
+    // Set default values
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('time-off-start-date').value = today;
+    document.getElementById('time-off-end-date').value = today;
+    document.getElementById('time-off-notes').value = '';
+    document.getElementById('time-off-policy').selectedIndex = 0;
+}
+
+// Function to close the request time off modal
+function closeRequestTimeOffModal() {
+    document.getElementById('requestTimeOffModal').style.display = 'none';
+}
+
+// Function to view a time off request
+function viewTimeOffRequest(requestId) {
+    // This would typically fetch the request details from an API
+    // For now, we'll use sample data
+    const request = {
+        id: requestId,
+        employeeName: 'John Doe',
+        dateRequested: '2023-08-20',
+        type: 'PL',
+        startDate: '2023-09-10',
+        endDate: '2023-09-12',
+        status: 'Pending',
+        notes: 'Taking some time off for personal matters.'
+    };
+    
+    currentTimeOffRequest = request;
+    
+    // Populate the details modal
+    document.getElementById('request-employee-name').textContent = request.employeeName;
+    
+    const detailsContainer = document.getElementById('request-details-container');
+    detailsContainer.innerHTML = `
+        <div class="detail-row">
+            <span class="detail-label">Request ID:</span>
+            <span class="detail-value">${request.id}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Date Requested:</span>
+            <span class="detail-value">${new Date(request.dateRequested).toLocaleDateString()}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Type:</span>
+            <span class="detail-value">${request.type}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">From:</span>
+            <span class="detail-value">${new Date(request.startDate).toLocaleDateString()}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">To:</span>
+            <span class="detail-value">${new Date(request.endDate).toLocaleDateString()}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Status:</span>
+            <span class="detail-value">${request.status}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Notes:</span>
+            <span class="detail-value">${request.notes}</span>
+        </div>
+    `;
+    
+    // Show or hide manager actions based on user role
+    const userRole = localStorage.getItem('userRole') || 'Employee';
+    const managerActions = document.querySelector('.manager-actions');
+    if (userRole === 'Manager' || userRole === 'Admin') {
+        managerActions.style.display = 'flex';
+    } else {
+        managerActions.style.display = 'none';
+    }
+    
+    // Show the modal
+    document.getElementById('timeOffDetailsModal').style.display = 'block';
+}
+
+// Function to close the time off details modal
+function closeTimeOffDetailsModal() {
+    document.getElementById('timeOffDetailsModal').style.display = 'none';
+    currentTimeOffRequest = null;
+}
+
+// Function to approve a time off request
+function approveTimeOff() {
+    if (currentTimeOffRequest) {
+        alert(`Time off request #${currentTimeOffRequest.id} has been approved.`);
+        closeTimeOffDetailsModal();
+        loadTimeOffHistory(); // Refresh the list
+    }
+}
+
+// Function to reject a time off request
+function rejectTimeOff() {
+    if (currentTimeOffRequest) {
+        alert(`Time off request #${currentTimeOffRequest.id} has been rejected.`);
+        closeTimeOffDetailsModal();
+        loadTimeOffHistory(); // Refresh the list
+    }
+}
+
+// Function to delete a time off request
+function deleteTimeOffRequest(requestId) {
+    if (confirm('Are you sure you want to delete this time off request?')) {
+        alert(`Time off request #${requestId} has been deleted.`);
+        loadTimeOffHistory(); // Refresh the list
+    }
+}
+
+// Handle time off request form submission
+document.getElementById('requestTimeOffForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const policy = document.getElementById('time-off-policy').value;
+    const startDate = document.getElementById('time-off-start-date').value;
+    const endDate = document.getElementById('time-off-end-date').value;
+    const notes = document.getElementById('time-off-notes').value;
+    
+    // Validate that end date is not before start date
+    if (new Date(endDate) < new Date(startDate)) {
+        alert('End date cannot be before start date');
+        return;
+    }
+    
+    // This would typically send the request to an API
+    // For now, we'll just show a success message
+    alert('Time off request submitted successfully!');
+    
+    // Close the modal and refresh the list
+    closeRequestTimeOffModal();
+    loadTimeOffHistory();
+});
+
+// Schedule variables
+let employeeCalendar = null;
+
+// Function to show the Schedule section
+function showScheduleSection() {
+    // Hide all sections first
+    document.querySelector('.upcoming-shifts-section').style.display = 'none';
+    document.querySelector('.calendar-section').style.display = 'none';
+    document.querySelector('.employee-section').style.display = 'none';
+    document.querySelector('.time-off-section').style.display = 'none';
+    document.querySelector('.report-section').style.display = 'none';
+    
+    // Show Schedule section
+    document.querySelector('.schedule-section').style.display = 'block';
+    
+    // Initialize employee calendar if not already done
+    if (!employeeCalendar) {
+        initEmployeeCalendar();
+    } else {
+        employeeCalendar.render();
+    }
+    
+    // Load availability data
+    loadAvailabilityData();
+    
+    // Load roster data
+    loadRosterData();
+}
+
+// Function to initialize the employee calendar
+function initEmployeeCalendar() {
+    const calendarEl = document.getElementById('employee-calendar');
+    employeeCalendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridWeek',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        slotMinTime: '07:00:00',
+        slotMaxTime: '22:00:00',
+        allDaySlot: false,
+        height: 'auto',
+        events: [
+            // Sample events - would be fetched from API in real app
+            {
+                title: 'Front Desk',
+                start: '2023-05-15T09:00:00',
+                end: '2023-05-15T17:00:00',
+                color: '#4caf50'
+            },
+            {
+                title: 'Back Office',
+                start: '2023-05-16T10:00:00',
+                end: '2023-05-16T18:00:00',
+                color: '#2196f3'
+            },
+            {
+                title: 'Front Desk',
+                start: '2023-05-17T08:00:00',
+                end: '2023-05-17T16:00:00',
+                color: '#4caf50'
+            }
+        ]
+    });
+    
+    employeeCalendar.render();
+}
+
+// Function to load availability data
+function loadAvailabilityData() {
+    // This would typically fetch from an API
+    // For now, we'll use sample data
+    const sampleAvailability = [
+        {
+            id: 1,
+            date: '2023-05-20',
+            startTime: '09:00',
+            endTime: '17:00',
+            type: 'unavailable',
+            note: 'Personal appointment'
+        },
+        {
+            id: 2,
+            date: '2023-05-22',
+            startTime: '14:00',
+            endTime: '18:00',
+            type: 'prefer',
+            note: 'Available for extra shifts'
+        },
+        {
+            id: 3,
+            date: '2023-05-24',
+            allDay: true,
+            type: 'unavailable',
+            note: 'Out of town'
+        }
+    ];
+    
+    const tableBody = document.getElementById('availabilityTableBody');
+    tableBody.innerHTML = '';
+    
+    sampleAvailability.forEach(item => {
+        const row = document.createElement('tr');
+        
+        // Format date
+        const date = new Date(item.date).toLocaleDateString();
+        
+        // Format time
+        let timeText;
+        if (item.allDay) {
+            timeText = 'All Day';
+        } else {
+            const startTime = formatTime(item.startTime);
+            const endTime = formatTime(item.endTime);
+            timeText = `${startTime} - ${endTime}`;
+        }
+        
+        // Determine status class
+        const statusClass = item.type === 'unavailable' ? 'status-unavailable' : 'status-prefer';
+        const statusText = item.type === 'unavailable' ? 'Unavailable' : 'Prefer to Work';
+        
+        row.innerHTML = `
+            <td>${date}</td>
+            <td>${timeText}</td>
+            <td><span class="availability-status ${statusClass}">${statusText}</span></td>
+            <td>${item.note || '-'}</td>
+            <td class="request-actions">
+                <button class="action-btn view-btn" onclick="editAvailability(${item.id})">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="action-btn delete-btn" onclick="deleteAvailability(${item.id})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+}
+
+// Function to load roster data
+function loadRosterData() {
+    // This would typically fetch from an API
+    // For now, we'll use sample data
+    const sampleRoster = [
+        {
+            name: 'John Doe',
+            shifts: {
+                tue: { time: '11:00 - 2:00 PM', type: 'shift' },
+                fri: { time: '10:00 AM - 4:00 PM', type: 'unavailable' }
+            }
+        },
+        {
+            name: 'Mary Smith',
+            shifts: {
+                tue: { time: 'Time Off', type: 'timeoff' },
+                wed: { time: '12:00 - 3:00 PM', type: 'shift' }
+            }
+        },
+        {
+            name: 'Tim Johnson',
+            shifts: {
+                wed: { time: 'All Day', type: 'unavailable' }
+            }
+        }
+    ];
+    
+    const tableBody = document.getElementById('rosterTableBody');
+    tableBody.innerHTML = '';
+    
+    sampleRoster.forEach(employee => {
+        const row = document.createElement('tr');
+        
+        // Create employee name cell
+        const nameCell = document.createElement('td');
+        nameCell.textContent = employee.name;
+        row.appendChild(nameCell);
+        
+        // Create cells for each day
+        const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
+        days.forEach(day => {
+            const cell = document.createElement('td');
+            
+            if (employee.shifts[day]) {
+                const shift = employee.shifts[day];
+                const blockClass = shift.type === 'unavailable' ? 'unavailable-block' : 'shift-block';
+                
+                const block = document.createElement('div');
+                block.className = blockClass;
+                block.textContent = shift.time;
+                
+                cell.appendChild(block);
+            }
+            
+            row.appendChild(cell);
+        });
+        
+        tableBody.appendChild(row);
+    });
+}
+
+// Function to show the availability modal
+function showAvailabilityModal() {
+    const modal = document.getElementById('availabilityModal');
+    modal.style.display = 'block';
+    
+    // Set default values
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('availability-date').value = today;
+    document.getElementById('availability-start-time').value = '09:00';
+    document.getElementById('availability-end-time').value = '17:00';
+    document.getElementById('availability-note').value = '';
+    document.getElementById('all-day-checkbox').checked = false;
+    document.getElementById('repeat-checkbox').checked = false;
+    
+    // Set default radio button
+    document.querySelector('input[name="availability-type"][value="unavailable"]').checked = true;
+    
+    // Show time selection by default
+    document.getElementById('time-selection').style.display = 'flex';
+    
+    // Add event listener for all-day checkbox
+    document.getElementById('all-day-checkbox').addEventListener('change', function() {
+        if (this.checked) {
+            document.getElementById('time-selection').style.display = 'none';
+        } else {
+            document.getElementById('time-selection').style.display = 'flex';
+        }
+    });
+}
+
+// Function to close the availability modal
+function closeAvailabilityModal() {
+    document.getElementById('availabilityModal').style.display = 'none';
+}
+
+// Function to edit availability
+function editAvailability(id) {
+    // This would typically fetch the availability details from an API
+    // For now, we'll just show the modal with some default values
+    showAvailabilityModal();
+    alert(`Editing availability #${id}`);
+}
+
+// Function to delete availability
+function deleteAvailability(id) {
+    if (confirm('Are you sure you want to delete this availability setting?')) {
+        alert(`Availability #${id} has been deleted.`);
+        loadAvailabilityData(); // Refresh the list
+    }
+}
+
+// Helper function to format time
+function formatTime(timeStr) {
+    const [hours, minutes] = timeStr.split(':');
+    const hour = parseInt(hours);
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const formattedHour = hour % 12 === 0 ? 12 : hour % 12;
+    return `${formattedHour}:${minutes} ${period}`;
+}
+
+// Handle availability form submission
+document.getElementById('availabilityForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const type = document.querySelector('input[name="availability-type"]:checked').value;
+    const date = document.getElementById('availability-date').value;
+    const allDay = document.getElementById('all-day-checkbox').checked;
+    const startTime = allDay ? null : document.getElementById('availability-start-time').value;
+    const endTime = allDay ? null : document.getElementById('availability-end-time').value;
+    const note = document.getElementById('availability-note').value;
+    const repeat = document.getElementById('repeat-checkbox').checked;
+    
+    // Validate times if not all day
+    if (!allDay && new Date(`2000-01-01T${endTime}`) <= new Date(`2000-01-01T${startTime}`)) {
+        alert('End time must be after start time');
+        return;
+    }
+    
+    // This would typically send the request to an API
+    // For now, we'll just show a success message
+    alert('Availability saved successfully!');
+    
+    // Close the modal and refresh the list
+    closeAvailabilityModal();
+    loadAvailabilityData();
+    
+    // Also update the calendar with the new availability
+    if (employeeCalendar) {
+        const eventColor = type === 'unavailable' ? '#f44336' : '#4caf50';
+        const eventTitle = type === 'unavailable' ? 'Unavailable' : 'Prefer to Work';
+        
+        if (allDay) {
+            employeeCalendar.addEvent({
+                title: eventTitle,
+                start: date,
+                allDay: true,
+                color: eventColor
+            });
+        } else {
+            employeeCalendar.addEvent({
+                title: eventTitle,
+                start: `${date}T${startTime}`,
+                end: `${date}T${endTime}`,
+                color: eventColor
+            });
+        }
+    }
+}); 

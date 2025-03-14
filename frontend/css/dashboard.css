@@ -467,4 +467,305 @@ body {
 /* Ensure the shift card content is clickable */
 .shift-card:not(.add-shift-card) * {
     pointer-events: none;
+}
+
+/* Time Off Section Styles */
+.time-off-section {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.policy-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1rem 0 2rem;
+}
+
+.policy-card {
+    background: #f9f9f9;
+    border-radius: 8px;
+    padding: 1rem;
+    width: calc(25% - 1rem);
+    min-width: 150px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.policy-card h4 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #1976d2;
+}
+
+.policy-card p {
+    margin: 0.5rem 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.policy-amount {
+    display: block;
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-top: 0.5rem;
+}
+
+.time-off-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.time-off-table th,
+.time-off-table td {
+    padding: 0.8rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.time-off-table th {
+    background-color: #f5f5f5;
+    font-weight: 600;
+}
+
+.request-status {
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.status-pending {
+    background-color: #fff8e1;
+    color: #ff8f00;
+}
+
+.status-approved {
+    background-color: #e6f7e6;
+    color: #2e7d32;
+}
+
+.status-rejected {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+.request-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.view-btn {
+    color: #1976d2;
+}
+
+.delete-btn {
+    color: #c62828;
+}
+
+/* Time Off Request Form */
+textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+.manager-actions {
+    justify-content: space-between;
+    margin-top: 1.5rem;
+}
+
+.employee-info {
+    margin-bottom: 1.5rem;
+}
+
+.request-details {
+    background: #f9f9f9;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.detail-row {
+    display: flex;
+    margin-bottom: 0.8rem;
+}
+
+.detail-label {
+    font-weight: 600;
+    width: 120px;
+}
+
+.detail-value {
+    flex: 1;
+}
+
+/* Schedule Section Styles */
+.schedule-section {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.schedule-tabs {
+    display: flex;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 1.5rem;
+}
+
+.tab {
+    padding: 0.8rem 1.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.tab:hover {
+    background-color: #f5f5f5;
+}
+
+.tab.active {
+    border-bottom: 2px solid #1976d2;
+    color: #1976d2;
+}
+
+.tab-content {
+    min-height: 400px;
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+/* Availability Styles */
+.availability-header, .replacement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.availability-table, .roster-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.availability-table th,
+.availability-table td,
+.roster-table th,
+.roster-table td {
+    padding: 0.8rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.availability-table th,
+.roster-table th {
+    background-color: #f5f5f5;
+    font-weight: 600;
+}
+
+.availability-status {
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.status-unavailable {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+.status-prefer {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+/* Availability Modal Styles */
+.availability-toggle {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 0.5rem;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.toggle-label input {
+    margin-right: 0.5rem;
+}
+
+.date-selection {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    margin-right: 0.5rem;
+}
+
+/* Roster Table Styles */
+.roster-search {
+    margin-bottom: 1.5rem;
+}
+
+.roster-search input {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.roster-table td {
+    position: relative;
+}
+
+.shift-block {
+    background-color: #e3f2fd;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    display: inline-block;
+    margin-bottom: 0.2rem;
+}
+
+.unavailable-block {
+    background-color: #ffebee;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    display: inline-block;
+    margin-bottom: 0.2rem;
 } 
