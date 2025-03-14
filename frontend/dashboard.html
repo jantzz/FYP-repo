@@ -23,7 +23,7 @@
             <div class="notification-icon">
                 <i class="fas fa-bell"></i>
             </div>
-            <div class="profile-icon">
+            <div class="profile-icon" onclick="toggleProfileModal()">
                 <i class="fas fa-user"></i>
             </div>
             <div class="settings-dropdown">
@@ -160,6 +160,86 @@
                     <input type="text" id="department">
                 </div>
                 <button type="submit" class="btn-primary">Create Employee</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeProfileModal()">&times;</span>
+            <h2>Personal Information</h2>
+            <div class="profile-info">
+                <div class="profile-avatar">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <div class="profile-details">
+                    <div class="info-row">
+                        <span class="info-label">Name:</span>
+                        <span id="profile-name" class="info-value">Loading...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Email:</span>
+                        <span id="profile-email" class="info-value">Loading...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Role:</span>
+                        <span id="profile-role" class="info-value">Loading...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Department:</span>
+                        <span id="profile-department" class="info-value">Loading...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Birthday:</span>
+                        <span id="profile-birthday" class="info-value">Loading...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Gender:</span>
+                        <span id="profile-gender" class="info-value">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-actions">
+                <button class="btn-primary" onclick="showEditProfileModal()">
+                    <i class="fas fa-edit"></i> Edit Profile
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div id="editProfileModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditProfileModal()">&times;</span>
+            <h2>Edit Profile</h2>
+            <form id="editProfileForm">
+                <div class="form-group">
+                    <label for="edit-name">Full Name</label>
+                    <input type="text" id="edit-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-email">Email</label>
+                    <input type="email" id="edit-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-department">Department</label>
+                    <input type="text" id="edit-department">
+                </div>
+                <div class="form-group">
+                    <label for="edit-birthday">Birthday</label>
+                    <input type="date" id="edit-birthday" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-gender">Gender</label>
+                    <select id="edit-gender" required>
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Save Changes</button>
             </form>
         </div>
     </div>
@@ -320,26 +400,32 @@
 
             try {
                 // First create the role if it doesn't exist
-                await fetch('http://localhost:3000/api/role/createRole', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        roleName: formData.role,
-                        description: `${formData.role} role`
-                    })
-                });
+                await fetch(
+                    '/api/role/createRole',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            roleName: formData.role,
+                            description: `${formData.role} role`
+                        })
+                    }
+                );
 
                 // Then create the user
-                const response = await fetch('http://localhost:3000/api/user/createUser', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify(formData)
-                });
+                const response = await fetch(
+                    '/api/user/createUser',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: JSON.stringify(formData)
+                    }
+                );
 
                 if (response.ok) {
                     alert('Employee created successfully');
@@ -387,6 +473,125 @@
                 }
             } catch (error) {
                 console.error('Error loading employees:', error);
+            }
+        }
+
+        // Profile Modal Functions
+        const profileModal = document.getElementById('profileModal');
+        const editProfileModal = document.getElementById('editProfileModal');
+        
+        function toggleProfileModal() {
+            profileModal.style.display = 'block';
+            loadUserProfile();
+        }
+        
+        function closeProfileModal() {
+            profileModal.style.display = 'none';
+        }
+        
+        function showEditProfileModal() {
+            profileModal.style.display = 'none';
+            editProfileModal.style.display = 'block';
+            
+            // Pre-fill the edit form with current values
+            document.getElementById('edit-name').value = document.getElementById('profile-name').textContent;
+            document.getElementById('edit-email').value = document.getElementById('profile-email').textContent;
+            document.getElementById('edit-department').value = document.getElementById('profile-department').textContent;
+            document.getElementById('edit-birthday').value = formatDateForInput(document.getElementById('profile-birthday').textContent);
+            document.getElementById('edit-gender').value = document.getElementById('profile-gender').textContent;
+        }
+        
+        function closeEditProfileModal() {
+            editProfileModal.style.display = 'none';
+        }
+        
+        // Format date from DD/MM/YYYY to YYYY-MM-DD for input field
+        function formatDateForInput(dateStr) {
+            if (!dateStr || dateStr === 'Loading...' || dateStr === '-') return '';
+            
+            const parts = dateStr.split('/');
+            if (parts.length !== 3) return '';
+            
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+        
+        // Load user profile data
+        async function loadUserProfile() {
+            try {
+                const response = await fetch('/api/user/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const userData = await response.json();
+                    
+                    document.getElementById('profile-name').textContent = userData.name || '-';
+                    document.getElementById('profile-email').textContent = userData.email || '-';
+                    document.getElementById('profile-role').textContent = userData.role || '-';
+                    document.getElementById('profile-department').textContent = userData.department || '-';
+                    
+                    // Format date as DD/MM/YYYY
+                    const birthday = userData.birthday ? new Date(userData.birthday) : null;
+                    document.getElementById('profile-birthday').textContent = birthday ? 
+                        `${birthday.getDate()}/${birthday.getMonth() + 1}/${birthday.getFullYear()}` : '-';
+                    
+                    document.getElementById('profile-gender').textContent = userData.gender || '-';
+                } else {
+                    console.error('Failed to load profile');
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+            }
+        }
+        
+        // Handle profile update
+        document.getElementById('editProfileForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('edit-name').value,
+                email: document.getElementById('edit-email').value,
+                department: document.getElementById('edit-department').value,
+                birthday: document.getElementById('edit-birthday').value,
+                gender: document.getElementById('edit-gender').value
+            };
+            
+            try {
+                const response = await fetch('/api/user/updateUser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (response.ok) {
+                    alert('Profile updated successfully');
+                    closeEditProfileModal();
+                    toggleProfileModal(); // Reload profile data
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Failed to update profile');
+                }
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                alert('An error occurred while updating your profile');
+            }
+        });
+
+        // Update window.onclick to handle both modals
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+            if (event.target == profileModal) {
+                profileModal.style.display = 'none';
+            }
+            if (event.target == editProfileModal) {
+                editProfileModal.style.display = 'none';
             }
         }
     </script>

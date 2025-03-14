@@ -275,4 +275,39 @@ body {
     padding: 0.5rem;
     border: 1px solid #ddd;
     border-radius: 4px;
+}
+
+/* Profile Modal Styles */
+.profile-info {
+    display: flex;
+    margin-bottom: 2rem;
+}
+
+.profile-avatar {
+    font-size: 5rem;
+    color: #1976d2;
+    margin-right: 2rem;
+}
+
+.profile-details {
+    flex: 1;
+}
+
+.info-row {
+    margin-bottom: 0.8rem;
+    display: flex;
+}
+
+.info-label {
+    font-weight: 600;
+    width: 120px;
+}
+
+.info-value {
+    flex: 1;
+}
+
+.profile-actions {
+    display: flex;
+    justify-content: flex-end;
 } 
