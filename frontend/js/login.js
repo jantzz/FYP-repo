@@ -1,23 +1,23 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Toggle between login and signup forms
-    document.getElementById('showSignup').addEventListener('click', function(e) {
+    document.getElementById('show-signup').addEventListener('click', function(e) {
         e.preventDefault();
-        document.getElementById('loginForm').style.display = 'none';
-        document.getElementById('signupForm').style.display = 'block';
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('signup-section').style.display = 'block';
     });
 
-    document.getElementById('showLogin').addEventListener('click', function(e) {
+    document.getElementById('show-login').addEventListener('click', function(e) {
         e.preventDefault();
-        document.getElementById('signupForm').style.display = 'none';
-        document.getElementById('loginForm').style.display = 'block';
+        document.getElementById('signup-section').style.display = 'none';
+        document.getElementById('login-section').style.display = 'block';
     });
 
     // Handle login form submission
-    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    document.getElementById('login-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
         
         try {
             const response = await fetch('/api/user/login', {
@@ -50,33 +50,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.location.href = '/dashboard.html';
             } else {
                 // Show error message
-                document.getElementById('loginError').textContent = data.error || 'Login failed';
-                document.getElementById('loginError').style.display = 'block';
+                document.getElementById('login-error').textContent = data.error || 'Login failed';
+                document.getElementById('login-error').style.display = 'block';
             }
         } catch (error) {
             console.error('Error:', error);
-            document.getElementById('loginError').textContent = 'An error occurred. Please try again.';
-            document.getElementById('loginError').style.display = 'block';
+            document.getElementById('login-error').textContent = 'An error occurred. Please try again.';
+            document.getElementById('login-error').style.display = 'block';
         }
     });
 
     // Handle signup form submission
-    document.getElementById('signupForm').addEventListener('submit', async function(e) {
+    document.getElementById('signup-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         
         const name = document.getElementById('signup-name').value;
         const email = document.getElementById('signup-email').value;
         const password = document.getElementById('signup-password').value;
-        const confirmPassword = document.getElementById('signup-confirm-password').value;
         const birthday = document.getElementById('signup-birthday').value;
         const gender = document.getElementById('signup-gender').value;
-        
-        // Validate password match
-        if (password !== confirmPassword) {
-            document.getElementById('signupError').textContent = 'Passwords do not match';
-            document.getElementById('signupError').style.display = 'block';
-            return;
-        }
         
         try {
             const response = await fetch('/api/user/createUser', {
@@ -99,20 +91,20 @@ document.addEventListener('DOMContentLoaded', function() {
             if (response.ok) {
                 // Show success message and switch to login
                 alert('Account created successfully! Please log in.');
-                document.getElementById('signupForm').style.display = 'none';
-                document.getElementById('loginForm').style.display = 'block';
+                document.getElementById('signup-section').style.display = 'none';
+                document.getElementById('login-section').style.display = 'block';
                 
                 // Pre-fill email for convenience
-                document.getElementById('email').value = email;
+                document.getElementById('login-email').value = email;
             } else {
                 // Show error message
-                document.getElementById('signupError').textContent = data.error || 'Signup failed';
-                document.getElementById('signupError').style.display = 'block';
+                document.getElementById('signup-error').textContent = data.error || 'Signup failed';
+                document.getElementById('signup-error').style.display = 'block';
             }
         } catch (error) {
             console.error('Error:', error);
-            document.getElementById('signupError').textContent = 'An error occurred. Please try again.';
-            document.getElementById('signupError').style.display = 'block';
+            document.getElementById('signup-error').textContent = 'An error occurred. Please try again.';
+            document.getElementById('signup-error').style.display = 'block';
         }
     });
 }); 
