@@ -1,10 +1,12 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 //imports 
 const userRoutes = require('./routes/userRoutes');
 const roleRoutes = require('./routes/roleRoutes');
+const fileRoutes = require('./routes/fileRoutes');
 
 //express app declared within app constant 
 const app = express(); 
@@ -19,12 +21,16 @@ app.use(cors({
 //middlewares (between request and response )
 app.use(express.json()); // allows for the request to send attachments (json objects)
 
+app.use(express.static(path.join(__dirname, "../frontend")));
+
 app.use((req, res, next) => { // prints to console every request sent (for debugging / testing purposes)
     console.log(req.method, req.path);
     next();
 });
 
-//routes
+//normal routes
+app.use('/', fileRoutes);
+//api routes
 app.use('/api/user', userRoutes);
 app.use('/api/role', roleRoutes);
 // export app constant 

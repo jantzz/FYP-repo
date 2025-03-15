@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // Redirect to dashboard
-                window.location.href = '/dashboard.html';
+                window.location.href = '/dashboard';
             } else {
                 // Show error message
                 document.getElementById('login-error').textContent = data.error || 'Login failed';
