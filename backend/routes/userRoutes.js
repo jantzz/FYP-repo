@@ -15,6 +15,6 @@ router.post('/login' , loginUser);
 // these are to be moved to protected route
 router.post('/createUser', createUser);
 
-router.post('/updateUser', updateUser);
+router.put('/updateUser', updateUser);
 
 module.exports = router;

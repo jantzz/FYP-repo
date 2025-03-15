@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 
 //imports 
 const userRoutes = require('./routes/userRoutes');
@@ -7,6 +8,13 @@ const roleRoutes = require('./routes/roleRoutes');
 
 //express app declared within app constant 
 const app = express(); 
+
+// Allow requests from your frontend
+app.use(cors({
+    origin: "http://127.0.0.1:5500",  // Allow frontend origin
+    methods: "GET,POST,PUT,DELETE",  // Allow HTTP methods
+    credentials: true  // Allow auth headers
+}));
 
 //middlewares (between request and response )
 app.use(express.json()); // allows for the request to send attachments (json objects)
