@@ -5,6 +5,7 @@ const cors = require('cors');
 //imports 
 const userRoutes = require('./routes/userRoutes');
 const roleRoutes = require('./routes/roleRoutes');
+const shiftRoutes = require('./routes/shiftRoutes');
 
 //express app declared within app constant 
 const app = express(); 
@@ -27,5 +28,6 @@ app.use((req, res, next) => { // prints to console every request sent (for debug
 //routes
 app.use('/api/user', userRoutes);
 app.use('/api/role', roleRoutes);
+app.use('/api/shift', shiftRoutes);
 // export app constant 
 module.exports = app;
