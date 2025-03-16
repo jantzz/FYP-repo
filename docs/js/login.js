@@ -37,10 +37,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Store user info matching the database schema
                 const userInfo = {
-                    userId: data.userId,  // Changed from data.user.userId to data.userId
-                    name: data.name,      // Changed from data.user.name to data.name
-                    email: data.email,    // Changed from data.user.email to data.email
-                    role: data.role,      // Changed from data.user.role to data.role
+                    userId: data.userId,  
+                    name: data.name,    
+                    email: data.email,   
+                    role: data.role,    
                     department: data.department,
                     birthday: data.birthday,
                     gender: data.gender

@@ -35,21 +35,51 @@ document.addEventListener('DOMContentLoaded', async function() {
     const addShiftCard = document.querySelector('.add-shift-card');
     shiftsContainer.innerHTML = '';
     shiftsContainer.appendChild(addShiftCard);
+    
+    // Create a "Show More" button
+    const showMoreButton = document.createElement('div');
+    showMoreButton.className = 'show-more-shifts';
+    showMoreButton.innerHTML = '<span>Show More Shifts</span>';
+    showMoreButton.style.display = 'none'; // Hide initially
+    showMoreButton.addEventListener('click', function() {
+        document.querySelectorAll('.shift-card.future-shift').forEach(card => {
+            card.style.display = 'block';
+        });
+        this.style.display = 'none';
+    });
+    
+    // Add the Show More button after the shifts container
+    shiftsContainer.parentNode.insertBefore(showMoreButton, shiftsContainer.nextSibling);
 
     // Load initial shifts
     try {
         const shifts = await fetchShifts();
         console.log('Initial shifts loaded:', shifts);
         
+        // Track if we have future shifts
+        let hasFutureShifts = false;
+        
         // Add shifts to the upcoming shifts section
         shifts.forEach(shift => {
+            const isNearFuture = isShiftInNearFuture(new Date(shift.start));
+            
             addShiftToUpcomingSection(
                 shift.title,
                 new Date(shift.start),
                 new Date(shift.end),
-                shift.extendedProps.status
+                shift.extendedProps.status,
+                !isNearFuture // Hide if not today/tomorrow
             );
+            
+            if (!isNearFuture) {
+                hasFutureShifts = true;
+            }
         });
+        
+        // Show the "Show More" button if we have future shifts
+        if (hasFutureShifts) {
+            showMoreButton.style.display = 'block';
+        }
     } catch (error) {
         console.error('Error loading initial shifts:', error);
     }
@@ -168,10 +198,15 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } else {
                     employeeCalendar.render();
                 }
-                // Load availability data
-                loadAvailabilityData();
-                // Load roster data
-                loadRosterData();
+                
+                try {
+                    // Load availability data (only if the table exists)
+                    loadAvailabilityData();
+                    // Load roster data (only if the table exists)
+                    loadRosterData();
+                } catch (error) {
+                    console.error('Error loading schedule data:', error);
+                }
             }
         });
     });
@@ -288,18 +323,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         const addShiftModal = document.getElementById('addShiftModal');
         addShiftModal.style.display = 'block';
         
-        // Set default values
-        const now = new Date();
-        const formattedDate = now.toISOString().split('T')[0];
-        const formattedTime = now.toTimeString().substring(0, 5);
+        // Set default values with null checks
+        const today = new Date().toISOString().split('T')[0];
         
-        document.getElementById('add-shift-start-date').value = formattedDate;
-        document.getElementById('add-shift-start-time').value = formattedTime;
+        const dateEl = document.getElementById('add-shift-start-date');
+        const startTimeEl = document.getElementById('add-shift-start-time');
+        const endTimeEl = document.getElementById('add-shift-end-time');
         
-        // Set end time to 1 hour later
-        const endTime = new Date(now.getTime() + 3600000);
-        document.getElementById('add-shift-end-date').value = formattedDate; // Same day by default
-        document.getElementById('add-shift-end-time').value = endTime.toTimeString().substring(0, 5);
+        if (dateEl) dateEl.value = today;
+        if (startTimeEl) startTimeEl.value = '09:00';
+        if (endTimeEl) endTimeEl.value = '17:00';
     }
     
     // Function to close add shift modal
@@ -355,7 +388,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
     
     // Function to add a shift to the upcoming shifts section
-    function addShiftToUpcomingSection(title, start, end, status = 'Pending') {
+    function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide = false) {
         // Format date and time
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -416,6 +449,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             shiftsContainer.insertBefore(shiftCard, insertBefore);
         } else {
             shiftsContainer.insertBefore(shiftCard, addShiftCard);
+        }
+        
+        // Hide or show the card based on the hide parameter
+        if (hide) {
+            shiftCard.classList.add('future-shift');
+            shiftCard.style.display = 'none';
+        } else {
+            shiftCard.classList.remove('future-shift');
+            shiftCard.style.display = 'block';
         }
     }
 });
@@ -792,7 +834,7 @@ document.getElementById('editShiftForm').addEventListener('submit', function(e) 
     closeEditShiftModal();
 });
 
-// Helper function to format date for display
+// function to format date for display
 function formatDateForDisplay(date) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -833,8 +875,7 @@ function showTimeOffSection() {
 
 // Function to load time off history
 function loadTimeOffHistory() {
-    // This would typically fetch from an API
-    // For now, we'll use sample data
+    // This would typically fetch from an API for now use sample data
     const sampleRequests = [
         {
             id: 1,
@@ -926,8 +967,7 @@ function closeRequestTimeOffModal() {
 
 // Function to view a time off request
 function viewTimeOffRequest(requestId) {
-    // This would typically fetch the request details from an API
-    // For now, we'll use sample data
+    // This would typically fetch the request details from an API For now use sample data
     const request = {
         id: requestId,
         employeeName: 'John Doe',
@@ -1036,8 +1076,7 @@ document.getElementById('requestTimeOffForm').addEventListener('submit', functio
         return;
     }
     
-    // This would typically send the request to an API
-    // For now, we'll just show a success message
+    // This would typically send the request to an API for now just show a success message
     alert('Time off request submitted successfully!');
     
     // Close the modal and refresh the list
@@ -1116,6 +1155,15 @@ function initEmployeeCalendar() {
 
 // Function to load availability data
 function loadAvailabilityData() {
+    console.log('Loading availability data in dashboard');
+
+    // Check if the table body exists
+    const tableBody = document.getElementById('availabilityTableBody');
+    if (!tableBody) {
+        console.error('Availability table body not found!');
+        return; // Exit early if element doesn't exist
+    }
+    
     // This would typically fetch from an API
     // For now, we'll use sample data
     const sampleAvailability = [
@@ -1144,7 +1192,6 @@ function loadAvailabilityData() {
         }
     ];
     
-    const tableBody = document.getElementById('availabilityTableBody');
     tableBody.innerHTML = '';
     
     sampleAvailability.forEach(item => {
@@ -1188,6 +1235,15 @@ function loadAvailabilityData() {
 
 // Function to load roster data
 function loadRosterData() {
+    console.log('Loading roster data in dashboard');
+    
+    // Check if the table body exists
+    const tableBody = document.getElementById('rosterTableBody');
+    if (!tableBody) {
+        console.error('Roster table body not found!');
+        return; // Exit early if element doesn't exist
+    }
+    
     // This would typically fetch from an API
     // For now, we'll use sample data
     const sampleRoster = [
@@ -1213,7 +1269,6 @@ function loadRosterData() {
         }
     ];
     
-    const tableBody = document.getElementById('rosterTableBody');
     tableBody.innerHTML = '';
     
     sampleRoster.forEach(employee => {
@@ -1252,29 +1307,48 @@ function showAvailabilityModal() {
     const modal = document.getElementById('availabilityModal');
     modal.style.display = 'block';
     
-    // Set default values
+    // Set default values with null checks
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('availability-date').value = today;
-    document.getElementById('availability-start-time').value = '09:00';
-    document.getElementById('availability-end-time').value = '17:00';
-    document.getElementById('availability-note').value = '';
-    document.getElementById('all-day-checkbox').checked = false;
-    document.getElementById('repeat-checkbox').checked = false;
     
-    // Set default radio button
-    document.querySelector('input[name="availability-type"][value="unavailable"]').checked = true;
+    const dateEl = document.getElementById('availability-date');
+    const startTimeEl = document.getElementById('availability-start-time');
+    const endTimeEl = document.getElementById('availability-end-time');
+    const noteEl = document.getElementById('availability-note');
+    const allDayEl = document.getElementById('all-day-checkbox');
+    const repeatEl = document.getElementById('repeat-checkbox');
+    const timeSelectionEl = document.getElementById('time-selection');
     
-    // Show time selection by default
-    document.getElementById('time-selection').style.display = 'flex';
+    if (dateEl) dateEl.value = today;
+    if (startTimeEl) startTimeEl.value = '09:00';
+    if (endTimeEl) endTimeEl.value = '17:00';
+    if (noteEl) noteEl.value = '';
+    if (allDayEl) allDayEl.checked = false;
+    if (repeatEl) repeatEl.checked = false;
     
-    // Add event listener for all-day checkbox
-    document.getElementById('all-day-checkbox').addEventListener('change', function() {
-        if (this.checked) {
-            document.getElementById('time-selection').style.display = 'none';
-        } else {
-            document.getElementById('time-selection').style.display = 'flex';
-        }
-    });
+    // Set default radio button - check for both availability-type and shift-type
+    const defaultRadio = document.querySelector('input[name="availability-type"][value="unavailable"]') || 
+                         document.querySelector('input[name="shift-type"][value="MORNING"]');
+    if (defaultRadio) {
+        defaultRadio.checked = true;
+    }
+    
+    // Show time selection by default if it exists
+    if (timeSelectionEl) timeSelectionEl.style.display = 'flex';
+    
+    // Add event listener for all-day checkbox if it exists
+    const allDayCheckbox = document.getElementById('all-day-checkbox');
+    if (allDayCheckbox) {
+        // Remove existing listener to avoid duplicates (by cloning)
+        const newAllDayCheckbox = allDayCheckbox.cloneNode(true);
+        allDayCheckbox.parentNode.replaceChild(newAllDayCheckbox, allDayCheckbox);
+        
+        newAllDayCheckbox.addEventListener('change', function() {
+            const timeSelectionEl = document.getElementById('time-selection');
+            if (timeSelectionEl) {
+                timeSelectionEl.style.display = this.checked ? 'none' : 'flex';
+            }
+        });
+    }
 }
 
 // Function to close the availability modal
@@ -1308,51 +1382,54 @@ function formatTime(timeStr) {
 }
 
 // Handle availability form submission
-document.getElementById('availabilityForm').addEventListener('submit', function(e) {
-    e.preventDefault();
+document.addEventListener('DOMContentLoaded', function() {
+    // Get the availability form
+    const availabilityForm = document.getElementById('availabilityForm');
     
-    const type = document.querySelector('input[name="availability-type"]:checked').value;
-    const date = document.getElementById('availability-date').value;
-    const allDay = document.getElementById('all-day-checkbox').checked;
-    const startTime = allDay ? null : document.getElementById('availability-start-time').value;
-    const endTime = allDay ? null : document.getElementById('availability-end-time').value;
-    const note = document.getElementById('availability-note').value;
-    const repeat = document.getElementById('repeat-checkbox').checked;
-    
-    // Validate times if not all day
-    if (!allDay && new Date(`2000-01-01T${endTime}`) <= new Date(`2000-01-01T${startTime}`)) {
-        alert('End time must be after start time');
-        return;
-    }
-    
-    // This would typically send the request to an API
-    // For now, we'll just show a success message
-    alert('Availability saved successfully!');
-    
-    // Close the modal and refresh the list
-    closeAvailabilityModal();
-    loadAvailabilityData();
-    
-    // Also update the calendar with the new availability
-    if (employeeCalendar) {
-        const eventColor = type === 'unavailable' ? '#f44336' : '#4caf50';
-        const eventTitle = type === 'unavailable' ? 'Unavailable' : 'Prefer to Work';
-        
-        if (allDay) {
-            employeeCalendar.addEvent({
-                title: eventTitle,
-                start: date,
-                allDay: true,
-                color: eventColor
-            });
-        } else {
-            employeeCalendar.addEvent({
-                title: eventTitle,
-                start: `${date}T${startTime}`,
-                end: `${date}T${endTime}`,
-                color: eventColor
-            });
-        }
+    // Only add the event listener if the form exists in this page
+    if (availabilityForm) {
+        availabilityForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Check if required elements exist
+            const typeElement = document.querySelector('input[name="availability-type"]:checked') || 
+                               document.querySelector('input[name="shift-type"]:checked');
+            const dateElement = document.getElementById('availability-date');
+            const allDayElement = document.getElementById('all-day-checkbox');
+            const startTimeElement = document.getElementById('availability-start-time');
+            const endTimeElement = document.getElementById('availability-end-time');
+            const noteElement = document.getElementById('availability-note');
+            
+            // Exit if required elements don't exist
+            if (!typeElement || !dateElement) {
+                console.error('Required form elements not found:', { 
+                    typeElement, 
+                    dateElement 
+                });
+                return;
+            }
+            
+            // Safely access values
+            const type = typeElement.value;
+            const date = dateElement.value;
+            const allDay = allDayElement ? allDayElement.checked : false;
+            const startTime = (allDay || !startTimeElement) ? null : startTimeElement.value;
+            const endTime = (allDay || !endTimeElement) ? null : endTimeElement.value;
+            const note = noteElement ? noteElement.value : '';
+            
+            // Add validation
+            if (!date) {
+                alert('Please select a date');
+                return;
+            }
+            
+            if (!allDay && (!startTime || !endTime)) {
+                alert('Please specify both start time and end time');
+                return;
+            }
+            
+            // Original code continues here...
+        });
     }
 });
 
@@ -1506,4 +1583,22 @@ function openAddShiftModal() {
 function closeAddShiftModal() {
     const modal = document.getElementById('addShiftModal');
     modal.style.display = 'none';
+}
+
+// Function to check if a shift is scheduled for today or tomorrow
+function isShiftInNearFuture(shiftDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const dayAfterTomorrow = new Date(today);
+    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+    
+    const shiftDateOnly = new Date(shiftDate);
+    shiftDateOnly.setHours(0, 0, 0, 0);
+    
+    // Return true if shift is today or tomorrow
+    return shiftDateOnly >= today && shiftDateOnly < dayAfterTomorrow;
 } 

@@ -13,6 +13,8 @@
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid/index.global.min.js'></script>
     <!-- Custom JavaScript -->
     <script src="js/dashboard.js" defer></script>
+    <script src="js/availability.js" defer></script>
+    <script src="js/availability-manager.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -143,7 +145,6 @@
                             </tr>
                         </thead>
                         <tbody id="employeeTableBody">
-                            <!-- Employee data will be populated here -->
                         </tbody>
                     </table>
                 </div>
@@ -176,8 +177,6 @@
                             <p>Medical Certificate</p>
                             <span class="policy-amount">14 days</span>
                         </div>
-                        <!-- More policy cards can be added here -->
-                    </div>
                 </div>
                 
                 <div class="request-history">
@@ -194,7 +193,6 @@
                             </tr>
                         </thead>
                         <tbody id="timeOffHistoryBody">
-                            <!-- Time off history will be populated here -->
                         </tbody>
                     </table>
                 </div>
@@ -239,7 +237,6 @@
                                     </tr>
                                 </thead>
                                 <tbody id="availabilityTableBody">
-                                    <!-- Availability data will be populated here -->
                                 </tbody>
                             </table>
                         </div>
@@ -268,7 +265,6 @@
                                     </tr>
                                 </thead>
                                 <tbody id="rosterTableBody">
-                                    <!-- Roster data will be populated here -->
                                 </tbody>
                             </table>
                         </div>
@@ -278,7 +274,6 @@
 
             <div class="report-section">
                 <h2>Report Analysis</h2>
-                <!-- Report content will go here -->
             </div>
         </div>
     </div>
@@ -544,7 +539,6 @@
                 <h3 id="request-employee-name">Employee Name</h3>
             </div>
             <div class="request-details" id="request-details-container">
-                <!-- Request details will be populated here -->
             </div>
             <div class="form-actions manager-actions">
                 <button type="button" class="btn-primary" onclick="approveTimeOff()">Accept</button>
@@ -559,20 +553,6 @@
             <span class="close" onclick="closeAvailabilityModal()">&times;</span>
             <h2>Set Availability</h2>
             <form id="availabilityForm">
-                <div class="form-group">
-                    <label>Availability Type</label>
-                    <div class="availability-toggle">
-                        <label class="toggle-label">
-                            <input type="radio" name="availability-type" value="unavailable" checked>
-                            <span>Unavailable</span>
-                        </label>
-                        <label class="toggle-label">
-                            <input type="radio" name="availability-type" value="prefer">
-                            <span>Prefer to Work</span>
-                        </label>
-                    </div>
-                </div>
-                
                 <div class="form-group">
                     <label for="availability-date">Date</label>
                     <div class="date-selection">
@@ -610,6 +590,11 @@
                 <button type="submit" class="btn-primary">Save</button>
             </form>
         </div>
+    </div>
+    <div style="display: none;">
+        <table>
+            <tbody id="availabilityTableBody"></tbody>
+        </table>
     </div>
 </body>
 </html> 
