@@ -29,22 +29,25 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             const data = await response.json();
+            console.log('Login response:', data); // Debug log
             
             if (response.ok) {
                 // Store token in localStorage
                 localStorage.setItem('token', data.token);
                 
-                // Store user info if available
-                if (data.name) {
-                    localStorage.setItem('userInfo', JSON.stringify({
-                        name: data.name,
-                        email: data.email,
-                        role: data.role,
-                        department: data.department,
-                        birthday: data.birthday,
-                        gender: data.gender
-                    }));
-                }
+                // Store user info matching the database schema
+                const userInfo = {
+                    userId: data.userId,  // Changed from data.user.userId to data.userId
+                    name: data.name,      // Changed from data.user.name to data.name
+                    email: data.email,    // Changed from data.user.email to data.email
+                    role: data.role,      // Changed from data.user.role to data.role
+                    department: data.department,
+                    birthday: data.birthday,
+                    gender: data.gender
+                };
+                
+                console.log('Storing user info:', userInfo); // Debug log
+                localStorage.setItem('userInfo', JSON.stringify(userInfo));
                 
                 // Redirect to dashboard
                 window.location.href = '/dashboard.html';
@@ -54,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('login-error').style.display = 'block';
             }
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Login error:', error);
             document.getElementById('login-error').textContent = 'An error occurred. Please try again.';
             document.getElementById('login-error').style.display = 'block';
         }

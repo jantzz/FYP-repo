@@ -26,6 +26,7 @@ CREATE TABLE shift
     employeeId INT UNSIGNED NOT NULL, 
     startDate DATE NOT NULL, 
     endDate DATE NOT NULL, 
+    title VARCHAR(255),
     status VARCHAR(50) NOT NULL, 
     CONSTRAINT shiftFK1 FOREIGN KEY (employeeId)
         REFERENCES user(userId)

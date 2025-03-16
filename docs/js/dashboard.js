@@ -16,7 +16,7 @@ function toggleDropdown() {
 }
 
 // Initialize calendar and page functionality
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     // Check authentication when page loads
     checkAuth();
     
@@ -29,30 +29,103 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
     });
-    
-    // Make existing shift cards clickable
-    document.querySelectorAll('.shift-card:not(.add-shift-card)').forEach(card => {
-        card.onclick = function() {
-            openEditShiftModal(this);
-        };
-    });
+
+    // Clear existing shift cards except the add-shift-card
+    const shiftsContainer = document.querySelector('.shifts-container');
+    const addShiftCard = document.querySelector('.add-shift-card');
+    shiftsContainer.innerHTML = '';
+    shiftsContainer.appendChild(addShiftCard);
+
+    // Load initial shifts
+    try {
+        const shifts = await fetchShifts();
+        console.log('Initial shifts loaded:', shifts);
+        
+        // Add shifts to the upcoming shifts section
+        shifts.forEach(shift => {
+            addShiftToUpcomingSection(
+                shift.title,
+                new Date(shift.start),
+                new Date(shift.end),
+                shift.extendedProps.status
+            );
+        });
+    } catch (error) {
+        console.error('Error loading initial shifts:', error);
+    }
     
     // Initialize calendar
     const calendarEl = document.getElementById('calendar');
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
+    window.calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridWeek',
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
             right: 'dayGridMonth,timeGridWeek,timeGridDay'
         },
-        selectable: true,
-        editable: true,
-        select: function(selectInfo) {
-            handleDateSelect(selectInfo, calendar);
+        events: async function(info, successCallback, failureCallback) {
+            try {
+                console.log('Calendar requesting events for:', {
+                    start: info.start,
+                    end: info.end,
+                    startStr: info.startStr,
+                    endStr: info.endStr
+                });
+                
+                const events = await fetchShifts();
+                console.log('Calendar received events:', events);
+                successCallback(events);
+            } catch (error) {
+                console.error('Calendar failed to fetch events:', error);
+                failureCallback(error);
+            }
         },
-        eventClick: function(clickInfo) {
-            handleEventClick(clickInfo.event);
+        eventDidMount: function(info) {
+            console.log('Event mounted:', {
+                id: info.event.id,
+                title: info.event.title,
+                start: info.event.start,
+                end: info.event.end
+            });
+            info.el.style.backgroundColor = getStatusColor(info.event.extendedProps.status);
+        },
+        editable: true,
+        selectable: true,
+        selectMirror: true,
+        dayMaxEvents: true,
+        select: function(arg) {
+            console.log('Date range selected:', {
+                start: arg.start,
+                end: arg.end,
+                allDay: arg.allDay
+            });
+            
+            // Pre-fill the add shift form with selected dates
+            document.getElementById('add-shift-start-date').value = arg.start.toISOString().split('T')[0];
+            document.getElementById('add-shift-end-date').value = arg.end.toISOString().split('T')[0];
+            
+            // Set default times (9 AM to 5 PM) if all-day selection
+            if (arg.allDay) {
+                document.getElementById('add-shift-start-time').value = '09:00';
+                document.getElementById('add-shift-end-time').value = '17:00';
+            } else {
+                document.getElementById('add-shift-start-time').value = arg.start.toTimeString().slice(0, 5);
+                document.getElementById('add-shift-end-time').value = arg.end.toTimeString().slice(0, 5);
+            }
+            
+            // Open the modal
+            openAddShiftModal();
+            calendar.unselect();
+        },
+        eventClick: function(arg) {
+            console.log('Event clicked:', {
+                id: arg.event.id,
+                title: arg.event.title,
+                start: arg.event.start,
+                end: arg.event.end,
+                extendedProps: arg.event.extendedProps
+            });
+            openEditShiftModal(arg.event);
         }
     });
     
@@ -235,43 +308,49 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Handle add shift form submission
-    document.getElementById('addShiftForm').addEventListener('submit', function(e) {
+    document.getElementById('addShiftForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        const title = document.getElementById('add-shift-title').value;
-        const startDateStr = document.getElementById('add-shift-start-date').value;
-        const startTimeStr = document.getElementById('add-shift-start-time').value;
-        const endDateStr = document.getElementById('add-shift-end-date').value;
-        const endTimeStr = document.getElementById('add-shift-end-time').value;
-        const status = document.getElementById('add-shift-status').value;
-        
-        // Create date objects
-        const startDate = new Date(`${startDateStr}T${startTimeStr}`);
-        const endDate = new Date(`${endDateStr}T${endTimeStr}`);
-        
-        // Validate that end date is not before start date
-        if (endDate < startDate) {
-            alert('End date/time cannot be before start date/time');
-            return;
-        }
-        
-        // Add to calendar
-        calendar.addEvent({
-            title: title,
-            start: startDate,
-            end: endDate
-        });
-        
-        // Also add to upcoming shifts section
-        addShiftToUpcomingSection(title, startDate, endDate, status);
-        
-        // Close the modal
-        closeAddShiftModal();
-        
-        // Unselect any selection in the calendar
-        if (window.tempCalendarRef) {
-            window.tempCalendarRef.unselect();
-            window.tempCalendarRef = null;
+        try {
+            const startDate = document.getElementById('add-shift-start-date').value;
+            const startTime = document.getElementById('add-shift-start-time').value;
+            const endDate = document.getElementById('add-shift-end-date').value;
+            const endTime = document.getElementById('add-shift-end-time').value;
+
+            const shiftData = {
+                title: document.getElementById('add-shift-title').value,
+                start_time: `${startDate}T${startTime}`,
+                end_time: `${endDate}T${endTime}`,
+                status: document.getElementById('add-shift-status').value
+            };
+
+            console.log('Attempting to create shift with data:', shiftData);
+            const newShift = await createShift(shiftData);
+            console.log('Shift created successfully:', newShift);
+
+            // Close the modal
+            const modal = document.getElementById('addShiftModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+
+            // Clear the form
+            e.target.reset();
+
+            // Refresh the calendar
+            if (window.calendar) {
+                window.calendar.refetchEvents();
+            }
+
+            // Add to upcoming shifts section
+            const startDateTime = new Date(`${startDate}T${startTime}`);
+            const endDateTime = new Date(`${endDate}T${endTime}`);
+            addShiftToUpcomingSection(shiftData.title, startDateTime, endDateTime, shiftData.status);
+
+            alert('Shift created successfully!');
+        } catch (error) {
+            console.error('Error details:', error);
+            alert('Failed to create shift: ' + error.message);
         }
     });
     
@@ -284,21 +363,22 @@ document.addEventListener('DOMContentLoaded', function() {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
         
+        const startDate = new Date(start);
+        const startDateOnly = new Date(startDate);
+        startDateOnly.setHours(0, 0, 0, 0);
+        
         let dateText;
-        if (start.setHours(0, 0, 0, 0) === today.getTime()) {
+        if (startDateOnly.getTime() === today.getTime()) {
             dateText = 'Today';
-        } else if (start.setHours(0, 0, 0, 0) === tomorrow.getTime()) {
+        } else if (startDateOnly.getTime() === tomorrow.getTime()) {
             dateText = 'Tomorrow';
         } else {
-            dateText = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            dateText = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         }
         
-        // Reset hours after comparison
-        start.setHours(start.getHours(), start.getMinutes(), 0, 0);
-        
         // Format time
-        const startTime = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        const endTime = end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const startTime = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const endTime = new Date(end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         
         // Create new shift card
         const shiftCard = document.createElement('div');
@@ -311,14 +391,32 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="shift-time">${startTime} - ${endTime}</div>
             <div class="shift-details">
                 <span class="shift-department">${title}</span>
-                <span class="shift-status">${status}</span>
+                <span class="shift-status" style="background-color: ${getStatusColor(status)}33; color: ${getStatusColor(status)}">${status}</span>
             </div>
         `;
         
         // Get the shifts container and add the new card before the "Add Shift" card
         const shiftsContainer = document.querySelector('.shifts-container');
         const addShiftCard = document.querySelector('.add-shift-card');
-        shiftsContainer.insertBefore(shiftCard, addShiftCard);
+        
+        // Store the original date for sorting
+        shiftCard.dataset.startTime = startDate.getTime();
+        
+        // Find the correct position to insert the card (sort by date)
+        let insertBefore = null;
+        const existingCards = shiftsContainer.querySelectorAll('.shift-card:not(.add-shift-card)');
+        for (const card of existingCards) {
+            if (parseInt(card.dataset.startTime) > startDate.getTime()) {
+                insertBefore = card;
+                break;
+            }
+        }
+        
+        if (insertBefore) {
+            shiftsContainer.insertBefore(shiftCard, insertBefore);
+        } else {
+            shiftsContainer.insertBefore(shiftCard, addShiftCard);
+        }
     }
 });
 
@@ -555,64 +653,79 @@ const editShiftModal = document.getElementById('editShiftModal');
 let currentShiftElement = null;
 let currentCalendarEvent = null;
 
-function openEditShiftModal(shiftCard, calendarEvent = null) {
-    currentShiftElement = shiftCard;
-    currentCalendarEvent = calendarEvent;
-    
-    // Get shift data from the card
-    const dateText = shiftCard.querySelector('.shift-date').textContent;
-    const timeText = shiftCard.querySelector('.shift-time').textContent;
-    const title = shiftCard.querySelector('.shift-department').textContent;
-    const status = shiftCard.querySelector('.shift-status').textContent;
-    
-    let shiftDate = new Date();
-    if (dateText === 'Today') {
-        // Use today's date
-    } else if (dateText === 'Tomorrow') {
-        shiftDate.setDate(shiftDate.getDate() + 1);
-    } else {
-        shiftDate = new Date(dateText);
-    }
-    
-    // Format date for input
-    const formattedStartDate = shiftDate.toISOString().split('T')[0];
-    const [startTime, endTime] = timeText.split(' - ');
-    
-    // Convert from "00:00 AM" format to "00:00" format
-    function convertTimeFormat(timeStr) {
-        const [time, period] = timeStr.split(' ');
-        let [hours, minutes] = time.split(':');
+function openEditShiftModal(source, calendarEvent = null) {
+    // If source is a calendar event (from eventClick handler)
+    if (source && source.title !== undefined) {
+        currentCalendarEvent = source;
+        currentShiftElement = null;
         
-        if (period === 'PM' && hours !== '12') {
-            hours = String(parseInt(hours) + 12);
-        }
-        if (period === 'AM' && hours === '12') {
-            hours = '00';
+        // Set form values directly from calendar event
+        document.getElementById('edit-shift-id').value = source.id;
+        document.getElementById('edit-shift-title').value = source.title;
+        document.getElementById('edit-shift-start-date').value = source.start.toISOString().split('T')[0];
+        document.getElementById('edit-shift-end-date').value = source.end.toISOString().split('T')[0];
+        document.getElementById('edit-shift-start-time').value = source.start.toTimeString().slice(0, 5);
+        document.getElementById('edit-shift-end-time').value = source.end.toTimeString().slice(0, 5);
+        document.getElementById('edit-shift-status').value = source.extendedProps.status;
+    } 
+    // If source is a shift card element
+    else if (source && source.classList.contains('shift-card')) {
+        currentShiftElement = source;
+        currentCalendarEvent = calendarEvent;
+        
+        // Get shift data from the card
+        const dateText = source.querySelector('.shift-date').textContent;
+        const timeText = source.querySelector('.shift-time').textContent;
+        const title = source.querySelector('.shift-department').textContent;
+        const status = source.querySelector('.shift-status').textContent;
+        
+        let shiftDate = new Date();
+        if (dateText === 'Today') {
+            // Use today's date
+        } else if (dateText === 'Tomorrow') {
+            shiftDate.setDate(shiftDate.getDate() + 1);
+        } else {
+            shiftDate = new Date(dateText);
         }
         
-        // Ensure hours is a string before using padStart
-        hours = String(hours);
-        return `${hours.padStart(2, '0')}:${minutes}`;
+        // Format date for input
+        const formattedStartDate = shiftDate.toISOString().split('T')[0];
+        const [startTime, endTime] = timeText.split(' - ');
+        
+        // Convert from "00:00 AM" format to "00:00" format
+        function convertTimeFormat(timeStr) {
+            const [time, period] = timeStr.split(' ');
+            let [hours, minutes] = time.split(':');
+            
+            if (period === 'PM' && hours !== '12') {
+                hours = String(parseInt(hours) + 12);
+            }
+            if (period === 'AM' && hours === '12') {
+                hours = '00';
+            }
+            
+            hours = String(hours).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+        
+        // Parse start and end times
+        const startTimeFormatted = convertTimeFormat(startTime);
+        const endTimeFormatted = convertTimeFormat(endTime);
+        
+        // For multi-day shifts, we need to determine the end date
+        let formattedEndDate = formattedStartDate; // Default to same day
+        if (calendarEvent) {
+            formattedEndDate = calendarEvent.end.toISOString().split('T')[0];
+        }
+        
+        // Set form values
+        document.getElementById('edit-shift-title').value = title;
+        document.getElementById('edit-shift-start-date').value = formattedStartDate;
+        document.getElementById('edit-shift-start-time').value = startTimeFormatted;
+        document.getElementById('edit-shift-end-date').value = formattedEndDate;
+        document.getElementById('edit-shift-end-time').value = endTimeFormatted;
+        document.getElementById('edit-shift-status').value = status;
     }
-    
-    // Parse start and end times
-    const startTimeFormatted = convertTimeFormat(startTime);
-    const endTimeFormatted = convertTimeFormat(endTime);
-    
-    // For multi-day shifts, we need to determine the end date
-    // If we have a calendar event, use its end date
-    let formattedEndDate = formattedStartDate; // Default to same day
-    if (calendarEvent) {
-        formattedEndDate = calendarEvent.end.toISOString().split('T')[0];
-    }
-    
-    // Set form values
-    document.getElementById('edit-shift-title').value = title;
-    document.getElementById('edit-shift-start-date').value = formattedStartDate;
-    document.getElementById('edit-shift-start-time').value = startTimeFormatted;
-    document.getElementById('edit-shift-end-date').value = formattedEndDate;
-    document.getElementById('edit-shift-end-time').value = endTimeFormatted;
-    document.getElementById('edit-shift-status').value = status;
     
     // Show modal
     editShiftModal.style.display = 'block';
@@ -1241,4 +1354,156 @@ document.getElementById('availabilityForm').addEventListener('submit', function(
             });
         }
     }
-}); 
+});
+
+// Function to fetch all shifts
+async function fetchShifts() {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (!userInfo || !userInfo.userId) {
+            throw new Error('User information not found');
+        }
+
+        console.log('Fetching shifts for user:', userInfo.userId);
+
+        const response = await fetch(`http://localhost:8800/api/shift/${userInfo.userId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Failed to fetch shifts:', {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorText
+            });
+            throw new Error('Failed to fetch shifts');
+        }
+
+        const shifts = await response.json();
+        console.log('Raw shifts from server:', shifts);
+
+        const calendarEvents = shifts.map(shift => {
+            const event = {
+                id: shift.shiftId,
+                title: shift.title || 'Shift',
+                start: new Date(shift.startDate).toISOString(),
+                end: new Date(shift.endDate).toISOString(),
+                status: shift.status,
+                extendedProps: {
+                    status: shift.status
+                }
+            };
+            console.log('Converted shift to calendar event:', event);
+            return event;
+        });
+
+        console.log('Final calendar events:', calendarEvents);
+        return calendarEvents;
+    } catch (error) {
+        console.error('Error in fetchShifts:', error);
+        return [];
+    }
+}
+
+// Function to get color based on shift status
+function getStatusColor(status) {
+    switch (status.toLowerCase()) {
+        case 'pending':
+            return '#F59E0B'; // Amber
+        case 'approved':
+            return '#10B981'; // Green
+        case 'rejected':
+            return '#EF4444'; // Red
+        case 'completed':
+            return '#3B82F6'; // Blue
+        default:
+            return '#6B7280'; // Gray
+    }
+}
+
+// Function to create a new shift
+async function createShift(shiftData) {
+    try {
+        console.log('Starting shift creation with data:', shiftData);
+        
+        const token = localStorage.getItem('token');
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+        console.log('Authentication token found');
+
+        // Get user info from localStorage
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        console.log('Retrieved user info:', userInfo);
+        
+        if (!userInfo || !userInfo.userId) {
+            throw new Error('User information not found');
+        }
+
+        // Format data to match the controller's expected fields
+        const shiftRequestData = {
+            employeeId: userInfo.userId,
+            title: shiftData.title,
+            startDate: shiftData.start_time, // Send the full datetime string
+            endDate: shiftData.end_time,     // Send the full datetime string
+            status: shiftData.status
+        };
+
+        console.log('Formatted shift request data:', shiftRequestData);
+
+        // Changed endpoint to match backend route
+        const response = await fetch('http://localhost:8800/api/shift/add', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(shiftRequestData)
+        });
+
+        console.log('Server response status:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Server error response:', {
+                status: response.status,
+                statusText: response.statusText,
+                errorText: errorText
+            });
+            throw new Error(`Failed to create shift: ${errorText}`);
+        }
+
+        const result = await response.json();
+        console.log('Shift created successfully:', result);
+        return result;
+    } catch (error) {
+        console.error('Error in createShift:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
+        throw error;
+    }
+}
+
+// Function to open add shift modal
+function openAddShiftModal() {
+    const modal = document.getElementById('addShiftModal');
+    modal.style.display = 'block';
+}
+
+// Function to close add shift modal
+function closeAddShiftModal() {
+    const modal = document.getElementById('addShiftModal');
+    modal.style.display = 'none';
+} 
