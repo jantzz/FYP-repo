@@ -7,6 +7,8 @@ const path = require('path');
 const userRoutes = require('./routes/userRoutes');
 const roleRoutes = require('./routes/roleRoutes');
 const shiftRoutes = require('./routes/shiftRoutes');
+const fileRoutes = require('./routes/fileRoutes');
+const availabilityRoutes = require('./routes/availabilityRoutes');
 
 //express app declared within app constant 
 const app = express(); 
@@ -34,5 +36,7 @@ app.use('/', fileRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/role', roleRoutes);
 app.use('/api/shift', shiftRoutes);
+app.use('/api/availability', availabilityRoutes);
+
 // export app constant 
 module.exports = app;
