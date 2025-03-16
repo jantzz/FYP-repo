@@ -23,7 +23,7 @@ app.use(cors({
 //middlewares (between request and response )
 app.use(express.json()); // allows for the request to send attachments (json objects)
 
-app.use(express.static(path.join(__dirname, "../frontend")));
+app.use(express.static(path.join(__dirname, "../docs")));
 
 app.use((req, res, next) => { // prints to console every request sent (for debugging / testing purposes)
     console.log(req.method, req.path);
