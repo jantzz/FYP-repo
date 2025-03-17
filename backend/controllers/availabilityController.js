@@ -131,8 +131,35 @@ const getEmployeeAvailability = async (req, res) => {
     }
 };
 
+//function to retrieve all pending availability requests
+const getPendingRequests = async (req, res) => {
+    let connection;
+    try {
+        connection = await db.getConnection();
+
+        const query = `
+            SELECT a.*, u.name AS employeeName 
+            FROM availability a
+            JOIN user u ON a.employeeId = u.userId
+            WHERE a.status = 'Pending'
+            ORDER BY a.submittedAt ASC
+        `;
+
+        const [pendingRequests] = await connection.execute(query);
+        connection.release();
+
+        return res.status(200).json(pendingRequests);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error." });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 module.exports = {
     submitAvailability,
     updateAvailabilityStatus,
-    getEmployeeAvailability
+    getEmployeeAvailability,
+    getPendingRequests
 };

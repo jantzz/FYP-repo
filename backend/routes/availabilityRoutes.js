@@ -7,7 +7,7 @@ router.post('/submit', submitAvailability);
 //manager approves/declines submission
 router.put('/update', updateAvailabilityStatus);  
 //manager views pending requests
-//router.get('/pending', getPendingRequests);  
+router.get('/pending', getPendingRequests);  
 
 // get availability for a specific employee
 router.get('/employee/:employeeId', getEmployeeAvailability);
