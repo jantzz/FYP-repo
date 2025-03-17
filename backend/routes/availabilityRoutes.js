@@ -1,5 +1,5 @@
 const express = require('express');
-const { submitAvailability, updateAvailabilityStatus, getEmployeeAvailability } = require('../controllers/availabilityController');
+const { submitAvailability, updateAvailabilityStatus, getPendingRequests, getEmployeeAvailability } = require('../controllers/availabilityController');
 
 const router = express.Router();
 //employee submits availability
