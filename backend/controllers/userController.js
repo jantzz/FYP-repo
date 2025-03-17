@@ -127,8 +127,45 @@ const updateUser = async (req, res) => {
 
 }
 
+const getMe = async (req, res) => {
+    try {
+        // get token from Authorization header
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Authentication token required' });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        // verify the token
+        const { _id } = jwt.verify(token, process.env.SECRET);
+
+        // get user info from database
+        const connection = await db.getConnection();
+        const [users] = await connection.execute(
+            "SELECT userId, name, email, role, department, birthday, gender FROM user WHERE userId = ?",
+            [_id]
+        );
+        connection.release();
+
+        if (users.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // return user data
+        res.status(200).json(users[0]);
+    } catch (error) {
+        console.error('Error getting user info:', error);
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
 module.exports = {
     loginUser,
     createUser,
-    updateUser
+    updateUser,
+    getMe
 }

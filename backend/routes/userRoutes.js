@@ -1,10 +1,13 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
+const db = require('../database/db');
 
 //imports
 const { 
     loginUser, 
     createUser,
-    updateUser 
+    updateUser,
+    getMe
 } = require('../controllers/userController');
 
 //router object from express 
@@ -16,5 +19,8 @@ router.post('/login' , loginUser);
 router.post('/createUser', createUser);
 
 router.put('/updateUser', updateUser);
+
+// get current user information
+router.get('/me', getMe);
 
 module.exports = router;
