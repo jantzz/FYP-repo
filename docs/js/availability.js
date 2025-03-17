@@ -510,7 +510,7 @@ async function loadEmployeeAvailability() {
             return;
         }
 
-        const response = await fetch(`/api/availability/employee/${userInfo.userId}`, {
+        const response = await fetch(`http://localhost:8800/api/availability/employee/${userInfo.userId}`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
@@ -538,17 +538,16 @@ async function loadEmployeeAvailability() {
                 remainingHours: 40,
                 availability: []
             };
-            updateAvailabilityDisplay();
         }
     } catch (error) {
         console.error('Error loading employee availability:', error);
-        // Initialize with default values on error
+        // Initialize with default values if there's an error
         employeeAvailability = {
             remainingHours: 40,
             availability: []
         };
-        updateAvailabilityDisplay();
     }
+    updateAvailabilityDisplay();
 }
 
 function updateEmployeeAvailability(data) {

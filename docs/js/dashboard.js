@@ -191,21 +191,50 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // Load time off history
                 loadTimeOffHistory();
             } else if (this.textContent.trim() === 'Schedule') {
+                console.log('Schedule tab clicked');
                 document.querySelector('.schedule-section').style.display = 'block';
+                console.log('Schedule section display set to block');
+                
                 // Initialize employee calendar if not already done
                 if (!employeeCalendar) {
+                    console.log('Initializing employee calendar');
                     initEmployeeCalendar();
                 } else {
+                    console.log('Rendering existing employee calendar');
                     employeeCalendar.render();
                 }
                 
                 try {
                     // Load availability data (only if the table exists)
+                    console.log('Attempting to load availability data');
                     loadAvailabilityData();
                     // Load roster data (only if the table exists)
+                    console.log('Attempting to load roster data');
                     loadRosterData();
                 } catch (error) {
                     console.error('Error loading schedule data:', error);
+                }
+                
+                // Make sure tab panes are visible
+                console.log('Setting active tab pane display to block');
+                const activeTab = document.querySelector('.schedule-tabs .tab.active');
+                if (activeTab) {
+                    const tabId = activeTab.getAttribute('data-tab');
+                    console.log('Active tab ID:', tabId);
+                    const tabPane = document.getElementById(`${tabId}-tab`);
+                    if (tabPane) {
+                        console.log('Found tab pane, setting to active');
+                        document.querySelectorAll('.tab-pane').forEach(pane => {
+                            pane.style.display = 'none';
+                            pane.classList.remove('active');
+                        });
+                        tabPane.style.display = 'block';
+                        tabPane.classList.add('active');
+                    } else {
+                        console.error('Tab pane not found for ID:', tabId);
+                    }
+                } else {
+                    console.error('No active tab found in schedule tabs');
                 }
             }
         });
@@ -214,21 +243,34 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Tab switching functionality
     document.querySelectorAll('.schedule-tabs .tab').forEach(tab => {
         tab.addEventListener('click', function() {
+            console.log('Schedule tab clicked:', this.textContent);
             // Remove active class from all tabs
             document.querySelectorAll('.schedule-tabs .tab').forEach(t => t.classList.remove('active'));
             // Add active class to clicked tab
             this.classList.add('active');
             
             // Hide all tab panes
-            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.remove('active');
+                pane.style.display = 'none';
+            });
             
             // Show the corresponding tab pane
             const tabId = this.getAttribute('data-tab');
-            document.getElementById(`${tabId}-tab`).classList.add('active');
-            
-            // Refresh calendar if showing the roster tab
-            if (tabId === 'my-roster' && employeeCalendar) {
-                employeeCalendar.render();
+            console.log('Tab ID:', tabId);
+            const tabPane = document.getElementById(`${tabId}-tab`);
+            if (tabPane) {
+                console.log('Activating tab pane:', tabPane.id);
+                tabPane.classList.add('active');
+                tabPane.style.display = 'block';
+                
+                // Refresh calendar if showing the roster tab
+                if (tabId === 'my-roster' && employeeCalendar) {
+                    console.log('Refreshing employee calendar');
+                    employeeCalendar.render();
+                }
+            } else {
+                console.error('Tab pane not found for ID:', tabId);
             }
         });
     });
@@ -1115,42 +1157,63 @@ function showScheduleSection() {
 
 // Function to initialize the employee calendar
 function initEmployeeCalendar() {
+    console.log('Starting to initialize employee calendar');
     const calendarEl = document.getElementById('employee-calendar');
-    employeeCalendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
-        },
-        slotMinTime: '07:00:00',
-        slotMaxTime: '22:00:00',
-        allDaySlot: false,
-        height: 'auto',
-        events: [
-            // Sample events - would be fetched from API in real app
-            {
-                title: 'Front Desk',
-                start: '2023-05-15T09:00:00',
-                end: '2023-05-15T17:00:00',
-                color: '#4caf50'
-            },
-            {
-                title: 'Back Office',
-                start: '2023-05-16T10:00:00',
-                end: '2023-05-16T18:00:00',
-                color: '#2196f3'
-            },
-            {
-                title: 'Front Desk',
-                start: '2023-05-17T08:00:00',
-                end: '2023-05-17T16:00:00',
-                color: '#4caf50'
-            }
-        ]
-    });
     
-    employeeCalendar.render();
+    if (!calendarEl) {
+        console.error('Employee calendar element not found in the DOM');
+        return;
+    }
+    
+    console.log('Found calendar element, creating FullCalendar instance');
+    
+    // Check if FullCalendar is available
+    if (typeof FullCalendar === 'undefined') {
+        console.error('FullCalendar library not loaded properly');
+        return;
+    }
+    
+    try {
+        employeeCalendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'timeGridWeek',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            slotMinTime: '07:00:00',
+            slotMaxTime: '22:00:00',
+            allDaySlot: false,
+            height: 'auto',
+            events: [
+                // Sample events - would be fetched from API in real app
+                {
+                    title: 'Front Desk',
+                    start: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().substring(0, 10) + 'T09:00:00',
+                    end: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().substring(0, 10) + 'T17:00:00',
+                    color: '#4caf50'
+                },
+                {
+                    title: 'Back Office',
+                    start: new Date().toISOString().substring(0, 10) + 'T10:00:00',
+                    end: new Date().toISOString().substring(0, 10) + 'T18:00:00',
+                    color: '#2196f3'
+                },
+                {
+                    title: 'Front Desk',
+                    start: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().substring(0, 10) + 'T08:00:00',
+                    end: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().substring(0, 10) + 'T16:00:00',
+                    color: '#4caf50'
+                }
+            ]
+        });
+        
+        console.log('FullCalendar instance created, rendering calendar');
+        employeeCalendar.render();
+        console.log('Calendar render complete');
+    } catch (error) {
+        console.error('Error initializing employee calendar:', error);
+    }
 }
 
 // Function to load availability data
@@ -1164,12 +1227,21 @@ function loadAvailabilityData() {
         return; // Exit early if element doesn't exist
     }
     
+    // Clear existing rows
+    tableBody.innerHTML = '';
+    
     // This would typically fetch from an API
     // For now, we'll use sample data
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfter = new Date(today);
+    dayAfter.setDate(dayAfter.getDate() + 2);
+    
     const sampleAvailability = [
         {
             id: 1,
-            date: '2023-05-20',
+            date: today.toISOString().split('T')[0],
             startTime: '09:00',
             endTime: '17:00',
             type: 'unavailable',
@@ -1177,7 +1249,7 @@ function loadAvailabilityData() {
         },
         {
             id: 2,
-            date: '2023-05-22',
+            date: tomorrow.toISOString().split('T')[0],
             startTime: '14:00',
             endTime: '18:00',
             type: 'prefer',
@@ -1185,42 +1257,42 @@ function loadAvailabilityData() {
         },
         {
             id: 3,
-            date: '2023-05-24',
+            date: dayAfter.toISOString().split('T')[0],
             allDay: true,
             type: 'unavailable',
             note: 'Out of town'
         }
     ];
     
-    tableBody.innerHTML = '';
+    console.log('Using sample availability data:', sampleAvailability);
     
+    // Add rows to the table
     sampleAvailability.forEach(item => {
         const row = document.createElement('tr');
         
-        // Format date
-        const date = new Date(item.date).toLocaleDateString();
+        // Format the date
+        const dateObj = new Date(item.date);
+        const formattedDate = dateObj.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+        });
         
-        // Format time
-        let timeText;
+        // Format the time
+        let timeDisplay;
         if (item.allDay) {
-            timeText = 'All Day';
+            timeDisplay = 'All Day';
         } else {
-            const startTime = formatTime(item.startTime);
-            const endTime = formatTime(item.endTime);
-            timeText = `${startTime} - ${endTime}`;
+            timeDisplay = `${item.startTime} - ${item.endTime}`;
         }
         
-        // Determine status class
-        const statusClass = item.type === 'unavailable' ? 'status-unavailable' : 'status-prefer';
-        const statusText = item.type === 'unavailable' ? 'Unavailable' : 'Prefer to Work';
-        
         row.innerHTML = `
-            <td>${date}</td>
-            <td>${timeText}</td>
-            <td><span class="availability-status ${statusClass}">${statusText}</span></td>
-            <td>${item.note || '-'}</td>
-            <td class="request-actions">
-                <button class="action-btn view-btn" onclick="editAvailability(${item.id})">
+            <td>${formattedDate}</td>
+            <td>${timeDisplay}</td>
+            <td><span class="status-badge ${item.type}">${item.type.charAt(0).toUpperCase() + item.type.slice(1)}</span></td>
+            <td>${item.note}</td>
+            <td>
+                <button class="action-btn edit-btn" onclick="editAvailability(${item.id})">
                     <i class="fas fa-edit"></i>
                 </button>
                 <button class="action-btn delete-btn" onclick="deleteAvailability(${item.id})">
@@ -1231,6 +1303,8 @@ function loadAvailabilityData() {
         
         tableBody.appendChild(row);
     });
+    
+    console.log('Availability data loaded into table');
 }
 
 // Function to load roster data

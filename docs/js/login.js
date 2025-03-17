@@ -35,22 +35,43 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Store token in localStorage
                 localStorage.setItem('token', data.token);
                 
-                // Store user info matching the database schema
-                const userInfo = {
-                    userId: data.userId,  
-                    name: data.name,    
-                    email: data.email,   
-                    role: data.role,    
-                    department: data.department,
-                    birthday: data.birthday,
-                    gender: data.gender
-                };
-                
-                console.log('Storing user info:', userInfo); // Debug log
-                localStorage.setItem('userInfo', JSON.stringify(userInfo));
-                
-                // Redirect to dashboard
-                window.location.href = '/dashboard.html';
+                // Now fetch user details using the token
+                try {
+                    const userResponse = await fetch('http://localhost:8800/api/user/me', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${data.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (userResponse.ok) {
+                        const userData = await userResponse.json();
+                        
+                        // Store user info matching the database schema
+                        const userInfo = {
+                            userId: userData.userId,  
+                            name: userData.name,    
+                            email: userData.email,   
+                            role: userData.role,    
+                            department: userData.department,
+                            birthday: userData.birthday,
+                            gender: userData.gender
+                        };
+                        
+                        console.log('Storing user info:', userInfo); // Debug log
+                        localStorage.setItem('userInfo', JSON.stringify(userInfo));
+                        
+                        // Redirect to dashboard
+                        window.location.href = '/dashboard.html';
+                    } else {
+                        throw new Error('Failed to fetch user data');
+                    }
+                } catch (userError) {
+                    console.error('Error fetching user data:', userError);
+                    document.getElementById('login-error').textContent = 'Failed to retrieve user information';
+                    document.getElementById('login-error').style.display = 'block';
+                }
             } else {
                 // Show error message
                 document.getElementById('login-error').textContent = data.error || 'Login failed';
@@ -74,7 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const gender = document.getElementById('signup-gender').value;
         
         try {
-            const response = await fetch('/api/user/createUser', {
+            const response = await fetch('http://localhost:8800/api/user/createUser', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
