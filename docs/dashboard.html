@@ -14,7 +14,6 @@
     <!-- Custom JavaScript -->
     <script src="js/dashboard.js" defer></script>
     <script src="js/availability.js" defer></script>
-    <script src="js/availability-manager.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -145,6 +144,7 @@
                             </tr>
                         </thead>
                         <tbody id="employeeTableBody">
+                            <!-- Employee data will be populated here -->
                         </tbody>
                     </table>
                 </div>
@@ -177,6 +177,8 @@
                             <p>Medical Certificate</p>
                             <span class="policy-amount">14 days</span>
                         </div>
+                        <!-- More policy cards can be added here -->
+                    </div>
                 </div>
                 
                 <div class="request-history">
@@ -193,6 +195,7 @@
                             </tr>
                         </thead>
                         <tbody id="timeOffHistoryBody">
+                            <!-- Time off history will be populated here -->
                         </tbody>
                     </table>
                 </div>
@@ -237,6 +240,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="availabilityTableBody">
+                                    <!-- Availability data will be populated here -->
                                 </tbody>
                             </table>
                         </div>
@@ -265,6 +269,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="rosterTableBody">
+                                    <!-- Roster data will be populated here -->
                                 </tbody>
                             </table>
                         </div>
@@ -274,6 +279,7 @@
 
             <div class="report-section">
                 <h2>Report Analysis</h2>
+                <!-- Report content will go here -->
             </div>
         </div>
     </div>
@@ -539,6 +545,7 @@
                 <h3 id="request-employee-name">Employee Name</h3>
             </div>
             <div class="request-details" id="request-details-container">
+                <!-- Request details will be populated here -->
             </div>
             <div class="form-actions manager-actions">
                 <button type="button" class="btn-primary" onclick="approveTimeOff()">Accept</button>
@@ -553,6 +560,8 @@
             <span class="close" onclick="closeAvailabilityModal()">&times;</span>
             <h2>Set Availability</h2>
             <form id="availabilityForm">
+                <!-- Shift type selection will be added dynamically by availability.js -->
+                
                 <div class="form-group">
                     <label for="availability-date">Date</label>
                     <div class="date-selection">
@@ -591,10 +600,15 @@
             </form>
         </div>
     </div>
+
+    <!-- Add this somewhere in the document, can be in the schedule section -->
     <div style="display: none;">
         <table>
             <tbody id="availabilityTableBody"></tbody>
         </table>
     </div>
+
+    <!-- Add this before the closing body tag -->
+    <script src="js/availability-manager.js"></script>
 </body>
 </html> 

@@ -1,10 +1,4 @@
-/*
- * Manager functionality for handling availability requests
- * This code is currently not in use and will be uncommented when rbac is implemented.
- * It provides an interface for managers to view and approve/reject employee availability requests.
- */
-
-/*
+// Manager functionality for handling availability requests
 document.addEventListener('DOMContentLoaded', function() {
     // Check if user is manager or admin
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
@@ -336,5 +330,4 @@ async function updateAvailabilityStatus(requestId, status) {
         button.textContent = originalText;
         button.disabled = false;
     }
-}
-*/ 
+} 

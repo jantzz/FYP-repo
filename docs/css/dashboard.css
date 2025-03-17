@@ -1272,4 +1272,106 @@ textarea {
     height: 600px;
     margin-top: 20px;
     background-color: #fff;
+}
+
+/* Replacement Tab Styles */
+.replacement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 0;
+}
+
+.replacement-header h3 {
+    font-size: 1.3rem;
+    color: #444;
+    margin: 0;
+}
+
+.master-roster-view {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.roster-search {
+    margin-bottom: 1rem;
+}
+
+.roster-search input {
+    width: 100%;
+    padding: 0.5rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.roster-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    overflow-x: auto;
+    display: block;
+}
+
+.roster-table th,
+.roster-table td {
+    padding: 0.8rem 1rem;
+    text-align: center;
+    border: 1px solid #eaeaea;
+}
+
+.roster-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #444;
+}
+
+.roster-table td {
+    vertical-align: middle;
+}
+
+.roster-table tr:hover {
+    background-color: #f5f5f5;
+}
+
+.status-available {
+    background-color: rgba(0, 200, 81, 0.2);
+    color: #00963c;
+    padding: 5px 10px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.status-unavailable {
+    background-color: rgba(255, 68, 68, 0.1);
+    color: #d32f2f;
+    padding: 5px 10px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.status-pending {
+    background-color: rgba(255, 167, 0, 0.1);
+    color: #f57c00;
+    padding: 5px 10px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .roster-table {
+        font-size: 0.8rem;
+    }
+    
+    .roster-table th,
+    .roster-table td {
+        padding: 0.5rem;
+    }
 } 

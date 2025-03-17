@@ -17,10 +17,26 @@ const SHIFT_TYPES = {
     }
 };
 
+// Add CSS for used-hours span
+const usedHoursStyle = document.createElement('style');
+usedHoursStyle.textContent = `
+    .used-hours {
+        font-size: 0.85em;
+        color: #666;
+        margin-left: 8px;
+    }
+    .progress-container {
+        margin-top: 8px;
+        margin-bottom: 16px;
+    }
+`;
+document.head.appendChild(usedHoursStyle);
+
 // Initialize employee availability data structure
 let employeeAvailability = {
     remainingHours: 40,
     availability: []
+    // Removed suggestedShifts as it's not used
 };
 
 // Initialize availability functionality
@@ -98,30 +114,58 @@ function updateAvailabilityDisplay() {
 
     // Update progress bar if remainingHours exists
     if (employeeAvailability.remainingHours !== undefined) {
-        let progressBar = document.querySelector('.progress-bar');
-        if (!progressBar) {
-            const remainingHoursDiv = document.createElement('div');
-            remainingHoursDiv.className = 'remaining-hours';
-            remainingHoursDiv.innerHTML = `
-                <h3>Remaining Hours: <span id="remainingHours">40</span></h3>
-                <div class="progress-bar">
-                    <div class="progress" style="width: 100%"></div>
+        let progressBarContainer = document.querySelector('.remaining-hours');
+        if (!progressBarContainer) {
+            progressBarContainer = document.createElement('div');
+            progressBarContainer.className = 'remaining-hours';
+            progressBarContainer.innerHTML = `
+                <h3>Hours: <span id="remainingHours">${employeeAvailability.remainingHours}</span> of 40 remaining</h3>
+                <div class="progress-container" style="width: 100%; background-color: #f5f5f5; height: 20px; border-radius: 4px; position: relative; overflow: hidden;">
                 </div>
             `;
-            mainContainer.insertBefore(remainingHoursDiv, mainContainer.firstChild);
-            progressBar = remainingHoursDiv.querySelector('.progress-bar');
+            mainContainer.insertBefore(progressBarContainer, mainContainer.firstChild);
+            
+            // Create the progress element
+            const progressContainer = progressBarContainer.querySelector('.progress-container');
+            const progressElement = document.createElement('div');
+            progressElement.className = 'progress-bar';
+            progressElement.style.cssText = `
+                position: absolute;
+                height: 100%;
+                top: 0;
+                left: 0;
+                background-color: #00C851;
+                transition: width 0.3s ease;
+            `;
+            progressContainer.appendChild(progressElement);
         }
-        const progress = progressBar.querySelector('.progress');
-        if (progress) {
-            const percentage = (employeeAvailability.remainingHours / 40) * 100;
-            progress.style.width = `${percentage}%`;
-            progress.style.backgroundColor = percentage < 20 ? '#ff4444' : 
-                                          percentage < 50 ? '#ffa700' : 
-                                          '#00C851';
+        
+        // Update the progress bar width
+        document.getElementById('remainingHours').textContent = employeeAvailability.remainingHours;
+        const progressBar = document.querySelector('.progress-bar');
+        if (progressBar) {
+            // Display used vs total hours instead of just remaining
+            const usedHours = 40 - employeeAvailability.remainingHours;
+            const totalHours = 40;
+            
+            // Add used hours to the display
+            const hoursDisplay = document.querySelector('.remaining-hours h3');
+            if (hoursDisplay) {
+                hoursDisplay.innerHTML = `Hours: <span id="remainingHours">${employeeAvailability.remainingHours}</span> of ${totalHours} remaining <span class="used-hours">(${usedHours} used)</span>`;
+            }
+            
+            // Calculate the percentage to fill the bar with remaining hours
+            const percentage = (employeeAvailability.remainingHours / totalHours) * 100;
+            progressBar.style.width = `${percentage}%`;
+            
+            // Update color based on remaining hours
+            progressBar.style.backgroundColor = percentage < 20 ? '#ff4444' : 
+                                              percentage < 50 ? '#ffa700' : 
+                                              '#00C851';
         }
     }
 
-    // Create or get the availability container
+    // CRITICAL: Create or get the availability container
     let availabilityContainer = document.querySelector('#availability-container');
     console.log('Availability container found:', availabilityContainer);
     
@@ -132,7 +176,7 @@ function updateAvailabilityDisplay() {
         console.log('Created availability container');
     }
 
-    // Create or get the availability list
+    // CRITICAL: Create or get the availability list
     let availabilityList = document.querySelector('.availability-list');
     console.log('Availability list found:', availabilityList);
     
@@ -287,11 +331,25 @@ function initializeAvailabilityForm() {
         const remainingHoursDiv = document.createElement('div');
         remainingHoursDiv.className = 'remaining-hours';
         remainingHoursDiv.innerHTML = `
-            <h3>Remaining Hours: <span id="remainingHours">40</span></h3>
-            <div class="progress-bar">
-                <div class="progress" style="width: 100%"></div>
+            <h3>Hours: <span id="remainingHours">${employeeAvailability.remainingHours}</span> of 40 remaining</h3>
+            <div class="progress-container" style="width: 100%; background-color: #f5f5f5; height: 20px; border-radius: 4px; position: relative; overflow: hidden;">
             </div>
         `;
+
+        // Create the progress element
+        const progressContainer = remainingHoursDiv.querySelector('.progress-container');
+        const progressElement = document.createElement('div');
+        progressElement.className = 'progress-bar';
+        progressElement.style.cssText = `
+            position: absolute;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background-color: #00C851;
+            transition: width 0.3s ease;
+            width: ${(employeeAvailability.remainingHours / 40) * 100}%;
+        `;
+        progressContainer.appendChild(progressElement);
 
         const availabilityHeader = document.querySelector('.availability-header');
         if (availabilityHeader) {
@@ -379,43 +437,87 @@ function setupAvailabilityListeners() {
         // Prepare form data
         const formData = {
             employeeId: userId,
-            date,
-            startTime,
-            endTime,
-            shiftType,
-            note,
-            isAllDay,
-            isRepeat
+            startDate: `${date}T${startTime}:00`,
+            endDate: `${date}T${endTime}:00`,
+            preferredShift: SHIFT_TYPES[shiftType].name,
+            // Include additional information as needed
+            note: note,
+            isAllDay: isAllDay,
+            isRepeat: isRepeat
         };
         
         // Submit the form
         try {
             console.log('Submitting availability with data:', formData);
-            const response = await fetch('/api/availability/submit', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify(formData)
-            });
+            
+            // Try submitting to the API first
+            try {
+                console.log('Sending availability data to API');
+                const response = await fetch('/api/availability/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(formData)
+                });
 
-            const responseData = await response.json();
-            console.log('Server response:', responseData);
+                console.log('API response status:', response.status);
+                
+                // Try to parse the response
+                let responseText = await response.text();
+                let responseData;
+                
+                try {
+                    responseData = JSON.parse(responseText);
+                    console.log('Parsed response:', responseData);
+                } catch (parseError) {
+                    console.error('Error parsing JSON response:', parseError);
+                    console.log('Raw response text:', responseText);
+                    throw new Error('Server returned invalid JSON');
+                }
 
-            if (!response.ok) {
-                throw new Error(responseData.error || responseData.details || 'Failed to save availability');
+                if (!response.ok) {
+                    throw new Error(responseData.error || 'Failed to save availability');
+                }
+
+                // If successful, refresh availability data
+                await loadEmployeeAvailability();
+                alert('Availability saved successfully!');
+                closeAvailabilityModal();
+                return;
+            } catch (apiError) {
+                console.error('API request failed, falling back to localStorage:', apiError);
+                
+                // Fall back to localStorage if API fails
+                const existingData = JSON.parse(localStorage.getItem('availabilityData') || '[]');
+                existingData.push({
+                    ...formData,
+                    id: Date.now(),
+                    status: 'Pending'
+                });
+                localStorage.setItem('availabilityData', JSON.stringify(existingData));
+                
+                // Also update the global employeeAvailability object
+                const newAvail = {
+                    startDate: `${date}T${startTime}:00`,
+                    endDate: `${date}T${endTime}:00`,
+                    preferredShift: SHIFT_TYPES[shiftType].name,
+                    status: 'Pending',
+                    note: note
+                };
+                
+                employeeAvailability.availability.push(newAvail);
+                
+                // Don't update remaining hours for pending availability
+                // Let it be counted only when approved
+                
+                alert('Availability saved in local storage (API unavailable)');
+                closeAvailabilityModal();
+                updateAvailabilityDisplay();
             }
-
-            updateEmployeeAvailability(responseData);
-            closeAvailabilityModal();
-            updateAvailabilityDisplay();
         } catch (error) {
-            console.error('Error saving availability:', {
-                message: error.message,
-                stack: error.stack,
-                formData: formData
-            });
+            console.error('Error saving availability:', error);
             alert(`Failed to save availability: ${error.message}`);
         }
     });
@@ -509,45 +611,105 @@ async function loadEmployeeAvailability() {
             console.error('No userId found in userInfo:', userInfo);
             return;
         }
-
-        const response = await fetch(`http://localhost:8800/api/availability/employee/${userInfo.userId}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
         
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Retrieved employee availability data:', data);
+        console.log('Loading availability for user ID:', userInfo.userId);
+
+        // Try the API first
+        try {
+            console.log(`Fetching from API: /api/availability/employee/${userInfo.userId}`);
+            const response = await fetch(`/api/availability/employee/${userInfo.userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
             
-            // Ensure all required properties exist
-            employeeAvailability = {
-                remainingHours: data.remainingHours || 40,
-                availability: data.availability || []
-            };
+            console.log('API response status:', response.status);
             
-            console.log('Processed employee availability data:', employeeAvailability);
-            updateAvailabilityDisplay();
-        } else if (response.status === 401) {
-            // Unauthorized - redirect to login
-            window.location.href = '/login.html';
-        } else {
-            console.error('Error loading employee availability:', response.status, response.statusText);
-            // Initialize with default values
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Retrieved employee availability data from API:', data);
+                
+                // Update the global employeeAvailability object
+                employeeAvailability = {
+                    remainingHours: data.remainingHours || 40,
+                    availability: data.availability || []
+                };
+                
+                console.log('Updated employeeAvailability with API data:', employeeAvailability);
+                updateAvailabilityDisplay();
+                return;
+            } else if (response.status === 401) {
+                console.warn('Unauthorized - redirecting to login');
+                window.location.href = '/login.html';
+                return;
+            } else {
+                throw new Error(`API error: ${response.status} ${response.statusText}`);
+            }
+        } catch (apiError) {
+            console.error('Error loading from API, falling back to localStorage:', apiError);
+            
+            // If API fails, fall back to localStorage
+            const localData = localStorage.getItem('availabilityData');
+            if (localData) {
+                console.log('Found availability data in localStorage');
+                const availabilityData = JSON.parse(localData);
+                
+                // Only use the current user's data if multiple users are stored
+                const userAvailability = availabilityData.filter(item => 
+                    item.employeeId == userInfo.userId || !item.employeeId);
+                    
+                // Format data for display
+                employeeAvailability = {
+                    remainingHours: 40 - calculateUsedHours(userAvailability),
+                    availability: userAvailability.map(item => ({
+                        startDate: item.startDate || `${item.date}T${item.startTime}:00`,
+                        endDate: item.endDate || `${item.date}T${item.endTime}:00`,
+                        preferredShift: item.preferredShift || SHIFT_TYPES[item.shiftType].name,
+                        status: item.status || 'Pending',
+                        note: item.note || ''
+                    }))
+                };
+                
+                console.log('Using localStorage availability data:', employeeAvailability);
+                updateAvailabilityDisplay();
+                return;
+            }
+            
+            // No data found anywhere, initialize with default values
             employeeAvailability = {
                 remainingHours: 40,
                 availability: []
             };
+            updateAvailabilityDisplay();
         }
     } catch (error) {
-        console.error('Error loading employee availability:', error);
-        // Initialize with default values if there's an error
+        console.error('Global error loading employee availability:', error);
+        // Initialize with default values on error
         employeeAvailability = {
             remainingHours: 40,
             availability: []
         };
+        updateAvailabilityDisplay();
     }
-    updateAvailabilityDisplay();
+}
+
+// Helper function to calculate used hours
+function calculateUsedHours(availabilityData) {
+    return availabilityData.reduce((total, item) => {
+        try {
+            // Only count if status is "Approved" - ignore "Pending" availability
+            if (item.status && item.status.toLowerCase() === "approved") {
+                const start = new Date(item.startDate || `${item.date}T${item.startTime}:00`);
+                const end = new Date(item.endDate || `${item.date}T${item.endTime}:00`);
+                const hours = (end - start) / (1000 * 60 * 60);
+                return total + (isNaN(hours) ? 0 : hours);
+            }
+            return total; // Skip non-approved items
+        } catch (e) {
+            console.error('Error calculating hours for item:', item, e);
+            return total;
+        }
+    }, 0);
 }
 
 function updateEmployeeAvailability(data) {
@@ -558,7 +720,7 @@ function updateEmployeeAvailability(data) {
     updateAvailabilityDisplay();
 }
 
-// function to format time
+// Helper function to format time
 function formatTime(timeString) {
     try {
         const date = new Date(timeString);
