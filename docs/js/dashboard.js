@@ -696,19 +696,52 @@ let currentShiftElement = null;
 let currentCalendarEvent = null;
 
 function openEditShiftModal(source, calendarEvent = null) {
+    // Convert from "00:00 AM" format to "00:00" format
+    function convertTimeFormat(timeStr) {
+        const [time, period] = timeStr.split(' ');
+        let [hours, minutes] = time.split(':');
+        
+        if (period === 'PM' && hours !== '12') {
+            hours = String(parseInt(hours) + 12);
+        }
+        if (period === 'AM' && hours === '12') {
+            hours = '00';
+        }
+        
+        hours = String(hours).padStart(2, '0');
+        return `${hours}:${minutes}`;
+    }
+
     // If source is a calendar event (from eventClick handler)
     if (source && source.title !== undefined) {
         currentCalendarEvent = source;
         currentShiftElement = null;
         
         // Set form values directly from calendar event
-        document.getElementById('edit-shift-id').value = source.id;
-        document.getElementById('edit-shift-title').value = source.title;
-        document.getElementById('edit-shift-start-date').value = source.start.toISOString().split('T')[0];
-        document.getElementById('edit-shift-end-date').value = source.end.toISOString().split('T')[0];
-        document.getElementById('edit-shift-start-time').value = source.start.toTimeString().slice(0, 5);
-        document.getElementById('edit-shift-end-time').value = source.end.toTimeString().slice(0, 5);
-        document.getElementById('edit-shift-status').value = source.extendedProps.status;
+        document.getElementById('edit-shift-id').value = source.id || '';
+        document.getElementById('edit-shift-title').value = source.title || '';
+        
+        // Make sure start and end dates exist before calling toISOString
+        if (source.start && typeof source.start.toISOString === 'function') {
+            document.getElementById('edit-shift-start-date').value = source.start.toISOString().split('T')[0];
+            document.getElementById('edit-shift-start-time').value = source.start.toTimeString().slice(0, 5);
+        } else {
+            console.warn('Invalid or missing start date in event object');
+            document.getElementById('edit-shift-start-date').value = '';
+            document.getElementById('edit-shift-start-time').value = '';
+        }
+        
+        if (source.end && typeof source.end.toISOString === 'function') {
+            document.getElementById('edit-shift-end-date').value = source.end.toISOString().split('T')[0];
+            document.getElementById('edit-shift-end-time').value = source.end.toTimeString().slice(0, 5);
+        } else {
+            console.warn('Invalid or missing end date in event object');
+            document.getElementById('edit-shift-end-date').value = '';
+            document.getElementById('edit-shift-end-time').value = '';
+        }
+        
+        // Set status if available
+        document.getElementById('edit-shift-status').value = source.extendedProps?.status || 'Pending';
     } 
     // If source is a shift card element
     else if (source && source.classList.contains('shift-card')) {
@@ -716,57 +749,59 @@ function openEditShiftModal(source, calendarEvent = null) {
         currentCalendarEvent = calendarEvent;
         
         // Get shift data from the card
-        const dateText = source.querySelector('.shift-date').textContent;
-        const timeText = source.querySelector('.shift-time').textContent;
-        const title = source.querySelector('.shift-department').textContent;
-        const status = source.querySelector('.shift-status').textContent;
+        const dateText = source.querySelector('.shift-date')?.textContent || '';
+        const timeText = source.querySelector('.shift-time')?.textContent || '';
+        const title = source.querySelector('.shift-department')?.textContent || '';
+        const status = source.querySelector('.shift-status')?.textContent || 'Pending';
         
-        let shiftDate = new Date();
-        if (dateText === 'Today') {
-            // Use today's date
-        } else if (dateText === 'Tomorrow') {
-            shiftDate.setDate(shiftDate.getDate() + 1);
-        } else {
-            shiftDate = new Date(dateText);
-        }
-        
-        // Format date for input
-        const formattedStartDate = shiftDate.toISOString().split('T')[0];
-        const [startTime, endTime] = timeText.split(' - ');
-        
-        // Convert from "00:00 AM" format to "00:00" format
-        function convertTimeFormat(timeStr) {
-            const [time, period] = timeStr.split(' ');
-            let [hours, minutes] = time.split(':');
-            
-            if (period === 'PM' && hours !== '12') {
-                hours = String(parseInt(hours) + 12);
-            }
-            if (period === 'AM' && hours === '12') {
-                hours = '00';
+        try {
+            let shiftDate = new Date();
+            if (dateText === 'Today') {
+                // Use today's date
+            } else if (dateText === 'Tomorrow') {
+                shiftDate.setDate(shiftDate.getDate() + 1);
+            } else if (dateText) {
+                // Try to parse the date, fall back to today if invalid
+                const parsedDate = new Date(dateText);
+                if (!isNaN(parsedDate.getTime())) {
+                    shiftDate = parsedDate;
+                }
             }
             
-            hours = String(hours).padStart(2, '0');
-            return `${hours}:${minutes}`;
+            // Format date for input
+            const formattedStartDate = shiftDate.toISOString().split('T')[0];
+            
+            // Set initial form values
+            document.getElementById('edit-shift-id').value = currentCalendarEvent?.id || '';
+            document.getElementById('edit-shift-title').value = title;
+            document.getElementById('edit-shift-start-date').value = formattedStartDate;
+            document.getElementById('edit-shift-end-date').value = formattedStartDate;
+            document.getElementById('edit-shift-status').value = status;
+            
+            // Handle time information if available
+            if (timeText && timeText.includes(' - ')) {
+                const [startTime, endTime] = timeText.split(' - ');
+                
+                // Convert from "00:00 AM" format to "00:00" format
+                if (startTime) {
+                    const convertedStartTime = convertTimeFormat(startTime.trim());
+                    document.getElementById('edit-shift-start-time').value = convertedStartTime;
+                }
+                
+                if (endTime) {
+                    const convertedEndTime = convertTimeFormat(endTime.trim());
+                    document.getElementById('edit-shift-end-time').value = convertedEndTime;
+                }
+            }
+        } catch (error) {
+            console.error('Error processing shift card data:', error);
+            // Set default values if there's an error
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('edit-shift-start-date').value = today;
+            document.getElementById('edit-shift-end-date').value = today;
+            document.getElementById('edit-shift-start-time').value = '09:00';
+            document.getElementById('edit-shift-end-time').value = '17:00';
         }
-        
-        // Parse start and end times
-        const startTimeFormatted = convertTimeFormat(startTime);
-        const endTimeFormatted = convertTimeFormat(endTime);
-        
-        // For multi-day shifts, we need to determine the end date
-        let formattedEndDate = formattedStartDate; // Default to same day
-        if (calendarEvent) {
-            formattedEndDate = calendarEvent.end.toISOString().split('T')[0];
-        }
-        
-        // Set form values
-        document.getElementById('edit-shift-title').value = title;
-        document.getElementById('edit-shift-start-date').value = formattedStartDate;
-        document.getElementById('edit-shift-start-time').value = startTimeFormatted;
-        document.getElementById('edit-shift-end-date').value = formattedEndDate;
-        document.getElementById('edit-shift-end-time').value = endTimeFormatted;
-        document.getElementById('edit-shift-status').value = status;
     }
     
     // Show modal

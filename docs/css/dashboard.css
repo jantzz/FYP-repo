@@ -1015,7 +1015,26 @@ textarea {
 
 /* Manager - Pending Requests Styles */
 .manager-only {
-    display: none; /* Hidden by default, shown only for managers */
+    display: none; /* Hidden by default */
+}
+
+/* When parent has manager-visible class, show manager-only elements */
+.manager-visible .manager-only {
+    display: block !important;
+}
+
+/* Ensure manager-only tabs are visible when they should be */
+.schedule-tabs .tab.manager-only {
+    display: none;
+}
+
+.manager-visible .schedule-tabs .tab.manager-only {
+    display: inline-block !important;
+}
+
+/* Ensure manager-only content is visible when active */
+.tab-pane.manager-only.active {
+    display: block !important;
 }
 
 .filter-options {
@@ -1374,4 +1393,56 @@ textarea {
     .roster-table td {
         padding: 0.5rem;
     }
+}
+
+/* Count Badge Styles */
+.count-badge {
+    display: inline-block;
+    background-color: #e74c3c;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    min-width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    border-radius: 9px;
+    padding: 0 5px;
+    margin-left: 5px;
+    position: relative;
+    top: -1px;
+}
+
+/* Makes sure the tab has enough padding for the badge */
+.schedule-tabs .tab {
+    padding-right: 10px;
+}
+
+/* Ensure proper tab content visibility */
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+/* Only show the Pending Requests tab content when it's active */
+#pending-requests-tab {
+    display: none !important;
+}
+
+#pending-requests-tab.active {
+    display: block !important;
+}
+
+/* Hide the pending requests section in other tabs */
+.tab:not([data-tab="pending-requests"]).active ~ #pending-requests-tab {
+    display: none !important;
+}
+
+/* Hide Pending Availability Requests section when not in the pending tab */
+.schedule-section:has(.tab:not([data-tab="pending-requests"]).active) .section-header + div + div h2:contains("Pending Availability Requests"),
+.schedule-section:has(.tab:not([data-tab="pending-requests"]).active) div[class*="pending"] {
+    display: none !important;
 } 
