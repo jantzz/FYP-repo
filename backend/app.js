@@ -1,70 +1,42 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ManagerDashboard from './pages/ManagerDashboard';
-import EmployeeAvailability from './pages/EmployeeAvailability';
-import Navbar from './components/Navbar';
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
 
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
+//imports 
+const userRoutes = require('./routes/userRoutes');
+const roleRoutes = require('./routes/roleRoutes');
+const shiftRoutes = require('./routes/shiftRoutes');
+const fileRoutes = require('./routes/fileRoutes');
+const availabilityRoutes = require('./routes/availabilityRoutes');
+
+//express app declared within app constant 
+const app = express(); 
+
+// Allow requests from your frontend
+app.use(cors({
+    origin: "http://127.0.0.1:5500",  // Allow frontend origin
+    methods: "GET,POST,PUT,DELETE",  // Allow HTTP methods
+    credentials: true  // Allow auth headers
+}));
+
+//middlewares (between request and response )
+app.use(express.json()); // allows for the request to send attachments (json objects)
+
+app.use(express.static(path.join(__dirname, "../docs")));
+
+app.use((req, res, next) => { // prints to console every request sent (for debugging / testing purposes)
+    console.log(req.method, req.path);
+    next();
 });
 
-const PrivateRoute = ({ children, allowedRoles }) => {
-  const token = localStorage.getItem('token');
-  const userRole = localStorage.getItem('role');
+//normal routes
+app.use('/', fileRoutes);
+//api routes
+app.use('/api/user', userRoutes);
+app.use('/api/role', roleRoutes);
+app.use('/api/shift', shiftRoutes);
+app.use('/api/availability', availabilityRoutes);
 
-  if (!token) {
-    return <Navigate to="/login" />;
-  }
-
-  if (allowedRoles && !allowedRoles.includes(userRole)) {
-    return <Navigate to="/" />;
-  }
-
-  return children;
-};
-
-function App() {
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
-        <Navbar />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route
-            path="/manager"
-            element={
-              <PrivateRoute allowedRoles={['Manager', 'Admin']}>
-                <ManagerDashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/availability"
-            element={
-              <PrivateRoute allowedRoles={['Employee', 'Manager', 'Admin']}>
-                <EmployeeAvailability />
-              </PrivateRoute>
-            }
-          />
-          <Route path="/" element={<Navigate to="/login" />} />
-        </Routes>
-      </Router>
-    </ThemeProvider>
-  );
-}
-
-export default App; 
+// export app constant 
+module.exports = app;

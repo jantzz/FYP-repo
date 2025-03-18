@@ -416,12 +416,33 @@ async function updateAvailabilityStatus(availabilityId, status) {
             
             // Now update the UI for this request item
             requestItem.classList.add(status.toLowerCase());
-            requestItem.innerHTML = `
-                <div class="request-status">
-                    <div class="status-icon ${status.toLowerCase()}"></div>
-                    <div class="status-text">Request ${status.toLowerCase()}</div>
-                </div>
-            `;
+            
+            // Add different UI feedback based on status
+            if (status === 'Approved') {
+                requestItem.innerHTML = `
+                    <div class="request-status">
+                        <div class="status-icon ${status.toLowerCase()}"></div>
+                        <div class="status-text">
+                            <div>Request approved</div>
+                            <div class="shift-created-message">Shift automatically created</div>
+                        </div>
+                    </div>
+                `;
+                
+                // Trigger calendar refresh to show the new shift
+                if (typeof window.refreshCalendar === 'function') {
+                    setTimeout(() => {
+                        window.refreshCalendar();
+                    }, 1000);
+                }
+            } else {
+                requestItem.innerHTML = `
+                    <div class="request-status">
+                        <div class="status-icon ${status.toLowerCase()}"></div>
+                        <div class="status-text">Request ${status.toLowerCase()}</div>
+                    </div>
+                `;
+            }
             
             // If we're rejecting the request, we need to update the progress bar
             // because the hours are returned to the employee's available hours
@@ -453,7 +474,14 @@ async function updateAvailabilityStatus(availabilityId, status) {
                     // Trigger a refresh of the pending count in the tab
                     fetchPendingCount();
                 }, 500);
-            }, 1000);
+            }, 2000); // Increased timeout to allow user to see the status message
+        }
+        
+        // Show success message to the user
+        if (status === 'Approved') {
+            alert('Availability approved and shift created successfully!');
+        } else {
+            alert(`Availability ${status.toLowerCase()} successfully!`);
         }
         
     } catch (error) {

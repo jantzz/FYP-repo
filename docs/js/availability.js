@@ -692,14 +692,3 @@ async function loadEmployeeAvailability() {
         return null;
     }
 }
-
-// Helper function to format time
-function formatTime(timeString) {
-    try {
-        const date = new Date(timeString);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (error) {
-        console.error('Error formatting time:', error);
-        return timeString; // Return original string if parsing fails
-    }
-} 

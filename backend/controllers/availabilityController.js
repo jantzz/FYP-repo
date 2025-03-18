@@ -77,15 +77,52 @@ const updateAvailabilityStatus = async (req, res) => {
         //if the availability is approved, adds it to shift table
         if (status === "Approved") {
             const { employeeId, startDate, endDate, preferredShift } = availabilityCheck[0];
-
-            const shiftQuery = `
-                INSERT INTO shift (employeeId, startDate, endDate, title, status)
-                VALUES (?, ?, ?, ?, ?)
-            `;
-            const shiftData = [employeeId, startDate, endDate, preferredShift, "Scheduled"];  // Shift status as "Scheduled" by default
-
-            await connection.execute(shiftQuery, shiftData);
-            console.log('Shift added for employee:', employeeId);
+            
+            // Ensure that we have valid date objects
+            let validStartDate, validEndDate;
+            
+            try {
+                // Parse the dates
+                validStartDate = new Date(startDate);
+                
+                // Check if endDate exists and is valid, otherwise create a default end date
+                if (endDate && !isNaN(new Date(endDate).getTime())) {
+                    validEndDate = new Date(endDate);
+                } else {
+                    // Default end date is 1 hour after start
+                    validEndDate = new Date(validStartDate);
+                    validEndDate.setHours(validEndDate.getHours() + 1);
+                    console.log('Created default end date (start + 1 hour):', validEndDate);
+                }
+                
+                // Ensure that the end date is after the start date
+                if (validEndDate <= validStartDate) {
+                    validEndDate = new Date(validStartDate);
+                    validEndDate.setHours(validEndDate.getHours() + 1);
+                    console.log('Corrected end date to ensure it is after start date:', validEndDate);
+                }
+                
+                // Format dates for database
+                const formattedStartDate = validStartDate.toISOString().slice(0, 19).replace('T', ' ');
+                const formattedEndDate = validEndDate.toISOString().slice(0, 19).replace('T', ' ');
+                
+                console.log('Creating shift with dates:', {
+                    formattedStartDate,
+                    formattedEndDate
+                });
+                
+                const shiftQuery = `
+                    INSERT INTO shift (employeeId, startDate, endDate, title, status)
+                    VALUES (?, ?, ?, ?, ?)
+                `;
+                const shiftData = [employeeId, formattedStartDate, formattedEndDate, preferredShift, "Scheduled"];
+                
+                await connection.execute(shiftQuery, shiftData);
+                console.log('Shift added for employee:', employeeId);
+            } catch (error) {
+                console.error('Error creating shift from availability:', error);
+                // Continue with approval even if shift creation fails
+            }
         }
 
         //updates availability status
