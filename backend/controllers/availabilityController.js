@@ -39,7 +39,7 @@ const updateAvailabilityStatus = async (req, res) => {
         return res.status(400).json({ error: "All fields are required." });
     }
 
-    if (!["Approved", "Declined"].includes(status)) {
+    if (!["Pending", "Approved", "Declined"].includes(status)) {
         console.error('Invalid status:', status);
         return res.status(400).json({ error: "Invalid status." });
     }
@@ -61,9 +61,9 @@ const updateAvailabilityStatus = async (req, res) => {
             return res.status(403).json({ error: "Only managers and admins can approve or decline requests." });
         }
 
-        // First check if the availability request exists
+        // First, check if the availability request exists
         const [availabilityCheck] = await connection.execute(
-            "SELECT * FROM availability WHERE id = ?",
+            "SELECT * FROM availability WHERE availabilityId = ?",
             [availabilityId]
         );
         console.log('Found availability:', availabilityCheck[0]);
@@ -74,15 +74,27 @@ const updateAvailabilityStatus = async (req, res) => {
             return res.status(404).json({ error: "Availability request not found." });
         }
 
-        //updates availability status only
+        //if the availability is approved, adds it to shift table
+        if (status === "Approved") {
+            const { employeeId, startDate, endDate, preferredShift } = availabilityCheck[0];
+
+            const shiftQuery = `
+                INSERT INTO shift (employeeId, startDate, endDate, title, status)
+                VALUES (?, ?, ?, ?, ?)
+            `;
+            const shiftData = [employeeId, startDate, endDate, preferredShift, "Scheduled"];  // Shift status as "Scheduled" by default
+
+            await connection.execute(shiftQuery, shiftData);
+            console.log('Shift added for employee:', employeeId);
+        }
+
+        //updates availability status
         const query = `
             UPDATE availability 
-            SET status = ?
-            WHERE id = ?
+            SET status = ?, approvedBy = ?
+            WHERE availabilityId = ?
         `;
-
-        console.log('Executing update query:', query, [status, availabilityId]);
-        await connection.execute(query, [status, availabilityId]);
+        await connection.execute(query, [status, managerId, availabilityId]);
 
         return res.status(200).json({ 
             message: `Availability ${status.toLowerCase()} successfully.`,

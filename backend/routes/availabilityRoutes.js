@@ -5,7 +5,7 @@ const router = express.Router();
 //employee submits availability
 router.post('/submit', submitAvailability);  
 //manager approves/declines submission
-//router.put('/update', updateAvailabilityStatus);  
+router.put('/update', updateAvailabilityStatus);  
 //manager views pending requests
 router.get('/pending', getPendingRequests);  
 
