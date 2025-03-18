@@ -17,6 +17,12 @@ CREATE TABLE role_permission (
     UNIQUE KEY unique_role_permission (roleName, permissionId)
 );
 
+-- insert predefined roles first
+INSERT IGNORE INTO role (roleName, description) VALUES
+('Admin', 'System administrator with full access'),
+('Manager', 'Department manager with supervisory permissions'),
+('Employee', 'Regular employee account');
+
 -- insert basic permissions for availability management
 INSERT INTO permission (name, description) VALUES
 ('availability.submit', 'Can submit personal availability'),
@@ -38,12 +44,6 @@ SELECT 'Manager', permissionId FROM permission;
 -- For Admin
 INSERT INTO role_permission (roleName, permissionId)
 SELECT 'Admin', permissionId FROM permission;
-
--- insert predefined roles
-INSERT IGNORE INTO role (roleName, description) VALUES
-('Admin', 'System administrator with full access'),
-('Manager', 'Department manager with supervisory permissions'),
-('Employee', 'Regular employee account');
 
 -- insert test accounts
 INSERT INTO user (name, email, password, role, birthday, gender, department) VALUES

@@ -4,7 +4,7 @@ CREATE TABLE availability (
     employeeId INT UNSIGNED NOT NULL,
     startDate DATETIME NOT NULL,
     endDate DATETIME NOT NULL,
-    preferredShift ENUM('Day Shift', 'Night Shift') NOT NULL,
+    preferredShift ENUM('Morning Shift','Afternoon Shift','Night Shift') NOT NULL,
     status ENUM('Pending', 'Approved', 'Declined') DEFAULT 'Pending',
     submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     approvedBy INT UNSIGNED NULL,

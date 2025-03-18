@@ -276,7 +276,8 @@ async function loadPendingRequests() {
                 console.log('Creating request item:', request);
                 const requestItem = document.createElement('div');
                 requestItem.className = 'request-item';
-                requestItem.dataset.id = request.id;
+                requestItem.dataset.id = request.availabilityId;
+                requestItem.dataset.employeeId = request.employeeId;
                 
                 // Format dates and times
                 const startDate = new Date(request.startDate);
@@ -304,8 +305,8 @@ async function loadPendingRequests() {
                         ${request.note ? `<div class="request-note">${request.note}</div>` : ''}
                     </div>
                     <div class="request-actions">
-                        <button class="btn-approve" data-id="${request.id}">Approve</button>
-                        <button class="btn-reject" data-id="${request.id}">Reject</button>
+                        <button class="btn-approve" data-id="${request.availabilityId}">Approve</button>
+                        <button class="btn-reject" data-id="${request.availabilityId}">Reject</button>
                     </div>
                 `;
                 
@@ -402,7 +403,7 @@ async function updateAvailabilityStatus(availabilityId, status) {
             console.log('Request counts:', {
                 totalRequests,
                 remainingRequests,
-                employeeId: requestItem.dataset.id
+                employeeId: requestItem.dataset.employeeId
             });
             
             // Update the count in the employee card header
