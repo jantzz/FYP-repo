@@ -4,7 +4,9 @@ const db = require('../database/db');
 
 //imports
 const { 
-    loginUser, 
+    loginUser,
+    getUser,
+    getUsers,
     createUser,
     updateUser,
     getMe
@@ -16,6 +18,10 @@ const router = express.Router();
 router.post('/login' , loginUser);
 
 // these are to be moved to protected route
+router.get('/getUser/:email', getUser);
+
+router.get('/getUsers', getUsers);
+
 router.post('/createUser', createUser);
 
 router.put('/updateUser', updateUser);

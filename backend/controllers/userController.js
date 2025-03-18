@@ -46,6 +46,44 @@ const loginUser = async (req, res) => {
 
 }
 
+const getUsers = async (req, res) => { 
+    let connection; 
+
+    try{
+        connection = await db.getConnection();
+
+        const [users] = await connection.execute("SELECT * FROM user");
+
+        res.status(200).json(users);
+
+    }catch(err) {
+        console.error(err);
+        res.status(500).json({error: "Internal Server Error"});
+    }finally {
+        if(connection) connection.release();
+    }
+}
+
+const getUser = async (req, res) => {
+    const { email } = req.params;
+
+    let connection; 
+    try{
+        connection = await db.getConnection();
+
+        const [users] = await connection.execute("SELECT * FROM user WHERE email = ?", [email]);
+
+        if(users.length === 0) return res.status(404).json({error: "User not found"});
+
+        res.status(200).json(users[0]);
+    }catch(err) {
+        console.error(err);
+        res.status(500).json({error: "Internal Server Error"});
+    }finally {
+        if(connection) connection.release();
+    }
+}
+
 const createUser = async (req, res) => {
     const { name, email, password, role, birthday, gender } = req.body;
 
@@ -165,6 +203,8 @@ const getMe = async (req, res) => {
 
 module.exports = {
     loginUser,
+    getUsers,
+    getUser,
     createUser,
     updateUser,
     getMe
