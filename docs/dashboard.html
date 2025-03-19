@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/reports.css">
     <link rel="stylesheet" href="css/attendance.css">
+    <link rel="stylesheet" href="css/payroll.css">
     <!-- FullCalendar Dependencies -->
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core/index.global.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid/index.global.min.js'></script>
@@ -20,6 +21,7 @@
     <script src="js/availability.js" defer></script>
     <script src="js/reports.js" defer></script>
     <script src="js/attendance.js" defer></script>
+    <script src="js/payroll.js" defer></script>
 </head>
 <body>
     <!-- Header -->
@@ -420,6 +422,543 @@
                             <h4>Department Comparison</h4>
                             <div class="chart-container trend-chart-container">
                                 <canvas id="departmentComparisonChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payroll Section -->
+            <div class="payroll-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Payroll Management</h2>
+                    <div class="filter-options">
+                        <select id="payroll-period-filter">
+                            <option value="current">Current Pay Period</option>
+                            <option value="previous">Previous Pay Period</option>
+                            <option value="custom">Custom Date Range</option>
+                        </select>
+                        <div class="date-range-picker" id="custom-date-range" style="display: none;">
+                            <input type="date" id="custom-date-start" placeholder="Start Date">
+                            <span>to</span>
+                            <input type="date" id="custom-date-end" placeholder="End Date">
+                        </div>
+                        <button class="btn-primary" id="calculate-payroll">
+                            <i class="fas fa-calculator"></i> Calculate
+                        </button>
+                        <button class="btn-primary" id="export-payroll">
+                            <i class="fas fa-file-export"></i> Export
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="payroll-summary">
+                    <div class="summary-header">
+                        <h3>Pay Period: <span id="pay-period-date">March 1 - March 15, 2025</span></h3>
+                        <span class="payment-status-badge" id="payment-status">Processing</span>
+                    </div>
+                    <div class="payroll-card">
+                        <div class="payroll-overview">
+                            <div class="overview-item">
+                                <span class="label">Total Hours</span>
+                                <span class="value" id="total-hours">80.0</span>
+                            </div>
+                            <div class="overview-item">
+                                <span class="label">Regular Hours</span>
+                                <span class="value" id="regular-hours">76.5</span>
+                            </div>
+                            <div class="overview-item">
+                                <span class="label">Overtime Hours</span>
+                                <span class="value" id="overtime-hours">3.5</span>
+                            </div>
+                            <div class="overview-item">
+                                <span class="label">Hourly Rate</span>
+                                <span class="value" id="hourly-rate">$20.00</span>
+                            </div>
+                            <div class="overview-item">
+                                <span class="label">YTD Earnings</span>
+                                <span class="value" id="ytd-earnings">$9,812.50</span>
+                            </div>
+                        </div>
+                        <div class="payroll-details">
+                            <div class="detail-column">
+                                <h4>Earnings</h4>
+                                <div class="detail-item">
+                                    <span class="label">Regular Pay</span>
+                                    <span class="value" id="regular-pay">$1,530.00</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Overtime Pay</span>
+                                    <span class="value" id="overtime-pay">$105.00</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Holiday Pay</span>
+                                    <span class="value" id="holiday-pay">$0.00</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Bonus</span>
+                                    <span class="value" id="bonus-pay">$0.00</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Allowances</span>
+                                    <span class="value" id="allowances">$0.00</span>
+                                </div>
+                                <div class="detail-item total">
+                                    <span class="label">Gross Pay</span>
+                                    <span class="value" id="gross-pay">$1,635.00</span>
+                                </div>
+                            </div>
+                            <div class="detail-column">
+                                <h4>Deductions</h4>
+                                <div class="detail-item">
+                                    <span class="label">Income Tax</span>
+                                    <span class="value" id="tax-deduction">$245.25</span>
+                                    <span class="info-tooltip" title="Based on tax bracket: 15%"><i class="fas fa-info-circle"></i></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Health Insurance</span>
+                                    <span class="value" id="insurance-deduction">$75.00</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Retirement</span>
+                                    <span class="value" id="retirement-deduction">$81.75</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="label">Other Deductions</span>
+                                    <span class="value" id="other-deduction">$50.00</span>
+                                </div>
+                                <div class="detail-item total">
+                                    <span class="label">Total Deductions</span>
+                                    <span class="value" id="total-deduction">$452.00</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="net-pay">
+                            <span class="label">Net Pay</span>
+                            <span class="value" id="net-pay">$1,183.00</span>
+                            <div class="payment-details">
+                                <span class="payment-method"><i class="fas fa-university"></i> Direct Deposit</span>
+                                <span class="payment-date">Payment Date: <span id="payment-date">March 20, 2025</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="payroll-details-grid">
+                    <div class="payroll-details-card tax-breakdown">
+                        <h3><i class="fas fa-file-invoice-dollar"></i> Tax Breakdown</h3>
+                        <div class="tax-details">
+                            <div class="tax-item">
+                                <span class="label">Federal Income Tax</span>
+                                <span class="value" id="federal-tax">$196.20</span>
+                            </div>
+                            <div class="tax-item">
+                                <span class="label">State Income Tax</span>
+                                <span class="value" id="state-tax">$49.05</span>
+                            </div>
+                            <div class="tax-item">
+                                <span class="label">Medicare</span>
+                                <span class="value" id="medicare-tax">$23.71</span>
+                            </div>
+                            <div class="tax-item">
+                                <span class="label">Social Security</span>
+                                <span class="value" id="social-security-tax">$101.37</span>
+                            </div>
+                            <div class="tax-item total">
+                                <span class="label">Total Tax</span>
+                                <span class="value" id="total-tax">$370.33</span>
+                            </div>
+                        </div>
+                        <div class="ytd-tax-summary">
+                            <h4>Year-to-Date Tax Summary</h4>
+                            <div class="tax-chart-container">
+                                <canvas id="taxBreakdownChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="payroll-details-card benefits-summary">
+                        <h3><i class="fas fa-hand-holding-heart"></i> Benefits Summary</h3>
+                        <div class="benefits-details">
+                            <div class="benefit-item">
+                                <span class="label">Health Insurance</span>
+                                <div class="benefit-value">
+                                    <span class="value">$75.00</span>
+                                    <span class="benefit-type">Employee Contribution</span>
+                                </div>
+                            </div>
+                            <div class="benefit-item">
+                                <span class="label">Dental Coverage</span>
+                                <div class="benefit-value">
+                                    <span class="value">$25.00</span>
+                                    <span class="benefit-type">Fully Covered by Employer</span>
+                                </div>
+                            </div>
+                            <div class="benefit-item">
+                                <span class="label">Vision Plan</span>
+                                <div class="benefit-value">
+                                    <span class="value">$15.00</span>
+                                    <span class="benefit-type">Fully Covered by Employer</span>
+                                </div>
+                            </div>
+                            <div class="benefit-item">
+                                <span class="label">401(k) Contribution</span>
+                                <div class="benefit-value">
+                                    <span class="value">$81.75 (5%)</span>
+                                    <span class="benefit-type">Employer Match: $81.75 (5%)</span>
+                                </div>
+                            </div>
+                            <div class="benefit-item">
+                                <span class="label">Life Insurance</span>
+                                <div class="benefit-value">
+                                    <span class="value">$10.00</span>
+                                    <span class="benefit-type">Fully Covered by Employer</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="benefit-totals">
+                            <div class="benefit-total-item">
+                                <span class="label">Employee Contributions</span>
+                                <span class="value" id="employee-benefit-contributions">$156.75</span>
+                            </div>
+                            <div class="benefit-total-item">
+                                <span class="label">Employer Contributions</span>
+                                <span class="value" id="employer-benefit-contributions">$131.75</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="payroll-breakdown">
+                    <h3>Detailed Breakdown</h3>
+                    <div class="tab-container">
+                        <div class="tab-header">
+                            <div class="tab active" data-tab="hours">Hours & Attendance</div>
+                            <div class="tab" data-tab="earnings">Earnings Detail</div>
+                            <div class="tab" data-tab="deductions">Deductions</div>
+                            <div class="tab" data-tab="history">Payment History</div>
+                            <div class="tab" data-tab="ytd">YTD Summary</div>
+                            <div class="tab" data-tab="settings">Payroll Settings</div>
+                        </div>
+                        <div class="tab-content">
+                            <div class="tab-pane active" id="hours-tab">
+                                <div class="hours-summary">
+                                    <div class="hours-summary-card">
+                                        <div class="hours-total">
+                                            <span class="label">Total Hours</span>
+                                            <span class="value">80.0</span>
+                                        </div>
+                                        <div class="hours-breakdown">
+                                            <div class="hours-item">
+                                                <span class="color-dot regular"></span>
+                                                <span class="hours-type">Regular: 76.5</span>
+                                            </div>
+                                            <div class="hours-item">
+                                                <span class="color-dot overtime"></span>
+                                                <span class="hours-type">Overtime: 3.5</span>
+                                            </div>
+                                            <div class="hours-item">
+                                                <span class="color-dot holiday"></span>
+                                                <span class="hours-type">Holiday: 0.0</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <table class="payroll-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Shift</th>
+                                            <th>Clock In</th>
+                                            <th>Clock Out</th>
+                                            <th>Break</th>
+                                            <th>Hours</th>
+                                            <th>Type</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="hours-table-body">
+                                        <!-- This will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="tab-pane" id="earnings-tab">
+                                <div class="earnings-details">
+                                    <div class="earnings-summary">
+                                        <h4>Earnings Breakdown for Current Period</h4>
+                                        <div class="chart-container earnings-chart-container">
+                                            <canvas id="earningsChart"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="earnings-details-table">
+                                        <table class="payroll-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Earnings Type</th>
+                                                    <th>Rate</th>
+                                                    <th>Hours/Units</th>
+                                                    <th>Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="earnings-table-body">
+                                                <!-- Populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane" id="deductions-tab">
+                                <div class="deductions-breakdown">
+                                    <div class="deductions-chart-area">
+                                        <h4>Deductions Breakdown</h4>
+                                        <div class="chart-container deductions-chart-container">
+                                            <canvas id="deductionsChart"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="deductions-details">
+                                        <h4>Detailed Deductions</h4>
+                                        <div class="deduction-category">
+                                            <h5>Tax Deductions</h5>
+                                            <table class="deduction-table">
+                                                <tbody id="tax-deduction-details">
+                                                    <!-- Populated by JavaScript -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="deduction-category">
+                                            <h5>Benefit Deductions</h5>
+                                            <table class="deduction-table">
+                                                <tbody id="benefit-deduction-details">
+                                                    <!-- Populated by JavaScript -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="deduction-category">
+                                            <h5>Other Deductions</h5>
+                                            <table class="deduction-table">
+                                                <tbody id="other-deduction-details">
+                                                    <!-- Populated by JavaScript -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane" id="history-tab">
+                                <div class="payment-history-filters">
+                                    <div class="filter-group">
+                                        <label for="history-year-filter">Year:</label>
+                                        <select id="history-year-filter">
+                                            <option value="2025">2025</option>
+                                            <option value="2024">2024</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="history-status-filter">Status:</label>
+                                        <select id="history-status-filter">
+                                            <option value="all">All</option>
+                                            <option value="paid">Paid</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="processing">Processing</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="history-timeline">
+                                    <div class="timeline-chart-container">
+                                        <canvas id="paymentHistoryChart"></canvas>
+                                    </div>
+                                </div>
+                                <table class="payroll-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Period</th>
+                                            <th>Gross Pay</th>
+                                            <th>Deductions</th>
+                                            <th>Net Pay</th>
+                                            <th>Payment Date</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="history-table-body">
+                                        <!-- This will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="tab-pane" id="ytd-tab">
+                                <div class="ytd-summary">
+                                    <div class="ytd-cards">
+                                        <div class="ytd-card">
+                                            <span class="ytd-label">YTD Gross Earnings</span>
+                                            <span class="ytd-value" id="ytd-gross">$9,812.50</span>
+                                            <div class="ytd-progress">
+                                                <div class="progress-bar" style="width: 24%;"></div>
+                                                <span class="progress-text">24% of Annual Estimate</span>
+                                            </div>
+                                        </div>
+                                        <div class="ytd-card">
+                                            <span class="ytd-label">YTD Taxes Paid</span>
+                                            <span class="ytd-value" id="ytd-taxes">$1,471.88</span>
+                                            <div class="ytd-progress">
+                                                <div class="progress-bar" style="width: 24%;"></div>
+                                                <span class="progress-text">15% Effective Tax Rate</span>
+                                            </div>
+                                        </div>
+                                        <div class="ytd-card">
+                                            <span class="ytd-label">YTD Retirement Contributions</span>
+                                            <span class="ytd-value" id="ytd-retirement">$490.63</span>
+                                            <div class="ytd-progress">
+                                                <div class="progress-bar" style="width: 5%;"></div>
+                                                <span class="progress-text">5% Contribution Rate</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="ytd-visualization">
+                                        <div class="chart-container ytd-chart-container">
+                                            <canvas id="ytdEarningsChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="ytd-quarterly-breakdown">
+                                    <h4>Quarterly Breakdown</h4>
+                                    <table class="payroll-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Quarter</th>
+                                                <th>Gross Earnings</th>
+                                                <th>Taxes</th>
+                                                <th>Deductions</th>
+                                                <th>Net Pay</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="quarterly-breakdown-body">
+                                            <!-- Populated by JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="tab-pane" id="settings-tab">
+                                <div class="payroll-settings">
+                                    <div class="settings-card tax-settings">
+                                        <h4>Tax Withholding Settings</h4>
+                                        <form id="tax-settings-form">
+                                            <div class="form-group">
+                                                <label for="filing-status">Filing Status</label>
+                                                <select id="filing-status">
+                                                    <option value="single">Single</option>
+                                                    <option value="married">Married Filing Jointly</option>
+                                                    <option value="head">Head of Household</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="allowances">Allowances/Exemptions</label>
+                                                <input type="number" id="allowances" min="0" value="1">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="additional-withholding">Additional Withholding</label>
+                                                <input type="number" id="additional-withholding" min="0" step="0.01" value="0">
+                                            </div>
+                                            <button type="submit" class="btn-primary">Update Tax Settings</button>
+                                        </form>
+                                    </div>
+                                    <div class="settings-card direct-deposit">
+                                        <h4>Direct Deposit Settings</h4>
+                                        <form id="direct-deposit-form">
+                                            <div class="form-group">
+                                                <label for="bank-name">Bank Name</label>
+                                                <input type="text" id="bank-name" value="Chase Bank">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="account-type">Account Type</label>
+                                                <select id="account-type">
+                                                    <option value="checking">Checking</option>
+                                                    <option value="savings">Savings</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="routing-number">Routing Number</label>
+                                                <input type="text" id="routing-number" value="•••••••••" pattern="[0-9]{9}">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="account-number">Account Number</label>
+                                                <input type="text" id="account-number" value="••••••••••••" pattern="[0-9]{4,17}">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="deposit-amount">Deposit Amount</label>
+                                                <select id="deposit-amount">
+                                                    <option value="full">Full Amount (100%)</option>
+                                                    <option value="partial">Partial Amount</option>
+                                                </select>
+                                            </div>
+                                            <button type="submit" class="btn-primary">Update Direct Deposit</button>
+                                        </form>
+                                    </div>
+                                    <div class="settings-card benefit-elections">
+                                        <h4>Benefit Elections</h4>
+                                        <div class="form-group">
+                                            <label for="retirement-contribution">Retirement Contribution</label>
+                                            <div class="slider-container">
+                                                <input type="range" id="retirement-contribution" min="0" max="20" step="1" value="5">
+                                                <span class="slider-value">5%</span>
+                                            </div>
+                                            <div class="contribution-impact">
+                                                <span>Impact on Paycheck: -$81.75</span>
+                                                <span>Employer Match: +$81.75</span>
+                                            </div>
+                                        </div>
+                                        <div class="health-plans">
+                                            <h5>Health Insurance Plan</h5>
+                                            <div class="plan-options">
+                                                <div class="plan-option">
+                                                    <input type="radio" id="health-plan-basic" name="health-plan" checked>
+                                                    <label for="health-plan-basic">
+                                                        <span class="plan-name">Basic Plan</span>
+                                                        <span class="plan-cost">$75.00/pay period</span>
+                                                    </label>
+                                                </div>
+                                                <div class="plan-option">
+                                                    <input type="radio" id="health-plan-premium" name="health-plan">
+                                                    <label for="health-plan-premium">
+                                                        <span class="plan-name">Premium Plan</span>
+                                                        <span class="plan-cost">$125.00/pay period</span>
+                                                    </label>
+                                                </div>
+                                                <div class="plan-option">
+                                                    <input type="radio" id="health-plan-family" name="health-plan">
+                                                    <label for="health-plan-family">
+                                                        <span class="plan-name">Family Plan</span>
+                                                        <span class="plan-cost">$225.00/pay period</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="additional-benefits">
+                                            <h5>Optional Benefits</h5>
+                                            <div class="benefit-toggle">
+                                                <label class="switch">
+                                                    <input type="checkbox" id="dental-plan" checked>
+                                                    <span class="slider round"></span>
+                                                </label>
+                                                <span class="benefit-toggle-label">Dental Plan ($25.00 - Employer Paid)</span>
+                                            </div>
+                                            <div class="benefit-toggle">
+                                                <label class="switch">
+                                                    <input type="checkbox" id="vision-plan" checked>
+                                                    <span class="slider round"></span>
+                                                </label>
+                                                <span class="benefit-toggle-label">Vision Plan ($15.00 - Employer Paid)</span>
+                                            </div>
+                                            <div class="benefit-toggle">
+                                                <label class="switch">
+                                                    <input type="checkbox" id="life-insurance" checked>
+                                                    <span class="slider round"></span>
+                                                </label>
+                                                <span class="benefit-toggle-label">Life Insurance ($10.00 - Employer Paid)</span>
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn-primary">Update Benefit Elections</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
