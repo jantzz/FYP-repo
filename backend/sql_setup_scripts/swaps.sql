@@ -16,7 +16,7 @@ VALUES (1, '2021-01-01', '2021-01-02', 'Test Shift 1', 'Active'),
        (3, '2021-01-01', '2021-01-02', 'Test Shift 3', 'Active');
 
 -- insert test swaps
-INSERT INTO swaps (currentShift, swapWith)
+INSERT INTO swap (currentShift, swapWith)
 VALUES (1, 2),
        (2, 3),
-       (3, 1);
+       (3, 1); 
