@@ -8,6 +8,6 @@ router.get('/:employeeId', getShifts);
 //swap requests 
 router.post('/swap', swapRequest);
 //update swap infromation
-router.put('/swap', updateSwap);
+router.put('/updateSwap', updateSwap);
 
 module.exports = router;

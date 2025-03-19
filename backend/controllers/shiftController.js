@@ -96,7 +96,7 @@ const swapRequest = async (req, res) => {
         connection = await db.getConnection();
 
         const query = `
-            INSERT INTO swap (shiftId, swapId) VALUES (?, ?)
+            INSERT INTO swap (currentShift, swapWith) VALUES (?, ?)
         `;
 
         await connection.execute(query, [shiftId, swapId]);
@@ -114,22 +114,44 @@ const updateSwap = async (req, res) => {
     const { swapId, status } = req.body;
     if (!swapId || !status) return res.status(400).json({ error: "Swap ID and status are required." });
 
-    if(status !== "Accepted" && status !== "Rejected") return res.status(400).json({ error: "Invalid status" });
+    if(status !== "Approved" && status !== "Declined") return res.status(400).json({ error: "Invalid status" });
     
     let connection;
 
     try{
         connection = await db.getConnection();
+        //begin transaction so that all queries are ran before commiting the changes
+        connection.beginTransaction();
+        if (status === "Approved") { //if the swap is accepted then update the shifts
+            // grab the coreesponding shifts from the swap request 
+            const getShiftQuery = `SELECT currentShift, swapWith FROM swap WHERE swapId = ?`;
+            const [shifts] = await connection.execute(getShiftQuery, [swapId]);
+            console.log(shifts);
+
+            //grab the employees assigned to each shift 
+            const [emp1] = await connection.execute("SELECT employeeId FROM shift WHERE shiftId = ?", [shifts[0].currentShift]);
+            const [emp2] = await connection.execute("SELECT employeeId FROM shift WHERE shiftId = ?", [shifts[0].swapWith]);
+
+            console.log (emp1, emp2);
+            //update the shifts with the new assigned employees
+            await connection.execute(`UPDATE shift SET employeeId = ? WHERE shiftId = ?`, [emp2[0].employeeId, shifts[0].currentShift]);
+            await connection.execute(`UPDATE shift SET employeeId = ? WHERE shiftId = ?`, [emp1[0].employeeId, shifts[0].swapWith]);
+        }
 
         const query = `UPDATE swap SET status = ? WHERE swapId = ?`;
         await connection.execute(query, [status, swapId]);
-        connection.release();
 
+        //after all queries are completed commit the changes 
+        await connection.commit();
         return res.status(200).json({ message: "Swap request updated." });
 
     }catch(err) {
+        //if any of the queries fail, rollback all the changes to prevent sever damage to data 
+        await connection.rollback();
         console.error(err);
         res.status(500).json({error: "Internal Server Error"});
+    } finally{
+        if(connection) connection.release();
     }
 }
 

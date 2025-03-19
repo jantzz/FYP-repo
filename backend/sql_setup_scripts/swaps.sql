@@ -1,5 +1,5 @@
 -- Create swap table for storing swap requests 
-CREATE TABLE swaps (
+CREATE TABLE swap (
     swapId INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     currentShift INT UNSIGNED NOT NULL,
     swapWith INT UNSIGNED NOT NULL,
@@ -8,6 +8,12 @@ CREATE TABLE swaps (
     FOREIGN KEY (currentShift) REFERENCES shift(shiftId) ON DELETE CASCADE,
     FOREIGN KEY (swapWith) REFERENCES shift(shiftId) ON DELETE CASCADE
 );
+
+-- insert test shifts 
+INSERT INTO shift (employeeId, startDate, endDate, title, status)
+VALUES (1, '2021-01-01', '2021-01-02', 'Test Shift 1', 'Active'),
+       (2, '2021-01-01', '2021-01-02', 'Test Shift 2', 'Active'),
+       (3, '2021-01-01', '2021-01-02', 'Test Shift 3', 'Active');
 
 -- insert test swaps
 INSERT INTO swaps (currentShift, swapWith)
