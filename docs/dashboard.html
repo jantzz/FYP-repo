@@ -6,14 +6,20 @@
     <title>Dashboard - Employee Smart Roster</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/reports.css">
+    <link rel="stylesheet" href="css/attendance.css">
     <!-- FullCalendar Dependencies -->
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core/index.global.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid/index.global.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/interaction/index.global.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid/index.global.min.js'></script>
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Custom JavaScript -->
     <script src="js/dashboard.js" defer></script>
     <script src="js/availability.js" defer></script>
+    <script src="js/reports.js" defer></script>
+    <script src="js/attendance.js" defer></script>
 </head>
 <body>
     <!-- Header -->
@@ -62,6 +68,10 @@
             <div class="nav-item">
                 <i class="fas fa-chart-bar"></i>
                 Reports
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-check-circle"></i>
+                Attendance Rate
             </div>
             <div class="nav-item">
                 <i class="fas fa-money-bill-wave"></i>
@@ -296,9 +306,124 @@
                 </div>
             </div>
 
-            <div class="report-section">
-                <h2>Report Analysis</h2>
-                <!-- Report content will go here -->
+            <div class="report-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Analytics Dashboard</h2>
+                    <div class="export-buttons">
+                        <button class="btn-export" id="export-pdf">
+                            <i class="fas fa-file-pdf"></i> Export PDF
+                        </button>
+                        <button class="btn-export" id="export-csv">
+                            <i class="fas fa-file-csv"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="report-grid">
+                    <div class="report-card performance-metrics">
+                        <h3>Performance Metrics</h3>
+                        <p>Track key performance indicators such as attendance consistency and task completion rates.</p>
+                        <div class="chart-container">
+                            <canvas id="performanceChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card feedback-integration">
+                        <h3>Feedback Integration</h3>
+                        <p>View aggregated feedback from peers and supervisors to understand employee performance qualitatively.</p>
+                        <div class="chart-container">
+                            <canvas id="feedbackChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card managerial-insights">
+                        <h3>Managerial Insights</h3>
+                        <p>Analyze trends to identify top performance and areas needing more training.</p>
+                        <div class="chart-container">
+                            <canvas id="trendsChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card goal-setting">
+                        <h3>Goal Setting and Progress Tracking</h3>
+                        <p>Set personal or team goals and track progress with visual indicators like progress bars.</p>
+                        <div class="chart-container">
+                            <canvas id="goalsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Rate Section -->
+            <div class="attendance-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Attendance Rate Analytics</h2>
+                    <div class="filter-options">
+                        <select id="attendance-period-filter">
+                            <option value="weekly">This Week</option>
+                            <option value="monthly" selected>This Month</option>
+                            <option value="quarterly">This Quarter</option>
+                            <option value="yearly">This Year</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="attendance-overview">
+                    <div class="attendance-card">
+                        <div class="attendance-rate">
+                            <div class="rate-circle">
+                                <svg viewBox="0 0 36 36" class="circular-chart">
+                                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                    <path class="circle" stroke-dasharray="85, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                    <text x="18" y="20.35" class="percentage">85%</text>
+                                </svg>
+                            </div>
+                            <div class="rate-label">Overall Attendance Rate</div>
+                        </div>
+                        <div class="attendance-details">
+                            <div class="detail-item">
+                                <span class="label">On-time Days:</span>
+                                <span class="value">17</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">Late Arrivals:</span>
+                                <span class="value">2</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">Absences:</span>
+                                <span class="value">1</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">Approved Leave:</span>
+                                <span class="value">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="attendance-history">
+                    <h3>Attendance History</h3>
+                    <div class="chart-container attendance-chart-container">
+                        <canvas id="attendanceHistoryChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="attendance-trends">
+                    <div class="trend-cards">
+                        <div class="trend-card">
+                            <h4>Punctuality Trend</h4>
+                            <div class="chart-container trend-chart-container">
+                                <canvas id="punctualityChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="trend-card">
+                            <h4>Department Comparison</h4>
+                            <div class="chart-container trend-chart-container">
+                                <canvas id="departmentComparisonChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
