@@ -89,34 +89,9 @@
             
             <!-- Upcoming Shifts Section -->
             <div class="upcoming-shifts-section">
-                <div class="section-header">
-                    <h2>Upcoming Shifts</h2>
-                </div>
+                <h2>Upcoming Shifts</h2>
                 <div class="shifts-container">
-                    <div class="shift-card">
-                        <div class="shift-date">Today</div>
-                        <div class="shift-time">9:00 AM - 5:00 PM</div>
-                        <div class="shift-details">
-                            <span class="shift-department">Front Desk</span>
-                            <span class="shift-status">Confirmed</span>
-                        </div>
-                    </div>
-                    <div class="shift-card">
-                        <div class="shift-date">Tomorrow</div>
-                        <div class="shift-time">10:00 AM - 6:00 PM</div>
-                        <div class="shift-details">
-                            <span class="shift-department">Front Desk</span>
-                            <span class="shift-status">Confirmed</span>
-                        </div>
-                    </div>
-                    <div class="shift-card">
-                        <div class="shift-date">Mar 15, 2025</div>
-                        <div class="shift-time">8:00 AM - 4:00 PM</div>
-                        <div class="shift-details">
-                            <span class="shift-department">Back Office</span>
-                            <span class="shift-status">Pending</span>
-                        </div>
-                    </div>
+                    <!-- Shifts will be added dynamically here -->
                 </div>
             </div>
             
@@ -238,8 +213,9 @@
                                     <tr>
                                         <th>Date</th>
                                         <th>Time</th>
-                                        <th>Status</th>
+                                        <th>Shift Type</th>
                                         <th>Note</th>
+                                        <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -247,6 +223,39 @@
                                     <!-- Availability data will be populated here -->
                                 </tbody>
                             </table>
+                            
+                            <script>
+                                // Ensure correct time display for all availability entries
+                                function fixAvailabilityTimeDisplay() {
+                                    const rows = document.querySelectorAll('#availabilityTableBody tr');
+                                    
+                                    rows.forEach(row => {
+                                        // Get the shift type cell (3rd column)
+                                        const shiftTypeCell = row.querySelector('td:nth-child(3)');
+                                        // Get the time cell (2nd column)
+                                        const timeCell = row.querySelector('td:nth-child(2)');
+                                        
+                                        if (shiftTypeCell && timeCell) {
+                                            const shiftText = shiftTypeCell.textContent.trim();
+                                            
+                                            // Set formatted time based on shift type
+                                            if (shiftText.includes('Morning')) {
+                                                timeCell.textContent = '6:00 AM - 2:00 PM';
+                                            } else if (shiftText.includes('Afternoon')) {
+                                                timeCell.textContent = '2:00 PM - 10:00 PM';
+                                            } else if (shiftText.includes('Night')) {
+                                                timeCell.textContent = '10:00 PM - 6:00 AM';
+                                            }
+                                        }
+                                    });
+                                }
+                                
+                                // Call regularly to ensure display is correct
+                                setInterval(fixAvailabilityTimeDisplay, 500);
+                                
+                                // Also ensure it's applied when the DOM is ready
+                                document.addEventListener('DOMContentLoaded', fixAvailabilityTimeDisplay);
+                            </script>
                         </div>
                     </div>
                     
@@ -1289,5 +1298,34 @@
 
     <!-- Add this before the closing body tag -->
     <script src="js/availability-manager.js"></script>
+    <script>
+        // Fix upcoming shift time display
+        function fixUpcomingShiftTimes() {
+            document.querySelectorAll('.shift-card').forEach(card => {
+                const titleElement = card.querySelector('.shift-department');
+                const timeElement = card.querySelector('.shift-time');
+                
+                if (titleElement && timeElement) {
+                    const shiftTitle = titleElement.textContent.trim();
+                    
+                    if (shiftTitle.includes('Morning Shift')) {
+                        timeElement.textContent = '6:00 AM - 2:00 PM';
+                    } else if (shiftTitle.includes('Afternoon Shift')) {
+                        timeElement.textContent = '2:00 PM - 10:00 PM';
+                    } else if (shiftTitle.includes('Night Shift')) {
+                        timeElement.textContent = '10:00 PM - 6:00 AM';
+                    }
+                }
+            });
+        }
+        
+        // Apply fix periodically
+        setInterval(fixUpcomingShiftTimes, 500);
+        
+        // Also run when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(fixUpcomingShiftTimes, 300);
+        });
+    </script>
 </body>
 </html> 

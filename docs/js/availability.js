@@ -3,17 +3,20 @@ const SHIFT_TYPES = {
     MORNING: {
         name: 'Morning Shift',
         defaultStart: '06:00',
-        defaultEnd: '14:00'
+        defaultEnd: '14:00',
+        displayTime: '6:00 AM - 2:00 PM'
     },
     AFTERNOON: {
         name: 'Afternoon Shift',
         defaultStart: '14:00',
-        defaultEnd: '22:00'
+        defaultEnd: '22:00',
+        displayTime: '2:00 PM - 10:00 PM'
     },
     NIGHT: {
         name: 'Night Shift',
         defaultStart: '22:00',
-        defaultEnd: '06:00'
+        defaultEnd: '06:00',
+        displayTime: '10:00 PM - 6:00 AM'
     }
 };
 
@@ -204,7 +207,7 @@ function updateAvailabilityDisplay() {
         }
     }
 
-    // CRITICAL: Create or get the availability container
+    // Create or get the availability container
     let availabilityContainer = document.querySelector('#availability-container');
     console.log('Availability container found:', availabilityContainer);
     
@@ -215,7 +218,7 @@ function updateAvailabilityDisplay() {
         console.log('Created availability container');
     }
 
-    // CRITICAL: Create or get the availability list
+    // Create or get the availability list
     let availabilityList = document.querySelector('.availability-list');
     console.log('Availability list found:', availabilityList);
     
@@ -340,7 +343,7 @@ function initializeAvailabilityForm() {
                 <label class="shift-type-label">
                     <input type="radio" name="shift-type" value="${key}">
                     <span>${shift.name}</span>
-                    <div class="shift-time">${shift.defaultStart} - ${shift.defaultEnd}</div>
+                    <div class="shift-time">${shift.displayTime}</div>
                 </label>
             `).join('')}
         </div>
@@ -465,8 +468,10 @@ function setupAvailabilityListeners() {
             // Prepare form data
             const formData = {
                 employeeId: userInfo.userId,
-                startDate: `${date}T${startTime}:00`,
-                endDate: `${date}T${endTime}:00`,
+                startDate: date,
+                startTime: startTime,
+                endDate: date,
+                endTime: endTime,
                 preferredShift: SHIFT_TYPES[shiftType].name,
                 note: note
             };
@@ -688,7 +693,6 @@ async function loadEmployeeAvailability() {
         return data;
     } catch (error) {
         console.error('Error loading availability:', error);
-        // Don't show alert as this might be called silently in background
         return null;
     }
 }

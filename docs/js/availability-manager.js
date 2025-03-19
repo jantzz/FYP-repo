@@ -3,16 +3,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if user is manager or admin
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const userRole = (userInfo.role || '').toLowerCase();
-    
-    // Add debug logging
-    console.log('Current user info:', userInfo);
-    console.log('User role (lowercase):', userRole);
-    console.log('Is manager or admin?:', userRole === 'manager' || userRole === 'admin');
 
     // Add manager-visible class to body if user is manager or admin
     if (userRole === 'manager' || userRole === 'admin') {
         document.body.classList.add('manager-visible');
-        console.log('Added manager-visible class to body');
         
         // Initialize the pending requests tab
         initPendingRequestsTab();
@@ -21,40 +15,31 @@ document.addEventListener('DOMContentLoaded', function() {
         setupTabSwitching();
         
         // Always fetch the pending count to ensure accurate badge
-        fetchPendingCount().then(count => {
-            console.log(`Initialized with ${count} pending requests`);
-        });
+        fetchPendingCount();
         
         // Setup a global event listener for availability updates
-        window.addEventListener('availability-updated', function(e) {
-            console.log('Availability update event received');
+        window.addEventListener('availability-updated', function() {
             fetchPendingCount();
         });
     } else {
         // Hide manager sections if not a manager
         document.body.classList.remove('manager-visible');
-        console.log('Removed manager-visible class from body');
     }
 });
 
 // Initialize the pending requests tab
 function initPendingRequestsTab() {
-    console.log('Initializing pending requests tab');
     // Create the tab if it doesn't exist
     let tabContainer = document.querySelector('.schedule-tabs');
     if (!tabContainer) {
-        console.error('Schedule tabs container not found!');
         return;
     }
-    
-    console.log('Found schedule tabs container');
     
     // Check if tab already exists
     let pendingTab = document.querySelector('.schedule-tabs .tab[data-tab="pending-requests"]');
     
     // Only create a new tab if one doesn't already exist
     if (!pendingTab) {
-        console.log('Creating new pending requests tab');
         const tabItem = document.createElement('div');
         tabItem.className = 'tab manager-only';
         tabItem.id = 'pending-requests-tab-btn';
@@ -62,8 +47,6 @@ function initPendingRequestsTab() {
         tabItem.textContent = 'Pending Requests';
         tabContainer.appendChild(tabItem);
         pendingTab = tabItem;
-    } else {
-        console.log('Pending requests tab already exists, skipping creation');
     }
     
     // Get the pending requests tab content pane
@@ -81,7 +64,6 @@ function initPendingRequestsTab() {
         }
     }
     
-    // NOTE: The actual content is already defined in HTML with id="pending-requests-tab"
     // Add event listeners for filter changes if they exist
     document.getElementById('department-filter')?.addEventListener('change', loadPendingRequests);
     document.getElementById('date-range-filter')?.addEventListener('change', loadPendingRequests);
@@ -90,8 +72,6 @@ function initPendingRequestsTab() {
 // Fetch just the count of pending requests to update the badge
 async function fetchPendingCount() {
     try {
-        console.log('Fetching pending count');
-        
         // Make API request - Same endpoint but we just need the count
         const response = await fetch('http://localhost:8800/api/availability/pending', {
             headers: {
@@ -106,7 +86,6 @@ async function fetchPendingCount() {
         
         const pendingRequests = await response.json();
         const count = pendingRequests.length;
-        console.log(`Server reports ${count} pending requests`);
         
         // Update the badge with the count
         updatePendingCountBadge(count);
@@ -127,12 +106,9 @@ async function fetchPendingCount() {
 
 // Load pending availability requests
 async function loadPendingRequests() {
-    console.log('Starting to load pending requests...');
-    
     // Make sure we're in the right tab (using the data-tab attribute now)
     const pendingTab = document.querySelector('.tab[data-tab="pending-requests"]');
     if (!pendingTab) {
-        console.error('Pending requests tab not found!');
         return;
     }
     
@@ -142,7 +118,6 @@ async function loadPendingRequests() {
     const emptyElement = document.querySelector('#pending-requests-tab .requests-empty');
     
     if (!requestsContainer) {
-        console.error('Request container not found!');
         // Create the needed containers if they don't exist
         const tabPane = document.querySelector('#pending-requests-tab');
         if (tabPane) {
@@ -162,11 +137,9 @@ async function loadPendingRequests() {
             const emptyElement = document.querySelector('#pending-requests-tab .requests-empty');
             
             if (!requestsContainer || !loadingElement || !emptyElement) {
-                console.error('Failed to create required elements');
                 return;
             }
         } else {
-            console.error('Tab pane not found!');
             return;
         }
     }
@@ -190,8 +163,6 @@ async function loadPendingRequests() {
             queryParams.append('days', dateRangeFilter);
         }
         
-        console.log('Fetching pending requests with params:', queryParams.toString());
-        
         // Make API request
         const response = await fetch(`http://localhost:8800/api/availability/pending?${queryParams.toString()}`, {
             headers: {
@@ -211,14 +182,12 @@ async function loadPendingRequests() {
         }
         
         const pendingRequests = await response.json();
-        console.log('Received pending requests:', pendingRequests);
         
         // Hide loading indicator
         if (loadingElement) loadingElement.style.display = 'none';
         
         // Check if there are any requests
         if (!pendingRequests || pendingRequests.length === 0) {
-            console.log('No pending requests found');
             if (emptyElement) emptyElement.style.display = 'block';
             
             // Update the count badge in the tab - show 0 or remove badge
@@ -226,15 +195,12 @@ async function loadPendingRequests() {
             return;
         }
         
-        console.log(`Found ${pendingRequests.length} pending requests`);
-        
         // Update the count badge in the tab
         updatePendingCountBadge(pendingRequests.length);
         
         // Group requests by employee
         const groupedRequests = {};
         pendingRequests.forEach(request => {
-            console.log('Processing request:', request);
             if (!groupedRequests[request.employeeId]) {
                 groupedRequests[request.employeeId] = {
                     employee: {
@@ -248,11 +214,8 @@ async function loadPendingRequests() {
             groupedRequests[request.employeeId].requests.push(request);
         });
         
-        console.log('Grouped requests by employee:', groupedRequests);
-        
         // Build the UI for requests
         Object.values(groupedRequests).forEach(group => {
-            console.log(`Building UI for employee ${group.employee.name} with ${group.requests.length} requests`);
             const employeeCard = document.createElement('div');
             employeeCard.className = 'employee-requests-card';
             
@@ -273,15 +236,23 @@ async function loadPendingRequests() {
             requestsList.className = 'employee-requests-list';
             
             group.requests.forEach(request => {
-                console.log('Creating request item:', request);
                 const requestItem = document.createElement('div');
                 requestItem.className = 'request-item';
                 requestItem.dataset.id = request.availabilityId;
                 requestItem.dataset.employeeId = request.employeeId;
                 
                 // Format dates and times
-                const startDate = new Date(request.startDate);
-                const endDate = new Date(request.endDate);
+                const startDate = new Date(`${request.startDate}T${request.startTime}`);
+                const endDate = new Date(`${request.endDate}T${request.endTime}`);
+                
+                // Check if we need to apply day adjustment for overnight shifts
+                let endDateAdjusted = new Date(endDate);
+                // If it's a night shift and end time is earlier than start time, assume it spans to next day
+                if (request.preferredShift === 'Night Shift' && 
+                    new Date(`2000-01-01T${request.endTime}`) < new Date(`2000-01-01T${request.startTime}`)) {
+                    endDateAdjusted.setDate(endDateAdjusted.getDate() + 1);
+                }
+                
                 const dateDisplay = startDate.toLocaleDateString('en-US', { 
                     weekday: 'short', 
                     month: 'short', 
@@ -291,7 +262,7 @@ async function loadPendingRequests() {
                     hour: 'numeric', 
                     minute: '2-digit',
                     hour12: true 
-                })} - ${endDate.toLocaleTimeString('en-US', { 
+                })} - ${endDateAdjusted.toLocaleTimeString('en-US', { 
                     hour: 'numeric', 
                     minute: '2-digit',
                     hour12: true 
@@ -315,14 +286,12 @@ async function loadPendingRequests() {
             
             employeeCard.appendChild(requestsList);
             if (requestsContainer) requestsContainer.appendChild(employeeCard);
-            console.log('Added employee card to container');
         });
         
         // Add event listeners for approve/reject buttons
         document.querySelectorAll('.btn-approve').forEach(button => {
             button.addEventListener('click', function() {
                 const requestId = this.dataset.id;
-                console.log('Approve button clicked for request:', requestId);
                 if (!requestId) {
                     console.error('No request ID found for approve button');
                     return;
@@ -334,7 +303,6 @@ async function loadPendingRequests() {
         document.querySelectorAll('.btn-reject').forEach(button => {
             button.addEventListener('click', function() {
                 const requestId = this.dataset.id;
-                console.log('Reject button clicked for request:', requestId);
                 if (!requestId) {
                     console.error('No request ID found for reject button');
                     return;
@@ -342,8 +310,6 @@ async function loadPendingRequests() {
                 updateAvailabilityStatus(requestId, 'Declined');
             });
         });
-        
-        console.log('Finished loading pending requests');
         
     } catch (error) {
         console.error('Error loading pending requests:', error);
@@ -399,12 +365,6 @@ async function updateAvailabilityStatus(availabilityId, status) {
             const totalRequests = requestsList ? requestsList.querySelectorAll('.request-item').length : 0;
             // This request is being processed, so remaining = total - 1
             const remainingRequests = Math.max(0, totalRequests - 1);
-            
-            console.log('Request counts:', {
-                totalRequests,
-                remainingRequests,
-                employeeId: requestItem.dataset.employeeId
-            });
             
             // Update the count in the employee card header
             if (employeeCard) {

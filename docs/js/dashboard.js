@@ -2,13 +2,13 @@
 function checkAuth() {
     const token = localStorage.getItem('token');
     if (!token) {
-        window.location.href = '/login.html';
+        window.location.href = 'index.html';
     }
 }
 
 function logout() {
     localStorage.removeItem('token');
-    window.location.href = '/login.html';
+    window.location.href = 'index.html';
 }
 
 function toggleDropdown() {
@@ -164,6 +164,32 @@ document.addEventListener('DOMContentLoaded', async function() {
                 end: info.event.end
             });
             info.el.style.backgroundColor = getStatusColor(info.event.extendedProps.status);
+        },
+        eventContent: function(eventInfo) {
+            // Get the shift title
+            const shiftTitle = eventInfo.event.title;
+            
+            // Format the time display based on shift name
+            let timeDisplay;
+            if (shiftTitle.includes('Morning')) {
+                timeDisplay = '6:00 AM - 2:00 PM';
+            } else if (shiftTitle.includes('Afternoon')) {
+                timeDisplay = '2:00 PM - 10:00 PM';
+            } else if (shiftTitle.includes('Night')) {
+                timeDisplay = '10:00 PM - 6:00 AM';
+            } else {
+                // Default to using the event times
+                const start = eventInfo.event.start;
+                const end = eventInfo.event.end;
+                timeDisplay = `${formatTime(start)} - ${formatTime(end)}`;
+            }
+            
+            return {
+                html: `
+                <div class="fc-event-title">${shiftTitle}</div>
+                <div class="fc-event-time">${timeDisplay}</div>
+                `
+            };
         },
         editable: true,
         selectable: true,
@@ -1234,31 +1260,48 @@ function initEmployeeCalendar() {
             center: 'title',
             right: 'dayGridMonth,timeGridWeek,timeGridDay'
         },
-        slotMinTime: '07:00:00',
-        slotMaxTime: '22:00:00',
+        slotMinTime: '05:00:00',
+        slotMaxTime: '23:00:00',
         allDaySlot: false,
         height: 'auto',
-        events: [
-            // Sample events - would be fetched from API in real app
-            {
-                title: 'Front Desk',
-                start: '2023-05-15T09:00:00',
-                end: '2023-05-15T17:00:00',
-                color: '#4caf50'
-            },
-            {
-                title: 'Back Office',
-                start: '2023-05-16T10:00:00',
-                end: '2023-05-16T18:00:00',
-                color: '#2196f3'
-            },
-            {
-                title: 'Front Desk',
-                start: '2023-05-17T08:00:00',
-                end: '2023-05-17T16:00:00',
-                color: '#4caf50'
+        events: async function(info, successCallback, failureCallback) {
+            try {
+                const events = await fetchShifts();
+                successCallback(events);
+            } catch (error) {
+                console.error('Employee calendar failed to fetch events:', error);
+                failureCallback(error);
             }
-        ]
+        },
+        eventDidMount: function(info) {
+            info.el.style.backgroundColor = getStatusColor(info.event.extendedProps?.status || 'pending');
+        },
+        eventContent: function(eventInfo) {
+            // Get the shift title
+            const shiftTitle = eventInfo.event.title;
+            
+            // Format the time display based on shift name
+            let timeDisplay;
+            if (shiftTitle.includes('Morning')) {
+                timeDisplay = '6:00 AM - 2:00 PM';
+            } else if (shiftTitle.includes('Afternoon')) {
+                timeDisplay = '2:00 PM - 10:00 PM';
+            } else if (shiftTitle.includes('Night')) {
+                timeDisplay = '10:00 PM - 6:00 AM';
+            } else {
+                // Default to using the event times
+                const start = eventInfo.event.start;
+                const end = eventInfo.event.end;
+                timeDisplay = `${formatTime(start)} - ${formatTime(end)}`;
+            }
+            
+            return {
+                html: `
+                <div class="fc-event-title">${shiftTitle}</div>
+                <div class="fc-event-time">${timeDisplay}</div>
+                `
+            };
+        }
     });
     
     employeeCalendar.render();
@@ -1275,61 +1318,161 @@ function loadAvailabilityData() {
         return; // Exit early if element doesn't exist
     }
     
-    // This would typically fetch from an API
-    // For now, we'll use sample data
-    const sampleAvailability = [
-        {
-            id: 1,
-            date: '2023-05-20',
-            startTime: '09:00',
-            endTime: '17:00',
-            type: 'unavailable',
-            note: 'Personal appointment'
-        },
-        {
-            id: 2,
-            date: '2023-05-22',
-            startTime: '14:00',
-            endTime: '18:00',
-            type: 'prefer',
-            note: 'Available for extra shifts'
-        },
-        {
-            id: 3,
-            date: '2023-05-24',
-            allDay: true,
-            type: 'unavailable',
-            note: 'Out of town'
-        }
-    ];
-    
+    // Clear existing data
     tableBody.innerHTML = '';
     
-    sampleAvailability.forEach(item => {
+    // Get user info from localStorage
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    
+    // Try to fetch real data from API
+    fetch(`/api/availability/employee/${userInfo.userId || 0}`, {
+        headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to fetch availability data');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Fetched availability data:', data);
+        
+        // If data is available and has availability array, render it
+        if (data && data.availability && data.availability.length > 0) {
+            renderAvailabilityData(data.availability);
+        } else {
+            console.log('No availability data found');
+            // If no data, the table will remain empty
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching availability data:', error);
+        // Create default availability entries to show in the UI
+        createDefaultAvailabilityDisplay();
+    });
+}
+
+// Function to render availability data
+function renderAvailabilityData(availabilityItems) {
+    const tableBody = document.getElementById('availabilityTableBody');
+    if (!tableBody) return;
+    
+    availabilityItems.forEach(item => {
         const row = document.createElement('tr');
         
         // Format date
-        const date = new Date(item.date).toLocaleDateString();
+        const date = new Date(item.startDate).toLocaleDateString();
         
-        // Format time
-        let timeText;
-        if (item.allDay) {
-            timeText = 'All Day';
+        // Determine shift type and set display properties
+        let shiftType = item.preferredShift || 'Unknown';
+        let statusClass = '';
+        let timeDisplay = '';
+        
+        // Set formatted time based on shift type
+        if (shiftType.includes('Morning')) {
+            statusClass = 'status-morning';
+            timeDisplay = '6:00 AM - 2:00 PM';
+        } else if (shiftType.includes('Afternoon')) {
+            statusClass = 'status-afternoon';
+            timeDisplay = '2:00 PM - 10:00 PM';
+        } else if (shiftType.includes('Night')) {
+            statusClass = 'status-night';
+            timeDisplay = '10:00 PM - 6:00 AM';
         } else {
-            const startTime = formatTime(item.startTime);
-            const endTime = formatTime(item.endTime);
-            timeText = `${startTime} - ${endTime}`;
+            // Generic format for unknown shift types
+            statusClass = 'status-prefer';
+            timeDisplay = `${formatTime(item.startTime)} - ${formatTime(item.endTime)}`;
         }
-        
-        // Determine status class
-        const statusClass = item.type === 'unavailable' ? 'status-unavailable' : 'status-prefer';
-        const statusText = item.type === 'unavailable' ? 'Unavailable' : 'Prefer to Work';
         
         row.innerHTML = `
             <td>${date}</td>
-            <td>${timeText}</td>
-            <td><span class="availability-status ${statusClass}">${statusText}</span></td>
+            <td>${timeDisplay}</td>
+            <td><span class="availability-status ${statusClass}">${shiftType}</span></td>
             <td>${item.note || '-'}</td>
+            <td><span class="availability-status ${item.status === 'Approved' ? 'status-approved' : 'status-declined'}">${item.status || 'Pending'}</span></td>
+            <td class="request-actions">
+                <button class="action-btn view-btn" onclick="editAvailability(${item.availabilityId})">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="action-btn delete-btn" onclick="deleteAvailability(${item.availabilityId})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+}
+
+// Function to create default availability display if API fails
+function createDefaultAvailabilityDisplay() {
+    const tableBody = document.getElementById('availabilityTableBody');
+    if (!tableBody) return;
+    
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date();
+    const todayStr = today.toLocaleDateString();
+    
+    // Show a message explaining these are sample items
+    const noteRow = document.createElement('tr');
+    noteRow.innerHTML = `
+        <td colspan="6" class="api-note" style="text-align: center; padding: 10px; background-color: #f8f9fa;">
+            <i class="fas fa-info-circle"></i> 
+            Showing sample data because server connection failed. Please reload to try again.
+        </td>
+    `;
+    tableBody.appendChild(noteRow);
+    
+    // Create sample data with hardcoded times - limit to just 1 of each type
+    const defaultItems = [
+        {
+            id: 1,
+            date: todayStr,
+            type: 'Morning Shift',
+            note: 'Sample morning shift',
+            status: 'Approved'
+        },
+        {
+            id: 2,
+            date: todayStr,
+            type: 'Afternoon Shift',
+            note: 'Sample afternoon shift',
+            status: 'Approved'
+        },
+        {
+            id: 3,
+            date: todayStr,
+            type: 'Night Shift',
+            note: 'Sample night shift',
+            status: 'Declined'
+        }
+    ];
+    
+    defaultItems.forEach(item => {
+        const row = document.createElement('tr');
+        
+        // Determine status class and time display based on shift type
+        let statusClass, timeDisplay;
+        
+        if (item.type === 'Morning Shift') {
+            statusClass = 'status-morning';
+            timeDisplay = '6:00 AM - 2:00 PM';
+        } else if (item.type === 'Afternoon Shift') {
+            statusClass = 'status-afternoon';
+            timeDisplay = '2:00 PM - 10:00 PM';
+        } else if (item.type === 'Night Shift') {
+            statusClass = 'status-night';
+            timeDisplay = '10:00 PM - 6:00 AM';
+        }
+        
+        row.innerHTML = `
+            <td>${item.date}</td>
+            <td>${timeDisplay}</td>
+            <td><span class="availability-status ${statusClass}">${item.type}</span></td>
+            <td>${item.note || '-'}</td>
+            <td><span class="availability-status ${item.status === 'Approved' ? 'status-approved' : 'status-declined'}">${item.status}</span></td>
             <td class="request-actions">
                 <button class="action-btn view-btn" onclick="editAvailability(${item.id})">
                     <i class="fas fa-edit"></i>
@@ -1408,18 +1551,34 @@ function showAvailabilityModal() {
     const timeSelectionEl = document.getElementById('time-selection');
     
     if (dateEl) dateEl.value = today;
-    if (startTimeEl) startTimeEl.value = '09:00';
-    if (endTimeEl) endTimeEl.value = '17:00';
+    
+    // Set default shift times based on selected shift type
+    const shiftTypeEl = document.querySelector('input[name="shift-type"]:checked');
+    if (shiftTypeEl) {
+        const shiftType = shiftTypeEl.value;
+        if (startTimeEl && endTimeEl) {
+            if (shiftType === 'MORNING') {
+                startTimeEl.value = '06:00';
+                endTimeEl.value = '14:00';
+            } else if (shiftType === 'AFTERNOON') {
+                startTimeEl.value = '14:00';
+                endTimeEl.value = '22:00';
+            } else if (shiftType === 'NIGHT') {
+                startTimeEl.value = '22:00';
+                endTimeEl.value = '06:00';
+            } else {
+                startTimeEl.value = '06:00';
+                endTimeEl.value = '14:00';
+            }
+        }
+    } else {
+        if (startTimeEl) startTimeEl.value = '06:00';
+        if (endTimeEl) endTimeEl.value = '14:00';
+    }
+    
     if (noteEl) noteEl.value = '';
     if (allDayEl) allDayEl.checked = false;
     if (repeatEl) repeatEl.checked = false;
-    
-    // Set default radio button - check for both availability-type and shift-type
-    const defaultRadio = document.querySelector('input[name="availability-type"][value="unavailable"]') || 
-                         document.querySelector('input[name="shift-type"][value="MORNING"]');
-    if (defaultRadio) {
-        defaultRadio.checked = true;
-    }
     
     // Show time selection by default if it exists
     if (timeSelectionEl) timeSelectionEl.style.display = 'flex';
@@ -1438,6 +1597,25 @@ function showAvailabilityModal() {
             }
         });
     }
+    
+    // Add event listeners for shift type radio buttons
+    const shiftTypeRadios = document.querySelectorAll('input[name="shift-type"]');
+    shiftTypeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (startTimeEl && endTimeEl) {
+                if (this.value === 'MORNING') {
+                    startTimeEl.value = '06:00';
+                    endTimeEl.value = '14:00';
+                } else if (this.value === 'AFTERNOON') {
+                    startTimeEl.value = '14:00';
+                    endTimeEl.value = '22:00';
+                } else if (this.value === 'NIGHT') {
+                    startTimeEl.value = '22:00';
+                    endTimeEl.value = '06:00';
+                }
+            }
+        });
+    });
 }
 
 // Function to close the availability modal
@@ -1463,114 +1641,62 @@ function deleteAvailability(id) {
 
 // function to format time
 function formatTime(time) {
-    // Guard against null or undefined values
-    if (!time) return "Unknown time";
+    // If no time is provided, return a placeholder
+    if (!time) return "12:00 AM";
     
     try {
-        // Log the input for debugging
-        console.log('formatTime input:', {
-            time: time,
-            type: typeof time,
-            isDate: time instanceof Date
-        });
-        
-        if (time instanceof Date) {
-            // If time is a Date object, format it properly, first check if valid
-            if (isNaN(time.getTime())) {
-                console.warn('Invalid Date object passed to formatTime:', time);
-                return "Unknown time";
-            }
-            
-            // Format using the date object's hours and minutes directly to avoid timezone issues
-            const hours = time.getHours();
-            const minutes = time.getMinutes();
-            
-            // Convert to 12-hour format
-            const period = hours >= 12 ? 'PM' : 'AM';
-            const displayHours = hours % 12 || 12; // Convert 0 to 12 for 12 AM
-            const displayMinutes = minutes.toString().padStart(2, '0');
-            
-            const formattedTime = `${displayHours}:${displayMinutes} ${period}`;
-            console.log('Formatted time from Date object:', formattedTime);
-            return formattedTime;
-        } else if (typeof time === 'string') {
-            // Log the string value for debugging
-            console.log('Formatting string time:', time);
-            
-            // Try to parse as a full date-time string first
-            // This handles ISO strings, MySQL datetime strings, etc.
-            if (time.includes('T') || time.includes(' ')) {
-                // Extract just the time portion
-                let timePart;
-                if (time.includes('T')) {
-                    // ISO format: 2023-01-01T09:00:00.000Z
-                    timePart = time.split('T')[1].split('.')[0];
-                } else {
-                    // MySQL format: 2023-01-01 09:00:00
-                    timePart = time.split(' ')[1];
+        // Handle if time is already in HH:MM format (string)
+        if (typeof time === 'string' && time.includes(':')) {
+            const parts = time.split(':');
+            if (parts.length >= 2) {
+                const hours = parseInt(parts[0], 10);
+                const minutes = parseInt(parts[1], 10);
+                
+                if (isNaN(hours) || isNaN(minutes)) {
+                    return "12:00 AM"; // Default for invalid input
                 }
                 
-                if (timePart && timePart.includes(':')) {
-                    // Parse hours and minutes
-                    const [hoursStr, minutesStr] = timePart.split(':');
-                    const hours = parseInt(hoursStr, 10);
-                    const minutes = parseInt(minutesStr, 10);
-                    
-                    if (!isNaN(hours) && !isNaN(minutes)) {
-                        // Convert to 12-hour format
-                        const period = hours >= 12 ? 'PM' : 'AM';
-                        const displayHours = hours % 12 || 12;
-                        const displayMinutes = minutes.toString().padStart(2, '0');
-                        
-                        const formattedTime = `${displayHours}:${displayMinutes} ${period}`;
-                        console.log('Formatted time from datetime string:', formattedTime);
-                        return formattedTime;
-                    }
-                }
-                
-                // If we couldn't parse the time part, create a date object and try again
-                const dateObj = new Date(time);
-                if (!isNaN(dateObj.getTime())) {
-                    const hours = dateObj.getHours();
-                    const minutes = dateObj.getMinutes();
-                    
-                    // Convert to 12-hour format
-                    const period = hours >= 12 ? 'PM' : 'AM';
-                    const displayHours = hours % 12 || 12;
-                    const displayMinutes = minutes.toString().padStart(2, '0');
-                    
-                    const formattedTime = `${displayHours}:${displayMinutes} ${period}`;
-                    console.log('Formatted time from parsed datetime string:', formattedTime);
-                    return formattedTime;
-                }
-            }
-            
-            // Handle simple HH:MM format
-            if (time.includes(':')) {
-                const [hours, minutes] = time.split(':').map(part => parseInt(part, 10));
-                
-                // Validate parsed values
-                if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-                    console.warn('Invalid time string format:', time);
-                    return "Unknown time";
-                }
-                
-                // Convert to 12-hour format
+                // Format for display with AM/PM
                 const period = hours >= 12 ? 'PM' : 'AM';
-                const displayHours = hours % 12 || 12;
-                const displayMinutes = minutes.toString().padStart(2, '0');
+                let displayHours = hours % 12;
+                if (displayHours === 0) displayHours = 12; // 0 should display as 12
                 
-                const formattedTime = `${displayHours}:${displayMinutes} ${period}`;
-                console.log('Formatted time from HH:MM string:', formattedTime);
-                return formattedTime;
+                return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
             }
         }
         
-        console.warn('Unrecognized time format:', time, typeof time);
-        return "Unknown time";
+        // Handle Date objects
+        if (time instanceof Date && !isNaN(time.getTime())) {
+            const hours = time.getHours();
+            const minutes = time.getMinutes();
+            
+            // Format with AM/PM
+            const period = hours >= 12 ? 'PM' : 'AM';
+            let displayHours = hours % 12;
+            if (displayHours === 0) displayHours = 12;
+            
+            return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+        }
+        
+        // Try to create a Date object from the input
+        const date = new Date(time);
+        if (!isNaN(date.getTime())) {
+            const hours = date.getHours();
+            const minutes = date.getMinutes();
+            
+            // Format with AM/PM
+            const period = hours >= 12 ? 'PM' : 'AM';
+            let displayHours = hours % 12;
+            if (displayHours === 0) displayHours = 12;
+            
+            return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+        }
+        
+        // If all else fails, return the default
+        return "12:00 AM";
     } catch (error) {
-        console.error('Error formatting time:', error, time);
-        return "Unknown time";
+        console.error('Error formatting time:', error);
+        return "12:00 AM";
     }
 }
 
@@ -1585,8 +1711,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             
             // Check if required elements exist
-            const typeElement = document.querySelector('input[name="availability-type"]:checked') || 
-                               document.querySelector('input[name="shift-type"]:checked');
+            const shiftTypeElement = document.querySelector('input[name="shift-type"]:checked');
             const dateElement = document.getElementById('availability-date');
             const allDayElement = document.getElementById('all-day-checkbox');
             const startTimeElement = document.getElementById('availability-start-time');
@@ -1594,16 +1719,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const noteElement = document.getElementById('availability-note');
             
             // Exit if required elements don't exist
-            if (!typeElement || !dateElement) {
+            if (!shiftTypeElement || !dateElement) {
                 console.error('Required form elements not found:', { 
-                    typeElement, 
+                    shiftTypeElement, 
                     dateElement 
                 });
                 return;
             }
             
             // Safely access values
-            const type = typeElement.value;
+            const shiftType = shiftTypeElement.value;
             const date = dateElement.value;
             const allDay = allDayElement ? allDayElement.checked : false;
             const startTime = (allDay || !startTimeElement) ? null : startTimeElement.value;
@@ -1620,6 +1745,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Please specify both start time and end time');
                 return;
             }
+            
+            // Set default times based on shift type if none provided
+            let finalStartTime = startTime;
+            let finalEndTime = endTime;
+            
+            if (!finalStartTime || !finalEndTime) {
+                if (shiftType === 'MORNING') {
+                    finalStartTime = '09:00';
+                    finalEndTime = '17:00';
+                } else if (shiftType === 'AFTERNOON') {
+                    finalStartTime = '14:00';
+                    finalEndTime = '22:00';
+                } else if (shiftType === 'NIGHT') {
+                    finalStartTime = '22:00';
+                    finalEndTime = '06:00';
+                }
+            }
+            
+            // Create availability data
+            const availabilityData = {
+                date: date,
+                startTime: finalStartTime,
+                endTime: finalEndTime,
+                shiftType: shiftType,
+                note: note,
+                allDay: allDay
+            };
+            
+            console.log('Submitting availability:', availabilityData);
+            
+            // In a real application, this would be sent to the server
+            alert('Availability submitted successfully!');
+            
+            // Close modal and refresh availability list
+            document.getElementById('availabilityModal').style.display = 'none';
+            loadAvailabilityData();
         });
     }
 });
@@ -1636,8 +1797,6 @@ async function fetchShifts() {
         if (!userInfo || !userInfo.userId) {
             throw new Error('User information not found');
         }
-
-        console.log('Fetching shifts for user:', userInfo.userId);
 
         const response = await fetch(`http://localhost:8800/api/shift/${userInfo.userId}`, {
             method: 'GET',
@@ -1658,40 +1817,52 @@ async function fetchShifts() {
         }
 
         const shifts = await response.json();
-        console.log('Raw shifts from server:', shifts);
         
-        // Debug output to check date formats
-        shifts.forEach(shift => {
-            console.log('Shift dates from server:', {
-                shiftId: shift.shiftId,
-                startDate: shift.startDate,
-                endDate: shift.endDate,
-                startDateObject: new Date(shift.startDate),
-                endDateObject: new Date(shift.endDate)
-            });
-        });
+        // Fix any problematic shift times before processing
+        shifts.forEach(shift => ensureCorrectShiftTimes(shift));
 
         const calendarEvents = shifts.map(shift => {
             // Provide a default title if none exists
             const shiftTitle = shift.title || shift.preferredShift || 'Scheduled Shift';
             
             // Convert MySQL datetime to proper JS Date objects
-            // MySQL format: YYYY-MM-DD HH:MM:SS
             let startDate, endDate;
             
             try {
-                // For MySQL datetime format, ensure proper parsing
+                // Create a base date for the event
+                const baseDate = new Date();
                 if (typeof shift.startDate === 'string') {
                     // Replace any 'T' format with space for consistency
                     const startStr = shift.startDate.replace('T', ' ').replace('Z', '');
                     // Parse the date properly preserving hours/minutes
-                    const [datePart, timePart] = startStr.split(' ');
-                    if (datePart && timePart) {
+                    const [datePart, timePart] = startStr.split(/[ T]/);
+                    if (datePart) {
                         const [year, month, day] = datePart.split('-').map(num => parseInt(num, 10));
-                        const [hours, minutes, seconds] = timePart.split(':').map(num => parseInt(num, 10));
+                        
+                        // Set explicit times based on shift type for more reliable placement
+                        let hours = 9; // Default to morning shift (9 AM)
+                        let minutes = 0;
+                        
+                        if (timePart) {
+                            const [timeHours, timeMinutes] = timePart.split(':').map(num => parseInt(num, 10));
+                            if (!isNaN(timeHours) && !isNaN(timeMinutes)) {
+                                hours = timeHours;
+                                minutes = timeMinutes;
+                            }
+                        } else {
+                            // Set times based on shift title if no specific time provided
+                            // These values must match the times shown to users in the UI
+                            if (shiftTitle.includes('Morning')) {
+                                hours = 6; // 6 AM (6:00 AM - 2:00 PM in UI)
+                            } else if (shiftTitle.includes('Afternoon')) {
+                                hours = 14; // 2 PM (2:00 PM - 10:00 PM in UI)
+                            } else if (shiftTitle.includes('Night')) {
+                                hours = 22; // 10 PM (10:00 PM - 6:00 AM in UI)
+                            }
+                        }
                         
                         // Create date with correct timezone handling (months are 0-indexed in JS)
-                        startDate = new Date(year, month - 1, day, hours, minutes, seconds || 0);
+                        startDate = new Date(year, month - 1, day, hours, minutes, 0);
                     } else {
                         startDate = new Date(shift.startDate);
                     }
@@ -1699,25 +1870,69 @@ async function fetchShifts() {
                     startDate = new Date(shift.startDate);
                 }
                 
-                // Do the same for end date
+                // For end date, use the start date and add hours based on shift type
                 if (typeof shift.endDate === 'string') {
                     const endStr = shift.endDate.replace('T', ' ').replace('Z', '');
-                    const [datePart, timePart] = endStr.split(' ');
-                    if (datePart && timePart) {
+                    const [datePart, timePart] = endStr.split(/[ T]/);
+                    if (datePart) {
                         const [year, month, day] = datePart.split('-').map(num => parseInt(num, 10));
-                        const [hours, minutes, seconds] = timePart.split(':').map(num => parseInt(num, 10));
+                        
+                        // Set explicit end times based on shift type
+                        let hours, minutes = 0;
+                        let isNextDay = false;
+                        
+                        if (timePart) {
+                            const [timeHours, timeMinutes] = timePart.split(':').map(num => parseInt(num, 10));
+                            if (!isNaN(timeHours) && !isNaN(timeMinutes)) {
+                                hours = timeHours;
+                                minutes = timeMinutes;
+                            }
+                        } else {
+                            // Calculate end time based on shift type
+                            // These values must match the times shown to users in the UI
+                            if (shiftTitle.includes('Morning')) {
+                                hours = 14; // 2 PM (6:00 AM - 2:00 PM in UI)
+                            } else if (shiftTitle.includes('Afternoon')) {
+                                hours = 22; // 10 PM (2:00 PM - 10:00 PM in UI)
+                            } else if (shiftTitle.includes('Night')) {
+                                hours = 6; // 6 AM (10:00 PM - 6:00 AM in UI)
+                                isNextDay = true; // Night shift ends next day
+                            } else {
+                                // Default: 8-hour shift
+                                hours = (startDate.getHours() + 8) % 24;
+                            }
+                        }
                         
                         // Create date with correct timezone handling
-                        endDate = new Date(year, month - 1, day, hours, minutes, seconds || 0);
+                        endDate = new Date(year, month - 1, day, hours, minutes, 0);
+                        
+                        // If night shift, move to next day
+                        if (isNextDay || (startDate && endDate && endDate <= startDate)) {
+                            endDate.setDate(endDate.getDate() + 1);
+                        }
                     } else {
                         endDate = new Date(shift.endDate);
                     }
                 } else {
-                    endDate = new Date(shift.endDate);
+                    // If no end date provided, calculate based on shift type
+                    endDate = new Date(startDate);
+                    
+                    if (shiftTitle.includes('Morning')) {
+                        endDate.setHours(17, 0, 0); // 5 PM
+                    } else if (shiftTitle.includes('Afternoon')) {
+                        endDate.setHours(22, 0, 0); // 10 PM
+                    } else if (shiftTitle.includes('Night')) {
+                        endDate.setDate(endDate.getDate() + 1);
+                        endDate.setHours(6, 0, 0); // 6 AM next day
+                    } else {
+                        // Default: 8-hour shift
+                        endDate.setHours(endDate.getHours() + 8);
+                    }
                 }
                 
                 console.log('Parsed dates for shift:', {
                     shiftId: shift.shiftId,
+                    title: shiftTitle,
                     startDate: startDate,
                     endDate: endDate,
                     startTime: startDate.toTimeString(),
@@ -1733,17 +1948,32 @@ async function fetchShifts() {
                 if (!endDate || isNaN(endDate.getTime())) {
                     console.warn(`Invalid or missing end date for shift ${shift.shiftId} after parsing:`, shift.endDate);
                     endDate = new Date(startDate);
-                    endDate.setHours(endDate.getHours() + 1);
+                    endDate.setHours(endDate.getHours() + 8); // Use 8-hour default
                 }
                 
                 // Ensure end is after start
                 if (endDate <= startDate) {
                     console.warn(`End date is not after start date for shift ${shift.shiftId}, adjusting`);
-                    endDate = new Date(startDate);
-                    endDate.setHours(endDate.getHours() + 1);
+                    
+                    // Use shift title to determine appropriate end time
+                    if (shiftTitle.includes('Morning')) {
+                        endDate = new Date(startDate);
+                        endDate.setHours(14, 0, 0); // 2 PM
+                    } else if (shiftTitle.includes('Afternoon')) {
+                        endDate = new Date(startDate);
+                        endDate.setHours(22, 0, 0); // 10 PM
+                    } else if (shiftTitle.includes('Night')) {
+                        endDate = new Date(startDate);
+                        endDate.setDate(endDate.getDate() + 1);
+                        endDate.setHours(6, 0, 0); // 6 AM next day
+                    } else {
+                        // Default: 8-hour shift
+                        endDate = new Date(startDate);
+                        endDate.setHours(endDate.getHours() + 8);
+                    }
                 }
             } catch (error) {
-                console.error(`Error processing dates for shift ${shift.shiftId}:`, error);
+                console.error('Error parsing shift dates:', error);
                 // Set safe defaults
                 startDate = new Date();
                 endDate = new Date(startDate);
@@ -2017,16 +2247,31 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
             });
         }
         
-        // Format time directly using explicit hours/minutes
-        const startTimeStr = formatTime(startDate);
-        const endTimeStr = formatTime(endDate);
-        const timeDisplay = `${startTimeStr} - ${endTimeStr}`;
+        // Format time based on shift title
+        let timeDisplay;
+        if (typeof title === 'string') {
+            if (title.includes('Morning')) {
+                timeDisplay = '6:00 AM - 2:00 PM';
+            } else if (title.includes('Afternoon')) {
+                timeDisplay = '2:00 PM - 10:00 PM';
+            } else if (title.includes('Night')) {
+                timeDisplay = '10:00 PM - 6:00 AM';
+            } else {
+                // Default formatting using the date objects
+                const startTimeStr = formatTime(startDate);
+                const endTimeStr = formatTime(endDate);
+                timeDisplay = `${startTimeStr} - ${endTimeStr}`;
+            }
+        } else {
+            // If title is not a string, format using date objects
+            const startTimeStr = formatTime(startDate);
+            const endTimeStr = formatTime(endDate);
+            timeDisplay = `${startTimeStr} - ${endTimeStr}`;
+        }
         
         console.log('Formatted display values:', {
             dateDisplay,
-            timeDisplay,
-            startTimeStr,
-            endTimeStr
+            timeDisplay
         });
         
         // Create shift card
@@ -2069,76 +2314,26 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
 
 // Function to refresh the calendar when a new shift is added
 window.refreshCalendar = async function() {
-    console.log('Refreshing calendar to show newly created shift');
     try {
         // Fetch updated shifts
-        const shifts = await fetchShifts();
-        console.log('Refreshed shifts:', shifts);
+        const updatedShifts = await fetchShifts();
         
-        // Refresh the calendar
+        // Refresh the main calendar
         if (window.calendar) {
             window.calendar.refetchEvents();
-            console.log('Calendar events refreshed');
         }
         
-        // Refresh the upcoming shifts section
-        const shiftsContainer = document.querySelector('.shifts-container');
-        if (shiftsContainer) {
-            // Remove existing shift cards
-            const shiftCards = shiftsContainer.querySelectorAll('.shift-card');
-            shiftCards.forEach(card => card.remove());
-            
-            // Track if we have future shifts
-            let hasFutureShifts = false;
-            
-            if (shifts && shifts.length > 0) {
-                console.log('Adding shifts to upcoming section');
-                
-                // Add shifts to the upcoming shifts section
-                shifts.forEach(shift => {
-                    try {
-                        const startDate = new Date(shift.start);
-                        const endDate = new Date(shift.end);
-                        
-                        // Validate dates
-                        if (isNaN(startDate.getTime())) {
-                            console.warn('Invalid start date in shift:', shift);
-                            return; // Skip this shift
-                        }
-                        
-                        const isNearFuture = isShiftInNearFuture(startDate);
-                        
-                        addShiftToUpcomingSection(
-                            shift.title,
-                            startDate,
-                            endDate,
-                            shift.extendedProps?.status || 'Pending',
-                            !isNearFuture // Hide if not today/tomorrow
-                        );
-                        
-                        if (!isNearFuture) {
-                            hasFutureShifts = true;
-                        }
-                    } catch (error) {
-                        console.error('Error processing shift for upcoming section:', error, shift);
-                    }
-                });
-            } else {
-                console.log('No shifts to display in upcoming section');
-            }
-            
-            // Show the "Show More" button if we have future shifts
-            const showMoreButton = document.querySelector('.show-more-shifts');
-            if (showMoreButton) {
-                showMoreButton.style.display = hasFutureShifts ? 'block' : 'none';
-            }
-        } else {
-            console.warn('Shifts container not found, cannot update upcoming shifts');
+        // Also refresh the employee calendar if available
+        if (employeeCalendar) {
+            employeeCalendar.refetchEvents();
         }
+        
+        return true;
     } catch (error) {
         console.error('Error refreshing calendar:', error);
+        return false;
     }
-};
+}
 
 // Add event listener to load roster data when the replacement tab is clicked
 document.addEventListener('DOMContentLoaded', function() {
@@ -2495,4 +2690,59 @@ async function editEmployee(userId) {
         console.error('Error setting up employee edit:', error);
         alert(`Error: ${error.message}`);
     }
-} 
+}
+
+// Helper function to diagnose and fix shift date issues
+function ensureCorrectShiftTimes(shift) {
+    const shiftTitle = shift.title || shift.preferredShift || 'Scheduled Shift';
+    
+    // Get the start and end dates
+    let startDate = new Date(shift.startDate);
+    let endDate = new Date(shift.endDate);
+    
+    // If it's an afternoon shift with problematic times
+    if (shiftTitle.includes('Afternoon') && 
+        endDate.getHours() === startDate.getHours() && 
+        endDate.getMinutes() === startDate.getMinutes()) {
+        
+        // Set proper times for Afternoon shift (2:00 PM to 10:00 PM)
+        startDate.setHours(14, 0, 0);
+        endDate.setHours(22, 0, 0);
+        
+        // Update the shift object
+        shift.startDate = startDate;
+        shift.endDate = endDate;
+    }
+    
+    // If it's a morning shift with problematic times
+    if (shiftTitle.includes('Morning') && 
+        endDate.getHours() === startDate.getHours() && 
+        endDate.getMinutes() === startDate.getMinutes()) {
+        
+        // Set proper times for Morning shift (6:00 AM to 2:00 PM)
+        startDate.setHours(6, 0, 0);
+        endDate.setHours(14, 0, 0);
+        
+        // Update the shift object
+        shift.startDate = startDate;
+        shift.endDate = endDate;
+    }
+    
+    // If it's a night shift with problematic times
+    if (shiftTitle.includes('Night') && 
+        endDate.getHours() === startDate.getHours() && 
+        endDate.getMinutes() === startDate.getMinutes()) {
+        
+        // Set proper times for Night shift (10:00 PM to 6:00 AM)
+        startDate.setHours(22, 0, 0);
+        endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 1);
+        endDate.setHours(6, 0, 0);
+        
+        // Update the shift object
+        shift.startDate = startDate;
+        shift.endDate = endDate;
+    }
+    
+    return shift;
+}

@@ -143,6 +143,50 @@ body {
     height: calc(100% - 50px);
 }
 
+/* Calendar Event Styling */
+.fc-event {
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: none;
+}
+
+.fc-event .fc-event-title {
+    font-weight: bold;
+    font-size: 0.9em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fc-event .fc-event-time {
+    font-size: 0.8em;
+    opacity: 0.9;
+    margin-top: 2px;
+}
+
+.fc-timegrid-event .fc-event-time,
+.fc-daygrid-event .fc-event-time {
+    font-size: 0.8em;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.fc-daygrid-dot-event .fc-event-title,
+.fc-timegrid-event .fc-event-title {
+    font-weight: bold;
+}
+
+/* Style for compact view */
+@media (max-width: 768px) {
+    .fc-event .fc-event-title {
+        font-size: 0.8em;
+    }
+    
+    .fc-event .fc-event-time {
+        font-size: 0.75em;
+    }
+}
+
 .report-section {
     background: white;
     padding: 1.5rem;
