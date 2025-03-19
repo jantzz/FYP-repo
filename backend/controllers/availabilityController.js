@@ -291,8 +291,10 @@ const getPendingRequests = async (req, res) => {
         // Format dates for frontend
         const formattedRequests = pendingRequests.map(request => ({
             ...request,
-            startDate: request.startDate.toISOString(),
-            endDate: request.endDate.toISOString()
+            startDate: request.startDate instanceof Date ? request.startDate.toISOString().split('T')[0] : request.startDate,
+            startTime: request.startTime instanceof Date ? request.startTime.toISOString().split('T')[1].split('.')[0] : request.startTime,
+            endDate: request.endDate instanceof Date ? request.endDate.toISOString().split('T')[0] : request.endDate,
+            endTime: request.endTime instanceof Date ? request.endTime.toISOString().split('T')[1].split('.')[0] : request.endTime
         }));
 
         console.log('Formatted requests:', formattedRequests);
