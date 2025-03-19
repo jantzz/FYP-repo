@@ -12,15 +12,85 @@ const submitAvailability = async (req, res) => {
     try {
         connection = await db.getConnection();
 
+        // calculate requested hours
+        const startDateTime = new Date(`${startDate}T${startTime}`);
+        const endDateTime = new Date(`${endDate}T${endTime}`);
+        
+        // if end time is earlier than start time, assume it spans to next day
+        let requestedHours;
+        if (endDateTime <= startDateTime) {
+            const endNextDay = new Date(endDateTime);
+            endNextDay.setDate(endNextDay.getDate() + 1);
+            requestedHours = (endNextDay - startDateTime) / (1000 * 60 * 60);
+        } else {
+            requestedHours = (endDateTime - startDateTime) / (1000 * 60 * 60);
+        }
+
+        // get current remaining hours for the week of the requested date
+        const requestDate = new Date(startDate);
+        const weekStart = new Date(requestDate);
+        weekStart.setDate(requestDate.getDate() - requestDate.getDay()); // Start of week (Sunday)
+        weekStart.setHours(0, 0, 0, 0);
+        
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
+        weekEnd.setHours(23, 59, 59, 999);
+
+        const [currentHours] = await connection.execute(
+            `SELECT 
+                GREATEST(0, 
+                    LEAST(40, 
+                        40 - COALESCE(
+                            SUM(hours), 
+                            0
+                        )
+                    )
+                ) as remainingHours
+            FROM availability 
+            WHERE employeeId = ? 
+            AND status != 'Declined'
+            AND startDate BETWEEN ? AND ?`,
+            [employeeId, weekStart.toISOString().split('T')[0], weekEnd.toISOString().split('T')[0]]
+        );
+
+        const remainingHours = parseFloat(currentHours[0].remainingHours);
+
+        // check if employee has enough remaining hours for this week
+        if (requestedHours > remainingHours) {
+            return res.status(400).json({ 
+                error: "Not enough remaining hours for this week",
+                requestedHours: parseFloat(requestedHours.toFixed(2)),
+                remainingHours: parseFloat(remainingHours.toFixed(2)),
+                weekInfo: {
+                    weekStart: weekStart.toISOString().split('T')[0],
+                    weekEnd: weekEnd.toISOString().split('T')[0]
+                }
+            });
+        }
+
         const query = `
-            INSERT INTO availability (employeeId, startDate, startTime, endDate, endTime, preferredShift) 
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO availability (employeeId, startDate, startTime, endDate, endTime, preferredShift, hours) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
 
-        await connection.execute(query, [employeeId, startDate, startTime, endDate, endTime, preferredShift]);
-        connection.release();
+        await connection.execute(query, [
+            employeeId, 
+            startDate, 
+            startTime, 
+            endDate, 
+            endTime, 
+            preferredShift,
+            requestedHours
+        ]);
 
-        return res.status(201).json({ message: "Availability submitted successfully." });
+        // calculate new remaining hours
+        const newRemainingHours = remainingHours - requestedHours;
+
+        return res.status(201).json({ 
+            message: "Availability submitted successfully.",
+            requestedHours: parseFloat(requestedHours.toFixed(2)),
+            remainingHours: parseFloat(newRemainingHours.toFixed(2))
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Internal Server Error." });
@@ -76,53 +146,40 @@ const updateAvailabilityStatus = async (req, res) => {
 
         //if the availability is approved, adds it to shift table
         if (status === "Approved") {
-            const { employeeId, startDate, endDate, preferredShift } = availabilityCheck[0];
+            const { employeeId, startDate, startTime, endDate, endTime, preferredShift } = availabilityCheck[0];
 
-            // Ensure that we have valid date objects
-            let validStartDate, validEndDate;
+            // Format the dates properly for MySQL
+            const formattedStartDate = new Date(startDate).toISOString().split('T')[0];
+            const formattedEndDate = new Date(endDate).toISOString().split('T')[0];
             
-            try {
-                // Parse the dates
-                validStartDate = new Date(startDate);
-                
-                // Check if endDate exists and is valid, otherwise create a default end date
-                if (endDate && !isNaN(new Date(endDate).getTime())) {
-                    validEndDate = new Date(endDate);
-                } else {
-                    // Default end date is 1 hour after start
-                    validEndDate = new Date(validStartDate);
-                    validEndDate.setHours(validEndDate.getHours() + 1);
-                    console.log('Created default end date (start + 1 hour):', validEndDate);
-                }
-                
-                // Ensure that the end date is after the start date
-                if (validEndDate <= validStartDate) {
-                    validEndDate = new Date(validStartDate);
-                    validEndDate.setHours(validEndDate.getHours() + 1);
-                    console.log('Corrected end date to ensure it is after start date:', validEndDate);
-                }
-                
-                // Format dates for database
-                const formattedStartDate = validStartDate.toISOString().slice(0, 19).replace('T', ' ');
-                const formattedEndDate = validEndDate.toISOString().slice(0, 19).replace('T', ' ');
-                
-                console.log('Creating shift with dates:', {
-                    formattedStartDate,
-                    formattedEndDate
-                });
-                
-                const shiftQuery = `
-                    INSERT INTO shift (employeeId, startDate, endDate, title, status)
-                    VALUES (?, ?, ?, ?, ?)
-                `;
-                const shiftData = [employeeId, formattedStartDate, formattedEndDate, preferredShift, "Scheduled"];
-                
-                await connection.execute(shiftQuery, shiftData);
-                console.log('Shift added for employee:', employeeId);
-            } catch (error) {
-                console.error('Error creating shift from availability:', error);
-                // Continue with approval even if shift creation fails
-            }
+            // Format the times to ensure they're in HH:MM:SS format
+            const formattedStartTime = startTime.length === 5 ? `${startTime}:00` : startTime;
+            const formattedEndTime = endTime.length === 5 ? `${endTime}:00` : endTime;
+
+            // Combine date and time in MySQL datetime format
+            const formattedStartDateTime = `${formattedStartDate} ${formattedStartTime}`;
+            const formattedEndDateTime = `${formattedEndDate} ${formattedEndTime}`;
+
+            // Insert into shift table with properly formatted dates
+            const shiftQuery = `
+                INSERT INTO shift (employeeId, startDate, endDate, title, status)
+                VALUES (?, ?, ?, ?, ?)
+            `;
+            
+            await connection.execute(shiftQuery, [
+                employeeId,
+                formattedStartDateTime,
+                formattedEndDateTime,
+                preferredShift,
+                "Scheduled"
+            ]);
+            
+            console.log('Created shift with dates:', {
+                startDateTime: formattedStartDateTime,
+                endDateTime: formattedEndDateTime,
+                employeeId,
+                preferredShift
+            });
         }
 
         //updates availability status
@@ -168,51 +225,44 @@ const getEmployeeAvailability = async (req, res) => {
         
         console.log(`Found ${availabilityRecords.length} availability records for employee ${employeeId}`);
         
+        // Get the current week's start and end dates
+        const now = new Date();
+        const currentWeekStart = new Date(now);
+        currentWeekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+        currentWeekStart.setHours(0, 0, 0, 0);
+        
+        const currentWeekEnd = new Date(currentWeekStart);
+        currentWeekEnd.setDate(currentWeekStart.getDate() + 6); // End of week (Saturday)
+        currentWeekEnd.setHours(23, 59, 59, 999);
+
+        console.log('Calculating hours for week:', {
+            weekStart: currentWeekStart.toISOString(),
+            weekEnd: currentWeekEnd.toISOString()
+        });
+
         // calculate remaining hours
-        const maxHoursPerWeek = 40; // Default maximum hours per week
+        const maxHoursPerWeek = 40; // Maximum hours per week
         let usedHours = 0;
         
         // loop through each availability record to calculate hours used
         for (const record of availabilityRecords) {
             try {
-                // calculate duration in hours for each availability slot
-                const startDate = new Date(record.startDate);
-                const endDate = new Date(record.endDate);
+                const recordDate = new Date(record.startDate);
                 
-                // Validate dates before calculation
-                if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-                    console.error('Invalid date found in record:', record);
-                    continue; // Skip this record
-                }
-                
-                // Ensure end date is after start date
-                if (endDate <= startDate) {
-                    console.error('End date is not after start date:', record);
-                    continue; // Skip this record
-                }
-                
-                const durationHours = (endDate - startDate) / (1000 * 60 * 60);
-                
-                // Validate the duration - ignore unreasonable values (more than 24 hours)
-                if (durationHours <= 0 || durationHours > 24) {
-                    console.error('Invalid duration calculated:', { 
-                        record, 
-                        startDate, 
-                        endDate, 
-                        durationHours 
-                    });
-                    continue; // Skip this record
-                }
-                
-                // Only count approved or pending records
-                if (record.status !== 'Declined') {
-                    console.log(`Adding ${durationHours.toFixed(2)} hours for record:`, {
-                        id: record.id,
-                        status: record.status,
-                        startDate: startDate.toISOString(),
-                        endDate: endDate.toISOString()
-                    });
-                    usedHours += durationHours;
+                // Only count hours if they're in the current week
+                if (recordDate >= currentWeekStart && recordDate <= currentWeekEnd) {
+                    const hours = parseFloat(record.hours || 0);
+                    
+                    // Only count approved or pending records
+                    if (record.status !== 'Declined' && !isNaN(hours)) {
+                        console.log(`Adding ${hours.toFixed(2)} hours for record:`, {
+                            id: record.availabilityId,
+                            status: record.status,
+                            date: recordDate.toISOString(),
+                            hours: hours
+                        });
+                        usedHours += hours;
+                    }
                 }
             } catch (err) {
                 console.error('Error processing availability record:', err, record);
@@ -220,22 +270,30 @@ const getEmployeeAvailability = async (req, res) => {
             }
         }
         
-        console.log(`Total used hours calculated: ${usedHours.toFixed(2)}`);
+        console.log(`Total used hours for current week: ${usedHours.toFixed(2)}`);
         
         // calculate remaining hours (cap at 0 if negative)
         const remainingHours = Math.max(0, maxHoursPerWeek - usedHours);
         
-        console.log(`Returning remainingHours: ${remainingHours.toFixed(2)}`);
+        console.log(`Remaining hours for current week: ${remainingHours.toFixed(2)}`);
         
-        connection.release();
+        // Get the week dates for the frontend
+        const weekInfo = {
+            weekStart: currentWeekStart.toISOString().split('T')[0],
+            weekEnd: currentWeekEnd.toISOString().split('T')[0],
+            currentDate: now.toISOString().split('T')[0]
+        };
         
-        // Return the data with calculated remaining hours
+        // Return the data with calculated remaining hours and week info
         return res.status(200).json({
             remainingHours: parseFloat(remainingHours.toFixed(2)),
+            weekInfo: weekInfo,
+            usedHours: parseFloat(usedHours.toFixed(2)),
             availability: availabilityRecords.map(record => ({
                 ...record,
                 startDate: record.startDate instanceof Date ? record.startDate.toISOString() : record.startDate,
-                endDate: record.endDate instanceof Date ? record.endDate.toISOString() : record.endDate
+                endDate: record.endDate instanceof Date ? record.endDate.toISOString() : record.endDate,
+                isCurrentWeek: new Date(record.startDate) >= currentWeekStart && new Date(record.startDate) <= currentWeekEnd
             }))
         });
     } catch (err) {

@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS availability;
+DROP VIEW IF EXISTS employee_availability_view;
 
 CREATE TABLE availability (
     availabilityId INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -8,6 +10,7 @@ CREATE TABLE availability (
     endTime TIME NOT NULL,
     preferredShift ENUM('Morning Shift', 'Afternoon Shift', 'Night Shift') NOT NULL,
     status ENUM('Pending', 'Approved', 'Declined') DEFAULT 'Pending',
+    hours DECIMAL(5,2) NOT NULL,
     submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     approvedBy INT UNSIGNED NULL,
     FOREIGN KEY (employeeId) REFERENCES user(userId) ON DELETE CASCADE,
@@ -25,6 +28,7 @@ SELECT
     a.endTime,
     a.preferredShift,
     a.status,
+    a.hours,
     a.submittedAt,
     a.approvedBy
 FROM availability a
