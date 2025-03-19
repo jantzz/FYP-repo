@@ -77,7 +77,7 @@ const updateAvailabilityStatus = async (req, res) => {
         //if the availability is approved, adds it to shift table
         if (status === "Approved") {
             const { employeeId, startDate, endDate, preferredShift } = availabilityCheck[0];
-            
+
             // Ensure that we have valid date objects
             let validStartDate, validEndDate;
             
@@ -161,7 +161,7 @@ const getEmployeeAvailability = async (req, res) => {
         const query = `
             SELECT * FROM availability 
             WHERE employeeId = ? 
-            ORDER BY startDate ASC
+            ORDER BY startDate ASC, startTime ASC
         `;
         
         const [availabilityRecords] = await connection.execute(query, [employeeId]);
