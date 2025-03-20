@@ -10,6 +10,9 @@
     --primary-white: #FFFFFF;
     --text-dark: #333333;
     --text-light: #666666;
+    --gradient-start: #009B77;
+    --gradient-middle: #0077B6;
+    --gradient-end: #0000FF;
 }
 
 body {
@@ -17,7 +20,21 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: var(--primary-white);
+    background: linear-gradient(120deg, var(--gradient-start), var(--gradient-middle), var(--gradient-end));
+    background-size: 200% 200%;
+    animation: gradientMove 15s ease infinite;
+}
+
+@keyframes gradientMove {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
 }
 
 .container {
