@@ -240,20 +240,38 @@ function updateAvailabilityDisplay() {
         return false;
     };
 
+    // Function to get shift time display based on shift type
+    const getShiftTimeDisplay = (preferredShift) => {
+        switch(preferredShift) {
+            case 'Morning Shift':
+                return '6:00 AM - 2:00 PM';
+            case 'Afternoon Shift':
+                return '2:00 PM - 10:00 PM';
+            case 'Night Shift':
+                return '10:00 PM - 6:00 AM';
+            default:
+                return null; // Return null for custom times
+        }
+    };
+
     // Update availability list if it exists
     if (employeeAvailability.availability && employeeAvailability.availability.length > 0) {
-        const content = employeeAvailability.availability.map(item => `
-            <div class="availability-item ${item.status.toLowerCase()}">
-                <div class="availability-date">${new Date(item.startDate).toLocaleDateString()}</div>
-                <div class="availability-time">
-                    ${new Date(item.startDate).toLocaleTimeString()} - 
-                    ${new Date(item.endDate).toLocaleTimeString()}
+        const content = employeeAvailability.availability.map(item => {
+            // Get predefined shift time display or use actual times
+            const timeDisplay = getShiftTimeDisplay(item.preferredShift) || 
+                `${new Date('2000-01-01T' + item.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} - 
+                 ${new Date('2000-01-01T' + item.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+
+            return `
+                <div class="availability-item ${item.status.toLowerCase()}">
+                    <div class="availability-date">${new Date(item.startDate).toLocaleDateString()}</div>
+                    <div class="availability-time">${timeDisplay}</div>
+                    <div class="availability-shift">${item.preferredShift}</div>
+                    <div class="availability-status">${item.status}</div>
+                    ${item.note ? `<div class="availability-note">${item.note}</div>` : ''}
                 </div>
-                <div class="availability-shift">${item.preferredShift}</div>
-                <div class="availability-status">${item.status}</div>
-                ${item.note ? `<div class="availability-note">${item.note}</div>` : ''}
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
         safelyUpdateList(availabilityList, content);
     } else {
