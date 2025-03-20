@@ -35,6 +35,10 @@ function isShiftInNearFuture(shiftDate) {
 
 // Initialize calendar and page functionality
 document.addEventListener('DOMContentLoaded', async function() {
+    // Define API base URL globally at the top level
+    window.API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
+    console.log('Using API base URL:', window.API_BASE_URL);
+    
     // Check authentication when page loads
     checkAuth();
     
@@ -257,6 +261,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             document.querySelector('.time-off-section').style.display = 'none';
             document.querySelector('.schedule-section').style.display = 'none';
             document.querySelector('.report-section').style.display = 'none';
+            document.querySelector('.attendance-section').style.display = 'none';
+            document.querySelector('.payroll-section').style.display = 'none';
             
             // Show appropriate section based on clicked item
             if (itemText === 'Dashboard') {
@@ -293,6 +299,24 @@ document.addEventListener('DOMContentLoaded', async function() {
                     loadRosterData();
                 } catch (error) {
                     console.error('Error loading schedule data:', error);
+                }
+            } else if (itemText === 'Reports') {
+                document.querySelector('.report-section').style.display = 'block';
+                // Initialize reports if the function exists
+                if (typeof initializeReports === 'function') {
+                    initializeReports();
+                }
+            } else if (itemText === 'Attendance Rate') {
+                document.querySelector('.attendance-section').style.display = 'block';
+                // Initialize attendance if the function exists
+                if (typeof initializeAttendance === 'function') {
+                    initializeAttendance();
+                }
+            } else if (itemText === 'Payroll') {
+                document.querySelector('.payroll-section').style.display = 'block';
+                // Initialize payroll if the function exists
+                if (typeof initializePayroll === 'function') {
+                    initializePayroll();
                 }
             }
         });
@@ -506,24 +530,32 @@ document.getElementById('createEmployeeForm').addEventListener('submit', async f
     };
 
     try {
-        // First create the role if it doesn't exist
-        await fetch(
-            '/api/role/createRole',
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    roleName: formData.role,
-                    description: `${formData.role} role`
-                })
-            }
-        );
+        // Try to create the role, but don't fail if it already exists
+        try {
+            await fetch(
+                `${window.API_BASE_URL}/role/createRole`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        roleName: formData.role,
+                        description: "User role"
+                    })
+                }
+            );
+            console.log(`Role '${formData.role}' created or already exists`);
+        } catch (roleError) {
+            // If role creation fails because it already exists, we can continue
+            console.warn('Role creation error (might already exist):', roleError);
+            // Don't throw error - continue with user creation
+        }
 
         // Then create the user
         const response = await fetch(
-            '/api/user/createUser',
+            `${window.API_BASE_URL}/user/createUser`,
             {
                 method: 'POST',
                 headers: {
@@ -545,15 +577,13 @@ document.getElementById('createEmployeeForm').addEventListener('submit', async f
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Failed to create employee');
+        alert('Failed to create employee. Please make sure the backend server is running.');
     }
 });
 
 // Load employees
 async function loadEmployees() {
     try {
-        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
-        
         // Show loading indicator
         const tableBody = document.getElementById('employeeTableBody');
         tableBody.innerHTML = '<tr><td colspan="5">Loading employees...</td></tr>';
@@ -565,7 +595,7 @@ async function loadEmployees() {
         // Only allow managers and admins to manage employees
         const canManageEmployees = ['manager', 'admin'].includes(currentUserRole);
         
-        const response = await fetch(`${API_BASE_URL}/user/getUsers`, {
+        const response = await fetch(`${window.API_BASE_URL}/user/getUsers`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -705,7 +735,7 @@ document.getElementById('editProfileForm').addEventListener('submit', async func
     };
     
     try {
-        const response = await fetch('/api/user/updateUser', {
+        const response = await fetch(`${window.API_BASE_URL}/user/updateUser`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1325,7 +1355,7 @@ function loadAvailabilityData() {
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     
     // Try to fetch real data from API
-    fetch(`/api/availability/employee/${userInfo.userId || 0}`, {
+    fetch(`${window.API_BASE_URL}/availability/employee/${userInfo.userId || 0}`, {
         headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -1798,7 +1828,7 @@ async function fetchShifts() {
             throw new Error('User information not found');
         }
 
-        const response = await fetch(`http://localhost:8800/api/shift/${userInfo.userId}`, {
+        const response = await fetch(`${window.API_BASE_URL}/shift/${userInfo.userId}`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -2052,7 +2082,7 @@ async function createShift(shiftData) {
         console.log('Formatted shift request data:', shiftRequestData);
 
         // Changed endpoint to match backend route
-        const response = await fetch('http://localhost:8800/api/shift/add', {
+        const response = await fetch(`${window.API_BASE_URL}/shift/add`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -2399,7 +2429,7 @@ loadRosterData = function() {
 // Function to handle availability approval
 async function handleAvailabilityApproval(id, action) {
     try {
-        const response = await fetch(`${API_BASE_URL}/availability/${id}/${action}`, {
+        const response = await fetch(`${window.API_BASE_URL}/availability/${id}/${action}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -2429,7 +2459,7 @@ async function handleAvailabilityApproval(id, action) {
 // Function to handle replacement request approval
 async function handleReplacementApproval(id, action) {
     try {
-        const response = await fetch(`${API_BASE_URL}/replacement/${id}/${action}`, {
+        const response = await fetch(`${window.API_BASE_URL}/replacement/${id}/${action}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -2471,7 +2501,7 @@ async function deleteEmployee(userId) {
         const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
         
         // Fetch all users and find the one we want to edit
-        const response = await fetch(`${API_BASE_URL}/user/getUsers`, {
+        const response = await fetch(`${window.API_BASE_URL}/user/getUsers`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -2531,7 +2561,7 @@ async function editEmployee(userId) {
         const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
         
         // Fetch all users and find the one we want to edit
-        const response = await fetch(`${API_BASE_URL}/user/getUsers`, {
+        const response = await fetch(`${window.API_BASE_URL}/user/getUsers`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -2663,7 +2693,7 @@ async function editEmployee(userId) {
             };
             
             try {
-                const updateResponse = await fetch(`${API_BASE_URL}/user/updateUser`, {
+                const updateResponse = await fetch(`${window.API_BASE_URL}/user/updateUser`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`,
