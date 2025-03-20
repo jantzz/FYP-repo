@@ -262,29 +262,93 @@
                     <!-- Replacement Tab -->
                     <div class="tab-pane" id="replacement-tab">
                         <div class="replacement-header">
-                            <h3>Available Replacements</h3>
+                            <h3>Shift Swap Requests</h3>
+                            <button class="btn-primary" onclick="showSwapRequestModal()">
+                                <i class="fas fa-exchange-alt"></i> Request Shift Swap
+                            </button>
                         </div>
                         
-                        <div class="master-roster-view">
-                            <div class="roster-search">
-                                <input type="text" placeholder="Search employees..." id="roster-search">
+                        <div class="swap-requests-section">
+                            <div class="filter-options">
+                                <select id="swap-status-filter">
+                                    <option value="all">All Requests</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                                <select id="swap-date-filter">
+                                    <option value="upcoming">Upcoming</option>
+                                    <option value="past">Past</option>
+                                    <option value="all">All Dates</option>
+                                </select>
                             </div>
-                            
-                            <table class="roster-table">
-                                <thead>
-                                    <tr>
-                                        <th>Employee</th>
-                                        <th>Mon</th>
-                                        <th>Tue</th>
-                                        <th>Wed</th>
-                                        <th>Thu</th>
-                                        <th>Fri</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="rosterTableBody">
-                                    <!-- Roster data will be populated here -->
-                                </tbody>
-                            </table>
+
+                            <!-- My Swap Requests -->
+                            <div class="my-swap-requests">
+                                <h4>My Swap Requests</h4>
+                                <div class="swap-requests-container">
+                                    <table class="swap-requests-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Request Date</th>
+                                                <th>My Shift</th>
+                                                <th>Requested Shift</th>
+                                                <th>With Employee</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="mySwapRequestsBody">
+                                            <!-- Populated by JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Incoming Swap Requests -->
+                            <div class="incoming-swap-requests">
+                                <h4>Incoming Swap Requests</h4>
+                                <div class="swap-requests-container">
+                                    <table class="swap-requests-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Request Date</th>
+                                                <th>Requested By</th>
+                                                <th>Their Shift</th>
+                                                <th>Your Shift</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="incomingSwapRequestsBody">
+                                            <!-- Populated by JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Manager Section -->
+                            <div class="manager-swap-section manager-only">
+                                <h4>All Swap Requests</h4>
+                                <div class="swap-requests-container">
+                                    <table class="swap-requests-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Request Date</th>
+                                                <th>Requester</th>
+                                                <th>Original Shift</th>
+                                                <th>Target Employee</th>
+                                                <th>Target Shift</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="allSwapRequestsBody">
+                                            <!-- Populated by JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1327,5 +1391,45 @@
             setTimeout(fixUpcomingShiftTimes, 300);
         });
     </script>
+
+    <!-- Add this new modal for shift swap requests -->
+    <div id="swapRequestModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeSwapRequestModal()">&times;</span>
+            <h2>Request Shift Swap</h2>
+            <form id="swapRequestForm">
+                <div class="form-group">
+                    <label for="my-shift">My Shift</label>
+                    <select id="my-shift" required>
+                        <option value="">Select your shift</option>
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="target-employee">Target Employee</label>
+                    <select id="target-employee" required>
+                        <option value="">Select employee</option>
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="target-shift">Target Shift</label>
+                    <select id="target-shift" required disabled>
+                        <option value="">Select target shift</option>
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="swap-reason">Reason for Swap</label>
+                    <textarea id="swap-reason" rows="3" required></textarea>
+                </div>
+                
+                <button type="submit" class="btn-primary">Submit Request</button>
+            </form>
+        </div>
+    </div>
 </body>
 </html> 

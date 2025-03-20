@@ -2776,3 +2776,408 @@ function ensureCorrectShiftTimes(shift) {
     
     return shift;
 }
+
+// Shift Swap Functions
+let swapRequestModal = null;
+let myShifts = [];
+let targetShifts = [];
+
+function showSwapRequestModal() {
+    swapRequestModal = document.getElementById('swapRequestModal');
+    swapRequestModal.style.display = 'block';
+    
+    // Load my shifts
+    loadMyShifts();
+    // Load available employees
+    loadAvailableEmployees();
+    
+    // Add event listeners
+    document.getElementById('target-employee').addEventListener('change', handleTargetEmployeeChange);
+    document.getElementById('swapRequestForm').addEventListener('submit', handleSwapRequestSubmit);
+}
+
+function closeSwapRequestModal() {
+    if (swapRequestModal) {
+        swapRequestModal.style.display = 'none';
+    }
+}
+
+async function loadMyShifts() {
+    try {
+        const response = await fetch(`${window.API_BASE_URL}/shifts/my-shifts`, {
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load shifts');
+        }
+        
+        myShifts = await response.json();
+        const myShiftSelect = document.getElementById('my-shift');
+        myShiftSelect.innerHTML = '<option value="">Select your shift</option>';
+        
+        myShifts.forEach(shift => {
+            const option = document.createElement('option');
+            option.value = shift.id;
+            option.textContent = `${formatDateForDisplay(shift.start_time)} (${formatTime(shift.start_time)} - ${formatTime(shift.end_time)})`;
+            myShiftSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading shifts:', error);
+        showNotification('Failed to load shifts', 'error');
+    }
+}
+
+async function loadAvailableEmployees() {
+    try {
+        const response = await fetch(`${window.API_BASE_URL}/employees/available`, {
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load employees');
+        }
+        
+        const employees = await response.json();
+        const employeeSelect = document.getElementById('target-employee');
+        employeeSelect.innerHTML = '<option value="">Select employee</option>';
+        
+        employees.forEach(employee => {
+            const option = document.createElement('option');
+            option.value = employee.id;
+            option.textContent = employee.name;
+            employeeSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading employees:', error);
+        showNotification('Failed to load employees', 'error');
+    }
+}
+
+async function handleTargetEmployeeChange(event) {
+    const employeeId = event.target.value;
+    const targetShiftSelect = document.getElementById('target-shift');
+    targetShiftSelect.disabled = !employeeId;
+    
+    if (!employeeId) {
+        targetShiftSelect.innerHTML = '<option value="">Select target shift</option>';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${window.API_BASE_URL}/shifts/employee/${employeeId}`, {
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load employee shifts');
+        }
+        
+        targetShifts = await response.json();
+        targetShiftSelect.innerHTML = '<option value="">Select target shift</option>';
+        
+        targetShifts.forEach(shift => {
+            const option = document.createElement('option');
+            option.value = shift.id;
+            option.textContent = `${formatDateForDisplay(shift.start_time)} (${formatTime(shift.start_time)} - ${formatTime(shift.end_time)})`;
+            targetShiftSelect.appendChild(option);
+        });
+        
+        targetShiftSelect.disabled = false;
+    } catch (error) {
+        console.error('Error loading employee shifts:', error);
+        showNotification('Failed to load employee shifts', 'error');
+    }
+}
+
+async function handleSwapRequestSubmit(event) {
+    event.preventDefault();
+    
+    const myShiftId = document.getElementById('my-shift').value;
+    const targetShiftId = document.getElementById('target-shift').value;
+    const reason = document.getElementById('swap-reason').value;
+    
+    if (!myShiftId || !targetShiftId || !reason) {
+        showNotification('Please fill in all fields', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${window.API_BASE_URL}/shifts/swap-request`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify({
+                original_shift_id: myShiftId,
+                target_shift_id: targetShiftId,
+                reason: reason
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to submit swap request');
+        }
+        
+        showNotification('Swap request submitted successfully', 'success');
+        closeSwapRequestModal();
+        loadSwapRequests(); // Refresh the lists
+    } catch (error) {
+        console.error('Error submitting swap request:', error);
+        showNotification('Failed to submit swap request', 'error');
+    }
+}
+
+async function loadSwapRequests() {
+    try {
+        // Load my requests
+        const myResponse = await fetch(`${window.API_BASE_URL}/shifts/swap-requests/my`, {
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!myResponse.ok) {
+            throw new Error('Failed to load my swap requests');
+        }
+        
+        const myRequests = await myResponse.json();
+        renderMySwapRequests(myRequests);
+        
+        // Load incoming requests
+        const incomingResponse = await fetch(`${window.API_BASE_URL}/shifts/swap-requests/incoming`, {
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!incomingResponse.ok) {
+            throw new Error('Failed to load incoming swap requests');
+        }
+        
+        const incomingRequests = await incomingResponse.json();
+        renderIncomingSwapRequests(incomingRequests);
+        
+        // Load all requests for managers
+        if (isManager()) {
+            const allResponse = await fetch(`${window.API_BASE_URL}/shifts/swap-requests/all`, {
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
+            });
+            
+            if (!allResponse.ok) {
+                throw new Error('Failed to load all swap requests');
+            }
+            
+            const allRequests = await allResponse.json();
+            renderAllSwapRequests(allRequests);
+        }
+    } catch (error) {
+        console.error('Error loading swap requests:', error);
+        showNotification('Failed to load swap requests', 'error');
+    }
+}
+
+function renderMySwapRequests(requests) {
+    const tbody = document.getElementById('mySwapRequestsBody');
+    tbody.innerHTML = '';
+    
+    requests.forEach(request => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${formatDateForDisplay(request.created_at)}</td>
+            <td>${formatShiftInfo(request.original_shift)}</td>
+            <td>${formatShiftInfo(request.target_shift)}</td>
+            <td>${request.target_employee_name}</td>
+            <td><span class="swap-status ${request.status.toLowerCase()}">${request.status}</span></td>
+            <td>
+                <div class="swap-actions">
+                    ${request.status === 'Pending' ? 
+                        `<button class="cancel-btn" onclick="cancelSwapRequest(${request.id})">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>` : 
+                        ''}
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function renderIncomingSwapRequests(requests) {
+    const tbody = document.getElementById('incomingSwapRequestsBody');
+    tbody.innerHTML = '';
+    
+    requests.forEach(request => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${formatDateForDisplay(request.created_at)}</td>
+            <td>${request.requester_name}</td>
+            <td>${formatShiftInfo(request.original_shift)}</td>
+            <td>${formatShiftInfo(request.target_shift)}</td>
+            <td><span class="swap-status ${request.status.toLowerCase()}">${request.status}</span></td>
+            <td>
+                <div class="swap-actions">
+                    ${request.status === 'Pending' ? `
+                        <button class="approve-btn" onclick="respondToSwapRequest(${request.id}, 'approve')">
+                            <i class="fas fa-check"></i> Accept
+                        </button>
+                        <button class="reject-btn" onclick="respondToSwapRequest(${request.id}, 'reject')">
+                            <i class="fas fa-times"></i> Reject
+                        </button>
+                    ` : ''}
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function renderAllSwapRequests(requests) {
+    const tbody = document.getElementById('allSwapRequestsBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    requests.forEach(request => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${formatDateForDisplay(request.created_at)}</td>
+            <td>${request.requester_name}</td>
+            <td>${formatShiftInfo(request.original_shift)}</td>
+            <td>${request.target_employee_name}</td>
+            <td>${formatShiftInfo(request.target_shift)}</td>
+            <td><span class="swap-status ${request.status.toLowerCase()}">${request.status}</span></td>
+            <td>
+                <div class="swap-actions">
+                    ${request.status === 'Pending' ? `
+                        <button class="approve-btn" onclick="managerApproveSwap(${request.id})">
+                            <i class="fas fa-check"></i> Approve
+                        </button>
+                        <button class="reject-btn" onclick="managerRejectSwap(${request.id})">
+                            <i class="fas fa-times"></i> Reject
+                        </button>
+                    ` : ''}
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function formatShiftInfo(shift) {
+    return `${formatDateForDisplay(shift.start_time)}<br>
+            <span class="shift-info">
+                <i class="far fa-clock"></i>${formatTime(shift.start_time)} - ${formatTime(shift.end_time)}
+            </span>`;
+}
+
+async function cancelSwapRequest(requestId) {
+    try {
+        const response = await fetch(`${window.API_BASE_URL}/shifts/swap-request/${requestId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to cancel swap request');
+        }
+        
+        showNotification('Swap request cancelled successfully', 'success');
+        loadSwapRequests(); // Refresh the lists
+    } catch (error) {
+        console.error('Error cancelling swap request:', error);
+        showNotification('Failed to cancel swap request', 'error');
+    }
+}
+
+async function respondToSwapRequest(requestId, action) {
+    try {
+        const response = await fetch(`${window.API_BASE_URL}/shifts/swap-request/${requestId}/${action}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to ${action} swap request`);
+        }
+        
+        showNotification(`Swap request ${action}ed successfully`, 'success');
+        loadSwapRequests(); // Refresh the lists
+    } catch (error) {
+        console.error(`Error ${action}ing swap request:`, error);
+        showNotification(`Failed to ${action} swap request`, 'error');
+    }
+}
+
+async function managerApproveSwap(requestId) {
+    try {
+        const response = await fetch(`${window.API_BASE_URL}/shifts/swap-request/${requestId}/manager-approve`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to approve swap request');
+        }
+        
+        showNotification('Swap request approved successfully', 'success');
+        loadSwapRequests(); // Refresh the lists
+    } catch (error) {
+        console.error('Error approving swap request:', error);
+        showNotification('Failed to approve swap request', 'error');
+    }
+}
+
+async function managerRejectSwap(requestId) {
+    try {
+        const response = await fetch(`${window.API_BASE_URL}/shifts/swap-request/${requestId}/manager-reject`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to reject swap request');
+        }
+        
+        showNotification('Swap request rejected successfully', 'success');
+        loadSwapRequests(); // Refresh the lists
+    } catch (error) {
+        console.error('Error rejecting swap request:', error);
+        showNotification('Failed to reject swap request', 'error');
+    }
+}
+
+// Add event listener to load swap requests when the replacement tab is clicked
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.schedule-tabs .tab[data-tab="replacement"]').forEach(tab => {
+        tab.addEventListener('click', function() {
+            loadSwapRequests();
+        });
+    });
+    
+    // If the URL has a hash for replacement tab, load the data
+    if (window.location.hash === '#replacement') {
+        loadSwapRequests();
+    }
+    
+    // Add filter change handlers
+    document.getElementById('swap-status-filter')?.addEventListener('change', loadSwapRequests);
+    document.getElementById('swap-date-filter')?.addEventListener('change', loadSwapRequests);
+});

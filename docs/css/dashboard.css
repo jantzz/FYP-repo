@@ -1775,4 +1775,192 @@ body.admin-visible .admin-only {
     background-color: #ffcdd2;
 }
 
-/* End of employee table styling */ 
+/* End of employee table styling */
+
+/* Shift Swap Styles */
+.swap-requests-section {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.swap-requests-section .filter-options {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.swap-requests-section .filter-options select {
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    min-width: 150px;
+}
+
+.my-swap-requests,
+.incoming-swap-requests,
+.manager-swap-section {
+    margin-bottom: 2rem;
+}
+
+.my-swap-requests h4,
+.incoming-swap-requests h4,
+.manager-swap-section h4 {
+    color: #333;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.swap-requests-container {
+    overflow-x: auto;
+}
+
+.swap-requests-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+}
+
+.swap-requests-table th,
+.swap-requests-table td {
+    padding: 0.8rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.swap-requests-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #444;
+}
+
+.swap-requests-table tr:hover {
+    background-color: #f5f5f5;
+}
+
+.swap-status {
+    padding: 0.3rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.swap-status.pending {
+    background-color: #fff8e1;
+    color: #ff8f00;
+}
+
+.swap-status.approved {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.swap-status.rejected {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+.swap-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.swap-actions button {
+    padding: 0.3rem 0.8rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.swap-actions .approve-btn {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.swap-actions .reject-btn {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+.swap-actions .cancel-btn {
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.swap-actions button:hover {
+    opacity: 0.9;
+}
+
+.swap-actions button i {
+    font-size: 0.9rem;
+}
+
+/* Swap Request Modal Styles */
+#swapRequestModal .modal-content {
+    max-width: 600px;
+}
+
+#swapRequestModal .form-group {
+    margin-bottom: 1.2rem;
+}
+
+#swapRequestModal select,
+#swapRequestModal textarea {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+#swapRequestModal select:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+}
+
+#swapRequestModal textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.shift-info {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 0.3rem;
+}
+
+.shift-info i {
+    margin-right: 0.3rem;
+    color: #1976d2;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .swap-requests-section .filter-options {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .swap-requests-table th,
+    .swap-requests-table td {
+        padding: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .swap-actions {
+        flex-direction: column;
+    }
+
+    .swap-actions button {
+        width: 100%;
+        justify-content: center;
+    }
+} 
