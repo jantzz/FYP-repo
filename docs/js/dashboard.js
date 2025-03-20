@@ -1805,9 +1805,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             console.log('Submitting availability:', availabilityData);
             
-            // In a real application, this would be sent to the server
-            alert('Availability submitted successfully!');
-            
             // Close modal and refresh availability list
             document.getElementById('availabilityModal').style.display = 'none';
             loadAvailabilityData();
