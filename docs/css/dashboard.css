@@ -105,12 +105,11 @@ body {
 
 /* Calendar and Report Analysis Sections */
 .calendar-section {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 10px;
-    margin-bottom: 2rem;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    min-height: 700px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    padding: 20px;
+    margin: 20px 0;
 }
 
 .calendar-header {
@@ -143,37 +142,215 @@ body {
     height: calc(100% - 50px);
 }
 
-/* Calendar Event Styling */
-.fc-event {
-    padding: 2px 4px;
-    border-radius: 4px;
-    border: none;
+/* FullCalendar Customization */
+.fc {
+    --fc-border-color: #e5e7eb;
+    --fc-button-bg-color: #4A90E2;
+    --fc-button-border-color: #4A90E2;
+    --fc-button-hover-bg-color: #357ABD;
+    --fc-button-hover-border-color: #357ABD;
+    --fc-button-active-bg-color: #2C6AA0;
+    --fc-button-active-border-color: #2C6AA0;
+    --fc-event-bg-color: #4A90E2;
+    --fc-event-border-color: #4A90E2;
+    --fc-today-bg-color: #EBF5FF;
 }
 
-.fc-event .fc-event-title {
-    font-weight: bold;
-    font-size: 0.9em;
+.fc .fc-toolbar {
+    margin-bottom: 1.5em;
+}
+
+.fc .fc-toolbar-title {
+    font-size: 1.5em;
+    font-weight: 600;
+    color: #1a237e;
+}
+
+.fc .fc-button {
+    padding: 8px 16px;
+    font-weight: 500;
+    border-radius: 6px;
+    text-transform: capitalize;
+    transition: all 0.3s ease;
+}
+
+.fc .fc-button:focus {
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.3);
+}
+
+.fc .fc-button-primary:not(:disabled):active,
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+    background-color: var(--fc-button-active-bg-color);
+    border-color: var(--fc-button-active-border-color);
+}
+
+.fc .fc-daygrid-day-number,
+.fc .fc-col-header-cell-cushion {
+    color: #374151;
+    text-decoration: none;
+    padding: 8px;
+}
+
+.fc .fc-daygrid-day.fc-day-today {
+    background-color: var(--fc-today-bg-color);
+}
+
+.fc .fc-daygrid-day-frame {
+    min-height: 100px;
+}
+
+.fc .fc-timegrid-event {
+    border-radius: 6px;
+    padding: 4px 6px;
+    margin: 1px;
+    min-height: 25px;
+    max-height: none !important;
+    overflow: hidden;
+}
+
+.fc .fc-timegrid-event .fc-event-main {
+    padding: 4px 6px;
+    overflow: hidden;
+}
+
+.fc .fc-timegrid-event .fc-event-title {
+    font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.fc-event .fc-event-time {
-    font-size: 0.8em;
+/* Ensure proper event spacing and prevent overlapping */
+.fc .fc-timegrid-col-events {
+    margin: 0 2px !important;
+    position: relative;
+}
+
+.fc .fc-timegrid-event-harness {
+    margin: 0 !important;
+}
+
+.fc .fc-timegrid-now-indicator-container {
+    overflow: visible;
+}
+
+/* Improve event visibility when overlapping */
+.fc .fc-timegrid-event {
+    z-index: 1;
     opacity: 0.9;
-    margin-top: 2px;
 }
 
-.fc-timegrid-event .fc-event-time,
-.fc-daygrid-event .fc-event-time {
-    font-size: 0.8em;
-    display: block;
-    margin-bottom: 2px;
+.fc .fc-timegrid-event:hover {
+    z-index: 2;
+    opacity: 1;
 }
 
-.fc-daygrid-dot-event .fc-event-title,
-.fc-timegrid-event .fc-event-title {
-    font-weight: bold;
+/* Adjust event colors for better visibility */
+.fc .fc-event.status-pending {
+    background-color: rgba(245, 158, 11, 0.9);
+    border-color: #F59E0B;
+}
+
+.fc .fc-event.status-approved {
+    background-color: rgba(16, 185, 129, 0.9);
+    border-color: #10B981;
+}
+
+.fc .fc-event.status-rejected {
+    background-color: rgba(239, 68, 68, 0.9);
+    border-color: #EF4444;
+}
+
+.fc .fc-event.status-completed {
+    background-color: rgba(59, 130, 246, 0.9);
+    border-color: #3B82F6;
+}
+
+/* Improve time slot visibility */
+.fc .fc-timegrid-slot {
+    height: 48px !important;
+}
+
+.fc .fc-timegrid-slot-minor {
+    border-top-style: dotted;
+}
+
+/* Add spacing between events */
+.fc .fc-timegrid-col-events {
+    margin-left: 2px !important;
+    margin-right: 2px !important;
+}
+
+/* Ensure events don't get cut off */
+.fc-direction-ltr .fc-timegrid-col-events {
+    margin: 0 2.5% !important;
+}
+
+/* Month view specific styles */
+.fc .fc-daygrid-event {
+    border-radius: 20px;
+    padding: 2px 8px;
+    margin: 1px 3px;
+}
+
+/* Header styling */
+.fc .fc-col-header-cell {
+    background-color: #F3F4F6;
+    padding: 8px 0;
+}
+
+.fc .fc-col-header-cell-cushion {
+    font-weight: 600;
+    color: #1F2937;
+}
+
+/* More events popover */
+.fc .fc-popover {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.fc .fc-popover-header {
+    background-color: #F3F4F6;
+    padding: 8px 12px;
+    font-weight: 600;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .fc .fc-toolbar {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .fc .fc-toolbar-title {
+        font-size: 1.2em;
+    }
+
+    .fc .fc-button {
+        padding: 6px 12px;
+        font-size: 0.9em;
+    }
+}
+
+/* Loading state */
+.fc-loading {
+    position: relative;
+}
+
+.fc-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
 }
 
 /* Style for compact view */

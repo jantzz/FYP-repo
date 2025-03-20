@@ -1,16 +1,14 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Toggle between login and signup forms
-    document.getElementById('show-signup').addEventListener('click', function(e) {
-        e.preventDefault();
-        document.getElementById('login-section').style.display = 'none';
-        document.getElementById('signup-section').style.display = 'block';
-    });
-
-    document.getElementById('show-login').addEventListener('click', function(e) {
-        e.preventDefault();
-        document.getElementById('signup-section').style.display = 'none';
-        document.getElementById('login-section').style.display = 'block';
-    });
+    // Function to show loading state on button
+    function setButtonLoading(button, isLoading) {
+        if (isLoading) {
+            button.classList.add('loading');
+            button.disabled = true;
+        } else {
+            button.classList.remove('loading');
+            button.disabled = false;
+        }
+    }
 
     // Handle login form submission
     document.getElementById('login-form').addEventListener('submit', async function(e) {
@@ -18,6 +16,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const email = document.getElementById('login-email').value;
         const password = document.getElementById('login-password').value;
+        const submitButton = this.querySelector('button[type="submit"]');
+        const errorElement = document.getElementById('login-error');
+        
+        // Clear previous error
+        errorElement.style.display = 'none';
+        errorElement.textContent = '';
+        
+        // Show loading state
+        setButtonLoading(submitButton, true);
         
         try {
             const response = await fetch('http://localhost:8800/api/user/login', {
@@ -29,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             const data = await response.json();
-            console.log('Login response:', data); // Debug log
+            console.log('Login response:', data);
             
             if (response.ok) {
                 // Store token in localStorage
@@ -59,76 +66,43 @@ document.addEventListener('DOMContentLoaded', function() {
                             gender: userData.gender
                         };
                         
-                        console.log('Storing user info:', userInfo); // Debug log
+                        console.log('Storing user info:', userInfo);
                         localStorage.setItem('userInfo', JSON.stringify(userInfo));
                         
-                        // Redirect to dashboard
-                        window.location.href = '/dashboard.html';
+                        // Show success message before redirect
+                        submitButton.innerHTML = '<i class="fas fa-check"></i> Success!';
+                        setTimeout(() => {
+                            window.location.href = '/dashboard.html';
+                        }, 1000);
                     } else {
                         throw new Error('Failed to fetch user data');
                     }
                 } catch (userError) {
                     console.error('Error fetching user data:', userError);
-                    document.getElementById('login-error').textContent = 'Failed to retrieve user information';
-                    document.getElementById('login-error').style.display = 'block';
+                    errorElement.textContent = 'Failed to retrieve user information';
+                    errorElement.style.display = 'block';
+                    setButtonLoading(submitButton, false);
                 }
             } else {
                 // Show error message
-                document.getElementById('login-error').textContent = data.error || 'Login failed';
-                document.getElementById('login-error').style.display = 'block';
+                errorElement.textContent = data.error || 'Login failed';
+                errorElement.style.display = 'block';
+                setButtonLoading(submitButton, false);
             }
         } catch (error) {
             console.error('Login error:', error);
-            document.getElementById('login-error').textContent = 'An error occurred. Please try again.';
-            document.getElementById('login-error').style.display = 'block';
+            errorElement.textContent = 'An error occurred. Please try again.';
+            errorElement.style.display = 'block';
+            setButtonLoading(submitButton, false);
         }
     });
 
-    // Handle signup form submission
-    document.getElementById('signup-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const name = document.getElementById('signup-name').value;
-        const email = document.getElementById('signup-email').value;
-        const password = document.getElementById('signup-password').value;
-        const birthday = document.getElementById('signup-birthday').value;
-        const gender = document.getElementById('signup-gender').value;
-        
-        try {
-            const response = await fetch('http://localhost:8800/api/user/createUser', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name,
-                    email,
-                    password,
-                    birthday,
-                    gender,
-                    role: 'Employee' // Default role for signup
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
-                // Show success message and switch to login
-                alert('Account created successfully! Please log in.');
-                document.getElementById('signup-section').style.display = 'none';
-                document.getElementById('login-section').style.display = 'block';
-                
-                // Pre-fill email for convenience
-                document.getElementById('login-email').value = email;
-            } else {
-                // Show error message
-                document.getElementById('signup-error').textContent = data.error || 'Signup failed';
-                document.getElementById('signup-error').style.display = 'block';
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            document.getElementById('signup-error').textContent = 'An error occurred. Please try again.';
-            document.getElementById('signup-error').style.display = 'block';
-        }
+    // Add password toggle functionality
+    document.querySelector('.password-toggle').addEventListener('click', function() {
+        const passwordInput = document.querySelector('#login-password');
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        this.classList.toggle('fa-eye');
+        this.classList.toggle('fa-eye-slash');
     });
 }); 
