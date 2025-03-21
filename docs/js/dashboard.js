@@ -607,7 +607,8 @@ async function loadEmployees() {
             throw new Error(`Failed to fetch employees: ${response.status} ${response.statusText}`);
         }
         
-            const employees = await response.json();
+        // Parse response JSON
+        const employees = await response.json();
         
         // Clear loading indicator
         tableBody.innerHTML = '';
@@ -678,10 +679,13 @@ function showEditProfileModal() {
     profileModal.style.display = 'none';
     editProfileModal.style.display = 'block';
     
+    // Get user info from localStorage
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    
     // Pre-fill the edit form with current values
     document.getElementById('edit-name').value = document.getElementById('profile-name').textContent;
-    document.getElementById('edit-email').value = document.getElementById('profile-email').textContent;
-    document.getElementById('edit-department').value = document.getElementById('profile-department').textContent;
+    document.getElementById('edit-email').value = userInfo.email || document.getElementById('profile-email').textContent;
+    document.getElementById('edit-department').value = userInfo.department || document.getElementById('profile-department').textContent;
     document.getElementById('edit-birthday').value = formatDateForInput(document.getElementById('profile-birthday').textContent);
     document.getElementById('edit-gender').value = document.getElementById('profile-gender').textContent;
 }
@@ -690,14 +694,38 @@ function closeEditProfileModal() {
     editProfileModal.style.display = 'none';
 }
 
-// Format date from DD/MM/YYYY to YYYY-MM-DD for input field
+// Format date for input field (handles multiple formats)
 function formatDateForInput(dateStr) {
-    if (!dateStr || dateStr === 'Loading...' || dateStr === '-') return '';
+    if (!dateStr || dateStr === 'Loading...' || dateStr === '-') {
+        return '';
+    }
     
-    const parts = dateStr.split('/');
-    if (parts.length !== 3) return '';
+    try {
+        // Handle MySQL date format which can be YYYY-MM-DD
+        if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            return dateStr;
+        }
+        
+        // Try to create a Date object (handles ISO format or MySQL date objects)
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+            const formatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            return formatted;
+        }
+    } catch (e) {
+        console.error('Error parsing date:', e);
+    }
     
-    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    // If the above fails, try to parse DD/MM/YYYY format
+    if (typeof dateStr === 'string') {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+            const formatted = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            return formatted;
+        }
+    }
+    
+    return '';
 }
 
 // Load user profile data
@@ -726,13 +754,22 @@ async function loadUserProfile() {
 document.getElementById('editProfileForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
+    const birthdayValue = document.getElementById('edit-birthday').value;
+    console.log('Profile update - birthday value:', birthdayValue);
+    
+    // Get user info from localStorage to get userId
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    
     const formData = {
         name: document.getElementById('edit-name').value,
-        email: document.getElementById('edit-email').value,
+        email: document.getElementById('edit-email').value || userInfo.email, // Ensure email is included
         department: document.getElementById('edit-department').value,
-        birthday: document.getElementById('edit-birthday').value,
-        gender: document.getElementById('edit-gender').value
+        birthday: birthdayValue,
+        gender: document.getElementById('edit-gender').value,
+        userId: userInfo.userId // Add userId to the request
     };
+    
+    console.log('Profile update - formData:', JSON.stringify(formData));
     
     try {
         const response = await fetch(`${window.API_BASE_URL}/user/updateUser`, {
@@ -745,6 +782,15 @@ document.getElementById('editProfileForm').addEventListener('submit', async func
         });
         
         if (response.ok) {
+            // Update the local storage user info with new values
+            userInfo.name = formData.name;
+            userInfo.email = formData.email;
+            userInfo.department = formData.department;
+            userInfo.birthday = formData.birthday;
+            userInfo.gender = formData.gender;
+            
+            localStorage.setItem('userInfo', JSON.stringify(userInfo));
+            
             alert('Profile updated successfully');
             closeEditProfileModal();
             toggleProfileModal(); // Reload profile data
@@ -1283,17 +1329,26 @@ function showScheduleSection() {
 // Function to initialize the employee calendar
 function initEmployeeCalendar() {
     const calendarEl = document.getElementById('employee-calendar');
+    
+    // Determine if we're on a small screen (mobile)
+    const isSmallScreen = window.innerWidth < 768;
+    const isMediumScreen = window.innerWidth >= 768 && window.innerWidth < 992;
+    
     employeeCalendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
+        initialView: isSmallScreen ? 'timeGridDay' : 'timeGridWeek',
         headerToolbar: {
-            left: 'prev,next today',
+            left: isSmallScreen ? 'prev,next' : 'prev,next today',
             center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            right: isSmallScreen ? 'timeGridDay,dayGridMonth' : 'dayGridMonth,timeGridWeek,timeGridDay'
         },
         slotMinTime: '05:00:00',
         slotMaxTime: '23:00:00',
         allDaySlot: false,
         height: 'auto',
+        aspectRatio: isSmallScreen ? 1.2 : (isMediumScreen ? 1.5 : 1.8), // Adjust aspect ratio for screen size
+        slotDuration: isSmallScreen ? '01:00:00' : '00:30:00', // Use 1-hour slots on mobile for simplicity
+        slotLabelInterval: '01:00:00', // Show hour labels
+        expandRows: true, // Make sure the rows expand to fill the available height
         events: async function(info, successCallback, failureCallback) {
             try {
                 const events = await fetchShifts();
@@ -1325,6 +1380,13 @@ function initEmployeeCalendar() {
                 timeDisplay = `${formatTime(start)} - ${formatTime(end)}`;
             }
             
+            // For small screens, simplify the content
+            if (isSmallScreen) {
+                return {
+                    html: `<div class="fc-event-title">${shiftTitle}</div>`
+                };
+            }
+            
             return {
                 html: `
                 <div class="fc-event-title">${shiftTitle}</div>
@@ -1334,7 +1396,37 @@ function initEmployeeCalendar() {
         }
     });
     
+    // Add window resize handler to adjust calendar view when screen size changes
+    window.addEventListener('resize', debounce(function() {
+        const newIsSmallScreen = window.innerWidth < 768;
+        const newIsMediumScreen = window.innerWidth >= 768 && window.innerWidth < 992;
+        
+        // Only update if the screen size category changed
+        if (newIsSmallScreen !== isSmallScreen || newIsMediumScreen !== isMediumScreen) {
+            employeeCalendar.setOption('initialView', newIsSmallScreen ? 'timeGridDay' : 'timeGridWeek');
+            employeeCalendar.setOption('aspectRatio', newIsSmallScreen ? 1.2 : (newIsMediumScreen ? 1.5 : 1.8));
+            employeeCalendar.setOption('slotDuration', newIsSmallScreen ? '01:00:00' : '00:30:00');
+            employeeCalendar.setOption('headerToolbar', {
+                left: newIsSmallScreen ? 'prev,next' : 'prev,next today',
+                center: 'title',
+                right: newIsSmallScreen ? 'timeGridDay,dayGridMonth' : 'dayGridMonth,timeGridWeek,timeGridDay'
+            });
+        }
+    }, 250)); // Debounce to prevent too many updates
+    
     employeeCalendar.render();
+}
+
+// Helper function to debounce resize events
+function debounce(func, wait) {
+    let timeout;
+    return function() {
+        const context = this, args = arguments;
+        clearTimeout(timeout);
+        timeout = setTimeout(function() {
+            func.apply(context, args);
+        }, wait);
+    };
 }
 
 // Function to load availability data
@@ -1520,48 +1612,23 @@ function createDefaultAvailabilityDisplay() {
 // Function to load roster data
 function loadRosterData() {
     console.log('Loading roster data');
-    const rosterTableBody = document.getElementById('rosterTableBody');
+    const calendarContainer = document.getElementById('employee-calendar');
     
-    if (!rosterTableBody) {
-        console.error('Roster table body not found');
+    if (!calendarContainer) {
+        console.error('Employee calendar container not found');
         return;
     }
     
-    // Clear existing data
-    rosterTableBody.innerHTML = '';
+    // The employee-calendar is using fullCalendar so we don't need to manually populate it
+    // If the calendar is already initialized, we just need to refetch events
+    if (window.employeeCalendar) {
+        window.employeeCalendar.refetchEvents();
+        return;
+    }
     
-    // Sample data - in a real application, this would come from an API
-    const employees = [
-        { id: 1, name: 'John Smith', department: 'Front Desk', availability: ['Available', 'Unavailable', 'Pending', 'Available', 'Available'] },
-        { id: 2, name: 'Jane Doe', department: 'Housekeeping', availability: ['Unavailable', 'Available', 'Available', 'Available', 'Pending'] },
-        { id: 3, name: 'Mark Johnson', department: 'Front Desk', availability: ['Pending', 'Available', 'Available', 'Unavailable', 'Available'] },
-        { id: 4, name: 'Sarah Williams', department: 'Kitchen', availability: ['Available', 'Available', 'Unavailable', 'Pending', 'Available'] },
-        { id: 5, name: 'Robert Brown', department: 'Maintenance', availability: ['Available', 'Pending', 'Available', 'Available', 'Unavailable'] }
-    ];
-    
-    // Add employees to the table
-    employees.forEach(employee => {
-        const row = document.createElement('tr');
-        
-        // Add employee name and department
-        const nameCell = document.createElement('td');
-        nameCell.innerHTML = `
-            <div>
-                <strong>${employee.name}</strong><br>
-                <small>${employee.department}</small>
-            </div>
-        `;
-        row.appendChild(nameCell);
-        
-        // Add availability status for each day
-        employee.availability.forEach(status => {
-            const cell = document.createElement('td');
-            cell.innerHTML = `<span class="status-${status.toLowerCase()}">${status}</span>`;
-            row.appendChild(cell);
-        });
-        
-        rosterTableBody.appendChild(row);
-    });
+    // If the calendar isn't initialized yet, we'll initialize it in initEmployeeCalendar()
+    // which should be called elsewhere in the code
+    initEmployeeCalendar();
 }
 
 // Function to show the availability modal
@@ -1655,8 +1722,6 @@ function closeAvailabilityModal() {
 
 // Function to edit availability
 function editAvailability(id) {
-    // This would typically fetch the availability details from an API
-    // For now, we'll just show the modal with some default values
     showAvailabilityModal();
     alert(`Editing availability #${id}`);
 }
@@ -2622,33 +2687,34 @@ async function editEmployee(userId) {
                 <form id="editEmployeeForm">
                     <div class="form-group">
                         <label for="edit-name">Full Name</label>
-                        <input type="text" id="edit-name" value="${employee.name || ''}" required>
+                        <input type="text" id="edit-name" name="name" value="${employee.name || ''}" required>
                     </div>
                     <div class="form-group">
                         <label for="edit-email">Email</label>
-                        <input type="email" id="edit-email" value="${employee.email || ''}" required>
+                        <input type="email" id="edit-email" name="email" value="${employee.email || ''}" readonly>
+                        <small>Email cannot be changed as it's used as the user identifier</small>
                     </div>
                     <div class="form-group">
                         <label for="edit-role">Role</label>
-                        <select id="edit-role" required>
+                        <select id="edit-role" name="role" required>
                             ${roleOptions}
                         </select>
                         ${currentUserRole === 'manager' ? '<small>Managers can only assign Employee role</small>' : ''}
                     </div>
                     <div class="form-group">
                         <label for="edit-department">Department</label>
-                        <input type="text" id="edit-department" value="${employee.department || ''}">
+                        <input type="text" id="edit-department" name="department" value="${employee.department || ''}">
                     </div>
                     <div class="form-group">
                         <label for="edit-birthday">Birthday</label>
-                        <input type="date" id="edit-birthday" value="${formatDateForInput(employee.birthday)}" required>
+                        <input type="date" id="edit-birthday" name="birthday" value="${formatDateForInput(employee.birthday)}" required>
                     </div>
                     <div class="form-group">
                         <label for="edit-gender">Gender</label>
-                        <select id="edit-gender" required>
+                        <select id="edit-gender" name="gender" required>
                             <option value="Male" ${employee.gender === 'Male' ? 'selected' : ''}>Male</option>
                             <option value="Female" ${employee.gender === 'Female' ? 'selected' : ''}>Female</option>
-                            <option value="Other" ${employee.gender === 'Other' ? 'selected' : ''}>Other</option>
+                            <option value="other" ${employee.gender === 'other' ? 'selected' : ''}>Other</option>
                         </select>
                     </div>
                     <div class="form-actions">
@@ -2666,8 +2732,27 @@ async function editEmployee(userId) {
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            // Get new role value
-            const newRole = document.getElementById('edit-role').value;
+            // Create FormData object from the form
+            const formData = new FormData(this);
+            
+            // Convert FormData to an object
+            const formValues = {};
+            for (let [key, value] of formData.entries()) {
+                formValues[key] = value;
+            }
+            
+            // Manually get gender since it might be missing from FormData
+            const genderSelect = document.getElementById('edit-gender');
+            const genderValue = genderSelect ? genderSelect.value : null;
+            
+            // Check if email is present
+            if (!formValues.email) {
+                alert('Email is required');
+                return;
+            }
+            
+            // Get role for permission check
+            const newRole = formValues.role;
             
             // Enforce role-based restrictions
             if (currentUserRole === 'manager') {
@@ -2678,20 +2763,19 @@ async function editEmployee(userId) {
                 }
             }
             
+            // Create the request object
             const updatedEmployee = {
-                email: document.getElementById('edit-email').value,
-                data: {
-                    name: document.getElementById('edit-name').value,
-                    role: newRole,
-                    department: document.getElementById('edit-department').value,
-                    birthday: document.getElementById('edit-birthday').value,
-                    gender: document.getElementById('edit-gender').value
-                }
+                email: formValues.email,
+                name: formValues.name,
+                role: formValues.role,
+                department: formValues.department,
+                birthday: formValues.birthday,
+                gender: genderValue || formValues.gender // Use manually extracted gender value as fallback
             };
             
             try {
                 const updateResponse = await fetch(`${window.API_BASE_URL}/user/updateUser`, {
-                    method: 'PUT',
+                    method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`,
                         'Content-Type': 'application/json'
@@ -2699,8 +2783,18 @@ async function editEmployee(userId) {
                     body: JSON.stringify(updatedEmployee)
                 });
                 
+                let responseBody;
+                try {
+                    responseBody = await updateResponse.json();
+                } catch (e) {
+                    console.error('Failed to parse response JSON:', e);
+                }
+                
                 if (!updateResponse.ok) {
-                    throw new Error(`Failed to update employee: ${updateResponse.status} ${updateResponse.statusText}`);
+                    const errorMsg = responseBody && responseBody.error
+                        ? responseBody.error
+                        : `Failed to update employee: ${updateResponse.status} ${updateResponse.statusText}`;
+                    throw new Error(errorMsg);
                 }
                 
                 alert('Employee updated successfully');

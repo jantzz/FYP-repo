@@ -1509,9 +1509,34 @@ textarea {
 
 /* Make employee calendar fill the tab properly */
 #employee-calendar {
-    height: 600px;
+    height: 800px;
     margin-top: 20px;
     background-color: #fff;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* Improve calendar event scaling */
+#employee-calendar .fc-event {
+    padding: 6px;
+    font-size: 14px;
+}
+
+#employee-calendar .fc-timegrid-slot {
+    height: 50px !important;
+}
+
+/* Improve header readability */
+#employee-calendar .fc-toolbar-title {
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+/* Better column headers */
+#employee-calendar .fc-col-header-cell {
+    padding: 8px 0;
+    background-color: #f5f5f5;
 }
 
 /* Replacement Tab Styles */
@@ -1963,4 +1988,134 @@ body.admin-visible .admin-only {
         width: 100%;
         justify-content: center;
     }
+}
+
+/* Employee calendar responsive styles */
+@media (max-width: 992px) {
+    #employee-calendar {
+        height: 700px !important;
+    }
+    
+    #employee-calendar .fc-toolbar {
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 1rem;
+    }
+    
+    #employee-calendar .fc-toolbar-title {
+        font-size: 1.3em;
+    }
+    
+    #employee-calendar .fc-header-toolbar {
+        margin-bottom: 1em !important;
+    }
+}
+
+@media (max-width: 768px) {
+    #employee-calendar {
+        height: 600px !important;
+    }
+    
+    #employee-calendar .fc-toolbar {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    #employee-calendar .fc-toolbar-title {
+        font-size: 1.2em;
+    }
+    
+    #employee-calendar .fc-button {
+        padding: 6px 10px;
+        font-size: 0.85em;
+    }
+    
+    #employee-calendar .fc-col-header-cell-cushion {
+        font-size: 0.9em;
+    }
+    
+    #employee-calendar .fc-timegrid-slot-label {
+        font-size: 0.85em;
+    }
+    
+    #employee-calendar .fc-event-title {
+        font-size: 0.9em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Adjust event spacing for mobile */
+    #employee-calendar .fc-timegrid-event {
+        padding: 4px;
+        min-height: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    #employee-calendar {
+        height: 500px !important;
+    }
+    
+    #employee-calendar .fc-toolbar-title {
+        font-size: 1.1em;
+    }
+    
+    #employee-calendar .fc-button {
+        padding: 5px 8px;
+        font-size: 0.8em;
+    }
+    
+    #employee-calendar .fc-timegrid-slot-label {
+        font-size: 0.8em;
+    }
+    
+    /* Simplify events on very small screens */
+    #employee-calendar .fc-event {
+        margin: 1px 0;
+    }
+    
+    #employee-calendar .fc-event-title {
+        font-size: 0.8em;
+    }
+    
+    /* Make time slots smaller on mobile */
+    #employee-calendar .fc-timegrid-slot {
+        height: 40px !important;
+    }
+}
+
+/* Make the overall calendar container responsive */
+#employee-calendar {
+    height: 800px;
+    margin-top: 20px;
+    background-color: #fff;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* Improve touch interaction for mobile devices */
+@media (hover: none) {
+    #employee-calendar .fc-event {
+        padding: 8px;
+    }
+    
+    #employee-calendar .fc-button {
+        padding: 10px;
+    }
+}
+
+/* Readonly form fields */
+.readonly-field {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    color: #666;
+    border: 1px solid #ddd;
+}
+
+.readonly-field:focus {
+    outline: none;
+    box-shadow: none;
+    border-color: #ddd;
 } 

@@ -123,10 +123,50 @@ const createUser = async (req, res) => {
 }
 
 const updateUser = async (req, res) => {
-    const { email, data } = req.body; 
+
+    let email, data;
+
+    if (req.body.data) {
+        email = req.body.email;
+        data = req.body.data;
+    } else {
+        email = req.body.email;
+        
+        // extract all fields except email
+        data = { ...req.body };
+        delete data.email;
+    }
 
     //check if any of the fields are empty or if no data is being changed 
-    if (!email || !data || Object.keys(data).legnth === 0) return res.status(400).json({error: "Please fill out the form"});
+    if (!email) {
+        return res.status(400).json({error: "Email is required"});
+    }
+    
+    if (!data || Object.keys(data).length === 0) {
+        return res.status(400).json({error: "No data provided for update"});
+    }
+
+    // process birthday field if present
+    if (data.birthday) {
+        try {
+            // check if it's a valid date
+            const dateObj = new Date(data.birthday);
+            
+            if (isNaN(dateObj.getTime())) {
+                return res.status(400).json({error: "Invalid birthday format. Use YYYY-MM-DD format"});
+            }
+            
+            // convert to MySQL date format (YYYY-MM-DD)
+            const yyyy = dateObj.getFullYear();
+            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const dd = String(dateObj.getDate()).padStart(2, '0');
+            
+            data.birthday = `${yyyy}-${mm}-${dd}`;
+        } catch (e) {
+            console.error('Error processing birthday:', e);
+            return res.status(400).json({error: "Invalid birthday format. Use YYYY-MM-DD format"});
+        }
+    }
 
     let connection; 
 

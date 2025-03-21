@@ -24,7 +24,9 @@ router.get('/getUsers', getUsers);
 
 router.post('/createUser', createUser);
 
-router.put('/updateUser', updateUser);
+router.route('/updateUser')
+    .put(updateUser)
+    .post(updateUser);  // Allow both PUT and POST
 
 // get current user information
 router.get('/me', getMe);
