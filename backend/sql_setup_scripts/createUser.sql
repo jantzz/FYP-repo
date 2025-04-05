@@ -1,7 +1,8 @@
 CREATE TABLE role
 (
     roleName VARCHAR(50) PRIMARY KEY,
-    description VARCHAR(255)
+    description VARCHAR(255),
+    shifting boolean NOT NULL DEFAULT true
 );
 
 CREATE TABLE user
