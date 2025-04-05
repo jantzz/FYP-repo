@@ -1,5 +1,5 @@
 const express = require('express');
-const { addShift, getShifts, swapRequest, updateSwap} = require('../controllers/shiftController');
+const { addShift, getShifts, swapRequest, updateSwap, generateShift } = require('../controllers/shiftController');
 const router = express.Router();
 // to add a shift 
 router.post('/add', addShift);
@@ -9,5 +9,7 @@ router.get('/:employeeId', getShifts);
 router.post('/swap', swapRequest);
 //update swap infromation
 router.put('/updateSwap', updateSwap);
+//generate shifts
+router.post('/generate', generateShift);
 
 module.exports = router;

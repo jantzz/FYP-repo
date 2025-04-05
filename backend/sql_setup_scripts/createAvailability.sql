@@ -20,8 +20,6 @@ CREATE TABLE availability (
 CREATE TABLE availability (
     availabilityId INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     employeeId INT UNSIGNED NOT NULL,
-    endDate DATE NOT NULL,
-    endTime TIME NOT NULL,
     preferredDates VARCHAR(15) NOT NULL,
     status ENUM('Pending', 'Approved', 'Declined') DEFAULT 'Pending',
     hours DECIMAL(5,2) NOT NULL,
@@ -31,17 +29,24 @@ CREATE TABLE availability (
     FOREIGN KEY (approvedBy) REFERENCES user(userId) ON DELETE SET NULL
 );
 
+-- Test availabilities
+INSERT IGNORE INTO availability (employeeId, preferredDates, status, hours, approvedBy) VALUES 
+(1, 'M,W,F', 'Approved', 9.0, 11),
+(2, 'T,TH', 'Approved', 9.0, 11),
+(3, 'S,SN', 'Approved', 9.0, 11),
+(4, 'M,W,F', 'Approved', 9.0, 11),
+(5, 'T,TH', 'Approved', 9.0, 11),
+(6, 'S,SN', 'Approved', 9.0, 11),
+(7, 'M,W,F', 'Approved', 9.0, 11),
+(9, 'T,TH', 'Approved', 9.0, 11),
+(10, 'S,SN', 'Approved', 9.0, 11);
 
 CREATE VIEW employee_availability_view AS
 SELECT 
     a.availabilityId,
     a.employeeId,
     u.name AS employeeName,
-    a.startDate,
-    a.startTime,
-    a.endDate,
-    a.endTime,
-    a.preferredShift,
+    a.preferredDates,
     a.status,
     a.hours,
     a.submittedAt,

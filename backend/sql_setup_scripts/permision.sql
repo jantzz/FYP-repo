@@ -23,6 +23,13 @@ INSERT IGNORE INTO role (roleName, description) VALUES
 ('Manager', 'Department manager with supervisory permissions'),
 ('Employee', 'Regular employee account');
 
+-- say that the roles are the doctors, nurses and receptionists 
+INSERT IGNORE INTO role (roleName, description, shifting) VALUES
+('Admin', 'System administrator with full access', false),
+('Doctor', 'Doctor of medicine, treats the patients', true),
+('Nurse', 'helps doctors with treatment and medicine', true),
+('Receptionist', 'front desk workers', true);
+
 -- insert basic permissions for availability management
 INSERT INTO permission (name, description) VALUES
 ('availability.submit', 'Can submit personal availability'),
