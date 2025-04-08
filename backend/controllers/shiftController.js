@@ -191,21 +191,25 @@ const generateShift = async (req, res) => {
     try{
         connection = await db.getConnection(); 
         //grab employees that have approved preferred availability 
-        const [availabilities] = await connection.execute("SELECT a.employeeId, a.preferredDates, u.role FROM availability a JOIN user u ON a.employeeId = u.userId WHERE a.status = 'Approved'");
+        const [availabilities] = await connection.execute("SELECT a.employeeId, a.preferredDates, u.department FROM availability a JOIN user u ON a.employeeId = u.userId WHERE a.status = 'Approved'");
 
         //grab the remaining employees that are supposed to be available for shifts at most times (no approved availabilities)
-        const equery = "SELECT u.userId, u.role FROM user u JOIN availability a ON u.userId = a.employeeId WHERE a.employeeId IS NULL"
+        const equery = "SELECT u.userId, u.department FROM user u LEFT JOIN availability a ON u.userId = a.employeeId WHERE a.employeeId IS NULL"
         const [employees] = await connection.execute(equery);
 
         const preferred = {};
         const count = {};
 
         for(const entry of availabilities) {
-            const { employeeId, preferredDates, role } = entry;
-            console.log(entry);
+            const { employeeId, preferredDates, department } = entry;
             const preferredDays = preferredDates.split(",").map(day => dayCodeMap[day.trim()]); //convert the days to their corresponding numbers
-            preferred[employeeId] = {preferredDays, role}; //store the preferred days and department of each employee
+            preferred[employeeId] = {preferredDays, department}; //store the preferred days and department of each employee
             count[employeeId] = 0; //initialize the count of shifts for each employee
+        }
+
+        for (const employee of employees) {
+            const { userId } = employee;
+            count[userId] = 0; //initialize the count of shifts for the employees without preferred availabilities
         }
 
         const shifts = [];
@@ -213,31 +217,33 @@ const generateShift = async (req, res) => {
         const endDate = new Date(end);
         const currentDate = new Date(startDate.getTime());
 
-        const [roles] = await connection.execute("SELECT roleName FROM role WHERE shifting = 1"); //grab the roles that are supposed to be available for shifts
+        const [deps] = await connection.execute("SELECT departmentName FROM department WHERE shifting = 1"); //grab the roles that are supposed to be available for shifts
 
         while(currentDate.getTime() <= endDate.getTime()) { //while the current date is less than or equal to the end date
             const dayCode = currentDate.getDay(); //get the day code of the current date
             const formattedDate = currentDate.toISOString().split("T")[0]; //format the date to YYYY-MM-DD
-            const roleCount = {}; //initialize the count of shifts for each role
-            for(const role of roles) {
-                roleCount[role.roleName] = 0; //initialize the count of shifts for each role
+            const depCount = {}; //initialize the count of shifts for each role
+            for(const dep of deps) {
+                depCount[dep.roleName] = 0; //initialize the count of shifts for each role
             }
+            const sortedPreferred = Object.entries(preferred).sort((a, b) => count[a[0]] - count[b[0]]); //sort the preferred employees by the number of shifts they have
             //check if there are employees with preferred shifts for the current date  
-            for(const employeeId in preferred) {
-                const { preferredDays, role } = preferred[employeeId];
-                if(preferredDays.includes(dayCode)) { //if the employee has a preferred shift for the current date
-                    if(roleCount[role] < 2 && count[employeeId] < 6) { //if the role has not reached its limit and the employee has not reached its limit
+            for(const [employeeId, { preferredDays, department }] of sortedPreferred) {
+                if(preferredDays.includes(dayCode)) { // if the employee has a preferred shift for the current date
+                    if(depCount[department] < 2 && count[employeeId] < 6) { // if the role has not reached its limit and the employee has not reached its limit
                         console.log(`Adding shift for employee ${employeeId} on ${formattedDate}`);
                         shifts.push({ employeeId, startDate: formattedDate, endDate: formattedDate, status: "Approved" });
-                        roleCount[role]++; //increment the count of shifts for the role
-                        count[employeeId]++; //increment the count of shifts for the employee
+                        roleCount[role]++; // increment the count of shifts for the role
+                        count[employeeId]++; // increment the count of shifts for the employee
                     }
                 }
             }
+
+            const sortedEmployees = [...employees].sort((a, b) => count[a.userId] - count[b.userId]); //sort the employees by the number of shifts they have
             //check if there are employees without preferred shifts for the current date
-            for(const employee of employees) {
-                const { userId, role } = employee;
-                if(roleCount[role] < 2 && count[userId] < 6) { //if the role has not reached its limit and the employee has not reached its limit
+            for(const employee of sortedEmployees) {
+                const { userId, department } = employee;
+                if(depCount[department] < 2 && count[userId] < 6) { //if the role has not reached its limit and the employee has not reached its limit
                     shifts.push({ employeeId: userId, startDate: formattedDate, endDate: formattedDate, status: "Approved" });
                     roleCount[role]++; //increment the count of shifts for the role
                     count[userId]++; //increment the count of shifts for the employee
@@ -249,16 +255,16 @@ const generateShift = async (req, res) => {
         console.log(shifts);
         //insert the shifts into the database
         connection.beginTransaction(); //start transaction to ensure all queries are executed before committing the changes
-        const shiftQuery = "INSERT INTO shift (employeeId, startDate, endDate, status) VALUES (?, ?, ?, ?)";
+        const shiftQuery = "INSERT INTO pendingShift (employeeId, startDate, endDate, status) VALUES (?, ?, ?, ?)";
         for(const shift of shifts) {
-            console.log(shift);
+            //insert each shift into the pendingShift table
             const { employeeId, startDate, endDate, status } = shift;
             await connection.execute(shiftQuery, [employeeId, startDate, endDate, status]);
         }
         await connection.commit(); //commit the changes
         connection.release(); //release the connection
 
-        res.status(200).json({ message: "Shifts generated successfully." });
+        res.status(200).json({ message: "Pending Shifts generated successfully." });
 
     }catch(err) {
         console.error(err);

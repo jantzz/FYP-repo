@@ -19,16 +19,15 @@ CREATE TABLE role_permission (
 
 -- insert predefined roles first
 INSERT IGNORE INTO role (roleName, description) VALUES
-('Admin', 'System administrator with full access'),
+('Admin', 'System administrator with full access', false),
 ('Manager', 'Department manager with supervisory permissions'),
 ('Employee', 'Regular employee account');
 
--- say that the roles are the doctors, nurses and receptionists 
-INSERT IGNORE INTO role (roleName, description, shifting) VALUES
-('Admin', 'System administrator with full access', false),
-('Doctor', 'Doctor of medicine, treats the patients', true),
-('Nurse', 'helps doctors with treatment and medicine', true),
-('Receptionist', 'front desk workers', true);
+-- insert department fields 
+INSERT IGNORE INTO department (departmentName, description, shifting) VALUES
+('Doctor', 'Doctor department', false),
+('Nurse', 'Nurse department'),
+('Receptionist', 'Receptionist department');
 
 -- insert basic permissions for availability management
 INSERT INTO permission (name, description) VALUES
