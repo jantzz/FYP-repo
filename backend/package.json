@@ -18,6 +18,7 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.13.0",
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "socket.io": "^4.8.1"
   }
 }

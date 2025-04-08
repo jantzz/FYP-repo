@@ -1,5 +1,6 @@
 const db = require('../database/db');
 
+
 const getShifts = async (req, res) => {
     //extract employeeId from request url
     const { employeeId } = req.params;
@@ -31,7 +32,7 @@ const getShifts = async (req, res) => {
     }
 };
 
-const addShift = async (req, res) => {
+const addShift = async (req, res, io) => {
     const { employeeId, startDate, endDate, status } = req.body;
     //to validate required fields are provided
     if (!employeeId || !startDate || !endDate || !status) {
@@ -46,7 +47,32 @@ const addShift = async (req, res) => {
         const data = [employeeId, startDate, endDate, status];
 
         await connection.execute(q, data);
-        connection.release();
+        //connection.release();
+         //get the employee's name 
+         const employeeQuery = "SELECT name FROM user WHERE userId = ?";
+         const [employee] = await connection.execute(employeeQuery, [employeeId]);
+
+         //if no employee found, handle the error
+        if (employee.length === 0) {
+            return res.status(404).json({ error: "Employee not found." });
+        }
+
+        const employeeName = employee[0].name;
+        //notification message
+        const notificationMessage = `New shift added for ${employeeName} from ${startDate} to ${endDate}. Status: ${status}`;
+
+         //insert the notification into the database
+         const insertNotificationQuery = "INSERT INTO notifications (userId, message) VALUES (?, ?)";
+         await connection.execute(insertNotificationQuery, [employeeId, notificationMessage]);
+         
+        //notification for a new shift
+        const io = req.app.get('io');
+        if (io) {
+            //emit notification to the specific user's room
+            io.to(`user_${employeeId}`).emit("shift_added", { message: "New shift added!" });
+        } else {
+            console.error("Socket.io not initialized");
+        }
 
         return res.status(201).json({ message: "Shift added successfully." });
 

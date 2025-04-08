@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+//import for socketio notification
+const shiftController = require('./controllers/shiftController');
 
 //imports 
 const userRoutes = require('./routes/userRoutes');
@@ -37,6 +39,10 @@ app.use('/api/user', userRoutes);
 app.use('/api/role', roleRoutes);
 app.use('/api/shift', shiftRoutes);
 app.use('/api/availability', availabilityRoutes);
+
+//socket route
+app.post('/api/shift/add', shiftController.addShift);
+app.set("io", null);
 
 // export app constant 
 module.exports = app;

@@ -1,0 +1,7 @@
+CREATE TABLE notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    userId INT,
+    message VARCHAR(255),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    messageRead BOOLEAN DEFAULT FALSE
+);
