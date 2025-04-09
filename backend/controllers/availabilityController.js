@@ -101,6 +101,15 @@ const submitAvailability = async (req, res) => {
 
 //function for managers to approve/decline availabilities 
 const updateAvailabilityStatus = async (req, res) => {
+    //formatDateTime function 
+    const formatDateTime = (date, time) => {
+        //format date as YYYY-MM-DD
+        const formattedDate = new Date(date).toISOString().split('T')[0]; 
+        //ensures time is HH:MM:SS
+        const formattedTime = time.length === 5 ? `${time}:00` : time; 
+        return `${formattedDate} ${formattedTime}`;
+    };
+
     const { availabilityId, managerId, status } = req.body;
     console.log('Updating availability status:', { availabilityId, managerId, status });
 
@@ -144,15 +153,23 @@ const updateAvailabilityStatus = async (req, res) => {
             return res.status(404).json({ error: "Availability request not found." });
         }
 
+        //const { employeeId, startDate, endDate } = availabilityCheck[0];
+        const { employeeId, startDate, startTime, endDate, endTime, preferredShift } = availabilityCheck[0];
+        
+        if (!startTime || !endTime) { 
+            console.error('Missing startTime or endTime');
+            return res.status(400).json({ error: "Missing start time or end time." });
+        }
+        
         //if the availability is approved, adds it to shift table
         if (status === "Approved") {
-            const { employeeId, startDate, startTime, endDate, endTime, preferredShift } = availabilityCheck[0];
+            //const { employeeId, startDate, startTime, endDate, endTime, preferredShift } = availabilityCheck[0];
 
-            // Format the dates properly for MySQL
+            // Format the dates and times properly for MySQL
             const formattedStartDate = new Date(startDate).toISOString().split('T')[0];
             const formattedEndDate = new Date(endDate).toISOString().split('T')[0];
             
-            // Format the times to ensure they're in HH:MM:SS format
+            // Format times to ensure they're in HH:MM:SS format
             const formattedStartTime = startTime.length === 5 ? `${startTime}:00` : startTime;
             const formattedEndTime = endTime.length === 5 ? `${endTime}:00` : endTime;
 
@@ -180,6 +197,20 @@ const updateAvailabilityStatus = async (req, res) => {
                 employeeId,
                 preferredShift
             });
+
+            //send socket notification for new shift
+            const io = req.app.get('io');
+            if (io && employeeId) {
+                io.to(`user_${employeeId}`).emit('shift_added', {
+                    message: `You have a new shift from ${formattedStartDateTime} to ${formattedEndDateTime}.`,
+                    type: 'shift',
+                    shiftDetails: {
+                        start: formattedStartDateTime,
+                        end: formattedEndDateTime,
+                        title: preferredShift,
+                    }       
+                });
+            }
         }
 
         //updates availability status
@@ -189,6 +220,43 @@ const updateAvailabilityStatus = async (req, res) => {
             WHERE availabilityId = ?
         `;
         await connection.execute(query, [status, managerId, availabilityId]);
+
+        //get the employee's name 
+        const employeeQuery = "SELECT name FROM user WHERE userId = ?";
+        const [employee] = await connection.execute(employeeQuery, [employeeId]);
+
+        //if no employee found, handle the error
+       if (employee.length === 0) {
+           return res.status(404).json({ error: "Employee not found." });
+       }
+
+        const employeeName = employee[0].name;
+        //format start and end dates properly
+        const notificationStart = formatDateTime(startDate, startTime);
+        const notificationEnd = formatDateTime(endDate, endTime);
+
+        //availability notification message
+        const availabilityMessage = `${employeeName}, your availability request from ${notificationStart} to ${notificationEnd} has been ${status.toLowerCase()}.`;
+        //insert the notification into the database
+        const insertNotificationQuery = "INSERT INTO notifications (userId, message) VALUES (?, ?)";
+        try {
+            const [result] = await connection.execute(insertNotificationQuery, [employeeId, availabilityMessage]);
+            console.log('Notification inserted:', result);
+        } catch (err) {
+            console.error('Error inserting notification:', err);
+        }
+        await connection.execute(insertNotificationQuery, [employeeId, availabilityMessage]);
+
+        //send via socket.io (if available)
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`user_${employeeId}`).emit("availability_updated", {
+                message: availabilityMessage,
+                status,
+                startDate: notificationStart,
+                endDate: notificationEnd,
+            });
+        }
 
         return res.status(200).json({ 
             message: `Availability ${status.toLowerCase()} successfully.`,

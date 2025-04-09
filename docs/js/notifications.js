@@ -45,6 +45,14 @@ socket.on("shift_added", (data) => {
     showNotification(data.message); 
 });
 
+//frontend listener for availability updates
+socket.on("availability_updated", (data) => {
+    console.log("Availability notification:", data);
+    showNotification(data.message);  
+});
+
+
+
 //function to display notification (you can replace this with a toast, modal, 
 //not sure which part to look at the frontend, sorry)
 function showNotification(message) {
