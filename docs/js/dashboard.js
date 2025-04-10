@@ -3535,14 +3535,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set up sidebar navigation
     const navItems = document.querySelectorAll('.nav-item');
     const mainContentSections = {
-        'Dashboard': document.querySelector('.main-content > :not(.employee-section):not(.time-off-section):not(.schedule-section):not(.report-section):not(.attendance-section):not(.payroll-section):not(.generate-shifts-section)'),
+        'Dashboard': document.querySelector('.main-content > :not(.employee-section):not(.time-off-section):not(.schedule-section):not(.report-section):not(.attendance-section):not(.payroll-section):not(.generate-shifts-section):not(.availability-section)'),
         'Employee Management': document.querySelector('.employee-section'),
         'Schedule': document.querySelector('.schedule-section'),
         'Time Off': document.querySelector('.time-off-section'),
         'Reports': document.querySelector('.report-section'),
         'Attendance Rate': document.querySelector('.attendance-section'),
         'Payroll': document.querySelector('.payroll-section'),
-        'Generate Shifts': document.querySelector('.generate-shifts-section')
+        'Generate Shifts': document.querySelector('.generate-shifts-section'),
+        'Availability': document.querySelector('.availability-section')
     };
     
     // Setup click handlers for all nav items
