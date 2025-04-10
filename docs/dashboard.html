@@ -18,7 +18,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Custom JavaScript -->
     <script src="js/dashboard.js" defer></script>
-    <script src="js/availability.js" defer></script>
     <script src="js/reports.js" defer></script>
     <script src="js/attendance.js" defer></script>
     <script src="js/payroll.js" defer></script>
@@ -66,6 +65,14 @@
                 Schedule
             </div>
             <div class="nav-item">
+                <i class="fas fa-calendar-check"></i>
+                Availability
+            </div>
+            <div class="nav-item manager-only" id="generate-shifts-nav">
+                <i class="fas fa-magic"></i>
+                Generate Shifts
+            </div>
+            <div class="nav-item">
                 <i class="fas fa-clock"></i>
                 Time Off
             </div>
@@ -101,8 +108,51 @@
             <div class="calendar-section">
                 <div class="section-header">
                     <h2>Calendar</h2>
+                    <!-- Add employee filter for managers/admins -->
+                    <div class="calendar-filters manager-only">
+                        <select id="employee-filter" class="employee-filter">
+                            <option value="all">All Employees</option>
+                            <!-- Will be populated dynamically -->
+                        </select>
+                        <select id="department-filter" class="department-filter">
+                            <option value="all">All Departments</option>
+                            <!-- Will be populated dynamically -->
+                        </select>
+                    </div>
                 </div>
                 <div id="calendar"></div>
+            </div>
+
+            <!-- Generate Shifts Section -->
+            <div class="generate-shifts-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Generate Shifts</h2>
+                </div>
+                <div class="section-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Create Automatic Shift Schedule</h3>
+                            <p>Generate shifts based on employee availability and workload distribution.</p>
+                        </div>
+                        <div class="card-body">
+                            <form id="generateShiftsForm">
+                                <div class="form-group">
+                                    <label for="startDate">Start Date:</label>
+                                    <input type="date" id="startDate" name="startDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="endDate">End Date:</label>
+                                    <input type="date" id="endDate" name="endDate" required>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn-primary">
+                                        <i class="fas fa-magic"></i> Generate Shifts
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="employee-section" style="display: none;">
@@ -181,6 +231,68 @@
                 </div>
             </div>
 
+            <!-- Availability Section -->
+            <div class="availability-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Availability Preferences</h2>
+                    <button class="btn-primary" onclick="showAvailabilityPreferenceModal()">
+                        <i class="fas fa-plus"></i> Set Availability
+                    </button>
+                </div>
+                
+                <div class="availability-list">
+                    <table id="availabilityTable">
+                        <thead>
+                            <tr>
+                                <th>Preferred Days</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="availabilityTableBody">
+                            <!-- Availability data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Availability Preference Modal -->
+            <div id="availabilityPreferenceModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeAvailabilityPreferenceModal()">&times;</span>
+                    <h2>Set Availability Preferences</h2>
+                    <form id="availabilityPreferenceForm">
+                        <div class="form-group">
+                            <label>Preferred Days</label>
+                            <div class="days-checkboxes">
+                                <label class="day-checkbox">
+                                    <input type="checkbox" name="preferredDays" value="M"> Monday
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" name="preferredDays" value="T"> Tuesday
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" name="preferredDays" value="W"> Wednesday
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" name="preferredDays" value="TH"> Thursday
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" name="preferredDays" value="F"> Friday
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" name="preferredDays" value="S"> Saturday
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" name="preferredDays" value="SN"> Sunday
+                                </label>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-primary">Submit Availability</button>
+                    </form>
+                </div>
+            </div>
+
             <!-- Schedule Section -->
             <div class="schedule-section" style="display: none;">
                 <div class="section-header">
@@ -189,76 +301,14 @@
                 
                 <div class="schedule-tabs">
                     <div class="tab active" data-tab="my-roster">My Roster</div>
-                    <div class="tab" data-tab="my-availability">My Availability</div>
                     <div class="tab" data-tab="replacement">Replacement</div>
                     <div class="tab manager-only" data-tab="pending-requests">Pending Requests</div>
                 </div>
                 
                 <div class="tab-content">
-                    <!-- ster Tab -->
+                    <!-- Roster Tab -->
                     <div class="tab-pane active" id="my-roster-tab">
                         <div id="employee-calendar"></div>
-                    </div>
-                    
-                    <!-- My Availability Tab -->
-                    <div class="tab-pane" id="my-availability-tab">
-                        <div class="availability-header">
-                            <h3>My Availability Settings</h3>
-                            <button class="btn-primary" onclick="showAvailabilityModal()">
-                                <i class="fas fa-plus"></i> Add Availability
-                            </button>
-                        </div>
-                        
-                        <div class="availability-list">
-                            <table class="availability-table">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Time</th>
-                                        <th>Shift Type</th>
-                                        <th>Note</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="availabilityTableBody">
-                                    <!-- Availability data will be populated here -->
-                                </tbody>
-                            </table>
-                            
-                            <script>
-                                // Ensure correct time display for all availability entries
-                                function fixAvailabilityTimeDisplay() {
-                                    const rows = document.querySelectorAll('#availabilityTableBody tr');
-                                    
-                                    rows.forEach(row => {
-                                        // Get the shift type cell (3rd column)
-                                        const shiftTypeCell = row.querySelector('td:nth-child(3)');
-                                        // Get the time cell (2nd column)
-                                        const timeCell = row.querySelector('td:nth-child(2)');
-                                        
-                                        if (shiftTypeCell && timeCell) {
-                                            const shiftText = shiftTypeCell.textContent.trim();
-                                            
-                                            // Set formatted time based on shift type
-                                            if (shiftText.includes('Morning')) {
-                                                timeCell.textContent = '6:00 AM - 2:00 PM';
-                                            } else if (shiftText.includes('Afternoon')) {
-                                                timeCell.textContent = '2:00 PM - 10:00 PM';
-                                            } else if (shiftText.includes('Night')) {
-                                                timeCell.textContent = '10:00 PM - 6:00 AM';
-                                            }
-                                        }
-                                    });
-                                }
-                                
-                                // Call regularly to ensure display is correct
-                                setInterval(fixAvailabilityTimeDisplay, 500);
-                                
-                                // Also ensure it's applied when the DOM is ready
-                                document.addEventListener('DOMContentLoaded', fixAvailabilityTimeDisplay);
-                            </script>
-                        </div>
                     </div>
                     
                     <!-- Replacement Tab -->
@@ -1312,88 +1362,6 @@
         </div>
     </div>
 
-    <!-- Availability Modal -->
-    <div id="availabilityModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeAvailabilityModal()">&times;</span>
-            <h2>Set Availability</h2>
-            <form id="availabilityForm">
-                <!-- Shift type selection will be added dynamically by availability.js -->
-                
-                <div class="form-group">
-                    <label for="availability-date">Date</label>
-                    <div class="date-selection">
-                        <input type="date" id="availability-date" required>
-                    </div>
-                </div>
-                
-                <div class="form-row" id="time-selection">
-                    <div class="form-group half-width">
-                        <label for="availability-start-time">From</label>
-                        <input type="time" id="availability-start-time" required>
-                    </div>
-                    <div class="form-group half-width">
-                        <label for="availability-end-time">To</label>
-                        <input type="time" id="availability-end-time" required>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="availability-note">Note (Optional)</label>
-                    <textarea id="availability-note" rows="2"></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="repeat-checkbox">
-                        <span>Repeat</span>
-                    </label>
-                </div>
-                
-                <button type="submit" class="btn-primary">Save</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Add this somewhere in the document, can be in the schedule section -->
-    <div style="display: none;">
-        <table>
-            <tbody id="availabilityTableBody"></tbody>
-        </table>
-    </div>
-
-    <!-- Add this before the closing body tag -->
-    <script src="js/availability-manager.js"></script>
-    <script>
-        // Fix upcoming shift time display
-        function fixUpcomingShiftTimes() {
-            document.querySelectorAll('.shift-card').forEach(card => {
-                const titleElement = card.querySelector('.shift-department');
-                const timeElement = card.querySelector('.shift-time');
-                
-                if (titleElement && timeElement) {
-                    const shiftTitle = titleElement.textContent.trim();
-                    
-                    if (shiftTitle.includes('Morning Shift')) {
-                        timeElement.textContent = '6:00 AM - 2:00 PM';
-                    } else if (shiftTitle.includes('Afternoon Shift')) {
-                        timeElement.textContent = '2:00 PM - 10:00 PM';
-                    } else if (shiftTitle.includes('Night Shift')) {
-                        timeElement.textContent = '10:00 PM - 6:00 AM';
-                    }
-                }
-            });
-        }
-        
-        // Apply fix periodically
-        setInterval(fixUpcomingShiftTimes, 500);
-        
-        // Also run when DOM is loaded
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(fixUpcomingShiftTimes, 300);
-        });
-    </script>
-
     <!-- Add this new modal for shift swap requests -->
     <div id="swapRequestModal" class="modal">
         <div class="modal-content">
@@ -1433,6 +1401,5 @@
             </form>
         </div>
     </div>
-<script src="http://localhost:8800/socket.io/socket.io.js"></script>
 </body>
 </html> 

@@ -1,7 +1,7 @@
 CREATE TABLE role
 (
     roleName VARCHAR(50) PRIMARY KEY,
-    description VARCHAR(255),
+    description VARCHAR(255)
 );
 
 --department table for having each department have a shift in the system
@@ -28,7 +28,7 @@ CREATE TABLE user
         ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT userFK2 FOREIGN KEY (department)
         REFERENCES department (departmentName)
-        ON UPDATE CASCADE ON DELETE SET NULL,
+        ON UPDATE CASCADE ON DELETE SET NULL
 ) AUTO_INCREMENT = 1; 
 
 CREATE TABLE shift

@@ -2,60 +2,52 @@ const db = require('../database/db');
 // TODO: other availability functions for User Story 8
 //function to let an employee submit availability details
 const submitAvailability = async (req, res) => {
-    const { employeeId, startDate, startTime, endDate, endTime, preferredShift } = req.body;
+    const { employeeId, preferredDates, hours } = req.body;
 
-    if (!employeeId || !startDate || !startTime || !endDate || !endTime || !preferredShift) {
-        return res.status(400).json({ error: "All fields are required." });
+    if (!employeeId || !preferredDates || !hours) {
+        return res.status(400).json({ error: "Employee ID, preferred dates, and hours are required." });
     }
 
     let connection;
     try {
         connection = await db.getConnection();
 
-        // calculate requested hours
-        const startDateTime = new Date(`${startDate}T${startTime}`);
-        const endDateTime = new Date(`${endDate}T${endTime}`);
-        
-        // if end time is earlier than start time, assume it spans to next day
-        let requestedHours;
-        if (endDateTime <= startDateTime) {
-            const endNextDay = new Date(endDateTime);
-            endNextDay.setDate(endNextDay.getDate() + 1);
-            requestedHours = (endNextDay - startDateTime) / (1000 * 60 * 60);
-        } else {
-            requestedHours = (endDateTime - startDateTime) / (1000 * 60 * 60);
+        // Validate hours
+        const requestedHours = parseFloat(hours);
+        if (isNaN(requestedHours) || requestedHours <= 0) {
+            return res.status(400).json({ error: "Hours must be a positive number." });
         }
 
-        // get current remaining hours for the week of the requested date
-        const requestDate = new Date(startDate);
-        const weekStart = new Date(requestDate);
-        weekStart.setDate(requestDate.getDate() - requestDate.getDay()); // Start of week (Sunday)
+        // Get current week's dates
+        const now = new Date();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
         weekStart.setHours(0, 0, 0, 0);
         
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
         weekEnd.setHours(23, 59, 59, 999);
 
+        // Get current used hours for this week
         const [currentHours] = await connection.execute(
             `SELECT 
-                GREATEST(0, 
-                    LEAST(40, 
-                        40 - COALESCE(
-                            SUM(hours), 
-                            0
-                        )
-                    )
-                ) as remainingHours
+                COALESCE(SUM(hours), 0) as usedHours
             FROM availability 
             WHERE employeeId = ? 
             AND status != 'Declined'
-            AND startDate BETWEEN ? AND ?`,
-            [employeeId, weekStart.toISOString().split('T')[0], weekEnd.toISOString().split('T')[0]]
+            AND submittedAt BETWEEN ? AND ?`,
+            [
+                employeeId, 
+                weekStart.toISOString().split('T')[0], 
+                weekEnd.toISOString().split('T')[0]
+            ]
         );
 
-        const remainingHours = parseFloat(currentHours[0].remainingHours);
+        const usedHours = parseFloat(currentHours[0].usedHours);
+        const maxHoursPerWeek = 40;
+        const remainingHours = Math.max(0, maxHoursPerWeek - usedHours);
 
-        // check if employee has enough remaining hours for this week
+        // Check if employee has enough remaining hours for this week
         if (requestedHours > remainingHours) {
             return res.status(400).json({ 
                 error: "Not enough remaining hours for this week",
@@ -68,22 +60,19 @@ const submitAvailability = async (req, res) => {
             });
         }
 
+        // Insert availability record - removing note since it doesn't exist in the table
         const query = `
-            INSERT INTO availability (employeeId, startDate, startTime, endDate, endTime, preferredShift, hours) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO availability (employeeId, preferredDates, hours, status) 
+            VALUES (?, ?, ?, 'Pending')
         `;
 
         await connection.execute(query, [
             employeeId, 
-            startDate, 
-            startTime, 
-            endDate, 
-            endTime, 
-            preferredShift,
+            preferredDates,
             requestedHours
         ]);
 
-        // calculate new remaining hours
+        // Calculate new remaining hours
         const newRemainingHours = remainingHours - requestedHours;
 
         return res.status(201).json({ 
@@ -92,7 +81,7 @@ const submitAvailability = async (req, res) => {
             remainingHours: parseFloat(newRemainingHours.toFixed(2))
         });
     } catch (err) {
-        console.error(err);
+        console.error('Error submitting availability:', err);
         res.status(500).json({ error: "Internal Server Error." });
     } finally {
         if (connection) connection.release();
@@ -101,15 +90,6 @@ const submitAvailability = async (req, res) => {
 
 //function for managers to approve/decline availabilities 
 const updateAvailabilityStatus = async (req, res) => {
-    //formatDateTime function 
-    const formatDateTime = (date, time) => {
-        //format date as YYYY-MM-DD
-        const formattedDate = new Date(date).toISOString().split('T')[0]; 
-        //ensures time is HH:MM:SS
-        const formattedTime = time.length === 5 ? `${time}:00` : time; 
-        return `${formattedDate} ${formattedTime}`;
-    };
-
     const { availabilityId, managerId, status } = req.body;
     console.log('Updating availability status:', { availabilityId, managerId, status });
 
@@ -153,31 +133,25 @@ const updateAvailabilityStatus = async (req, res) => {
             return res.status(404).json({ error: "Availability request not found." });
         }
 
-        //const { employeeId, startDate, endDate } = availabilityCheck[0];
-        const { employeeId, startDate, startTime, endDate, endTime, preferredShift } = availabilityCheck[0];
-        
-        if (!startTime || !endTime) { 
-            console.error('Missing startTime or endTime');
-            return res.status(400).json({ error: "Missing start time or end time." });
-        }
+        const { employeeId, preferredDates, hours } = availabilityCheck[0];
         
         //if the availability is approved, adds it to shift table
         if (status === "Approved") {
-            //const { employeeId, startDate, startTime, endDate, endTime, preferredShift } = availabilityCheck[0];
-
-            // Format the dates and times properly for MySQL
-            const formattedStartDate = new Date(startDate).toISOString().split('T')[0];
-            const formattedEndDate = new Date(endDate).toISOString().split('T')[0];
+            // For shift table, we need to create a generic entry using the preferredDates
+            // This is a simplified version where we just store the days in the title
+            const daysString = preferredDates || 'No specific days';
             
-            // Format times to ensure they're in HH:MM:SS format
-            const formattedStartTime = startTime.length === 5 ? `${startTime}:00` : startTime;
-            const formattedEndTime = endTime.length === 5 ? `${endTime}:00` : endTime;
+            // Get current date for the start date
+            const now = new Date();
+            const start = new Date(now);
+            const end = new Date(now);
+            end.setHours(end.getHours() + Math.floor(hours));
+            
+            // Format dates for MySQL
+            const formattedStartDate = start.toISOString().slice(0, 19).replace('T', ' ');
+            const formattedEndDate = end.toISOString().slice(0, 19).replace('T', ' ');
 
-            // Combine date and time in MySQL datetime format
-            const formattedStartDateTime = `${formattedStartDate} ${formattedStartTime}`;
-            const formattedEndDateTime = `${formattedEndDate} ${formattedEndTime}`;
-
-            // Insert into shift table with properly formatted dates
+            // Insert into shift table with available information
             const shiftQuery = `
                 INSERT INTO shift (employeeId, startDate, endDate, title, status)
                 VALUES (?, ?, ?, ?, ?)
@@ -185,29 +159,29 @@ const updateAvailabilityStatus = async (req, res) => {
             
             await connection.execute(shiftQuery, [
                 employeeId,
-                formattedStartDateTime,
-                formattedEndDateTime,
-                preferredShift,
+                formattedStartDate,
+                formattedEndDate,
+                `Availability for ${daysString}`,
                 "Scheduled"
             ]);
             
-            console.log('Created shift with dates:', {
-                startDateTime: formattedStartDateTime,
-                endDateTime: formattedEndDateTime,
+            console.log('Created shift with data:', {
+                startDate: formattedStartDate,
+                endDate: formattedEndDate,
                 employeeId,
-                preferredShift
+                daysString
             });
 
             //send socket notification for new shift
             const io = req.app.get('io');
             if (io && employeeId) {
                 io.to(`user_${employeeId}`).emit('shift_added', {
-                    message: `You have a new shift from ${formattedStartDateTime} to ${formattedEndDateTime}.`,
+                    message: `You have a new shift approved for days: ${daysString}.`,
                     type: 'shift',
                     shiftDetails: {
-                        start: formattedStartDateTime,
-                        end: formattedEndDateTime,
-                        title: preferredShift,
+                        start: formattedStartDate,
+                        end: formattedEndDate,
+                        title: `Availability for ${daysString}`,
                     }       
                 });
             }
@@ -231,12 +205,10 @@ const updateAvailabilityStatus = async (req, res) => {
        }
 
         const employeeName = employee[0].name;
-        //format start and end dates properly
-        const notificationStart = formatDateTime(startDate, startTime);
-        const notificationEnd = formatDateTime(endDate, endTime);
-
-        //availability notification message
-        const availabilityMessage = `${employeeName}, your availability request from ${notificationStart} to ${notificationEnd} has been ${status.toLowerCase()}.`;
+        
+        // Create notification based on the new schema
+        const availabilityMessage = `${employeeName}, your availability request for ${preferredDates || 'your preferred days'} has been ${status.toLowerCase()}.`;
+        
         //insert the notification into the database
         const insertNotificationQuery = "INSERT INTO notifications (userId, message) VALUES (?, ?)";
         try {
@@ -245,7 +217,6 @@ const updateAvailabilityStatus = async (req, res) => {
         } catch (err) {
             console.error('Error inserting notification:', err);
         }
-        await connection.execute(insertNotificationQuery, [employeeId, availabilityMessage]);
 
         //send via socket.io (if available)
         const io = req.app.get('io');
@@ -253,8 +224,7 @@ const updateAvailabilityStatus = async (req, res) => {
             io.to(`user_${employeeId}`).emit("availability_updated", {
                 message: availabilityMessage,
                 status,
-                startDate: notificationStart,
-                endDate: notificationEnd,
+                preferredDates
             });
         }
 
@@ -272,11 +242,8 @@ const updateAvailabilityStatus = async (req, res) => {
 
 // get availability for a specific employee
 const getEmployeeAvailability = async (req, res) => {
-    const { employeeId } = req.params;
-    
-    if (!employeeId) {
-        return res.status(400).json({ error: "Employee ID is required." });
-    }
+    console.log('Getting availability for employee:', req.params.id);
+    const employeeId = req.params.id;
     
     let connection;
     try {
@@ -286,7 +253,7 @@ const getEmployeeAvailability = async (req, res) => {
         const query = `
             SELECT * FROM availability 
             WHERE employeeId = ? 
-            ORDER BY startDate ASC, startTime ASC
+            ORDER BY submittedAt DESC
         `;
         
         const [availabilityRecords] = await connection.execute(query, [employeeId]);
@@ -315,9 +282,10 @@ const getEmployeeAvailability = async (req, res) => {
         // loop through each availability record to calculate hours used
         for (const record of availabilityRecords) {
             try {
-                const recordDate = new Date(record.startDate);
+                const recordDate = new Date(record.submittedAt);
                 
-                // Only count hours if they're in the current week
+                // Only count hours for current week records
+                // This is simplified since we don't have specific dates, just using submitted date
                 if (recordDate >= currentWeekStart && recordDate <= currentWeekEnd) {
                     const hours = parseFloat(record.hours || 0);
                     
@@ -359,9 +327,8 @@ const getEmployeeAvailability = async (req, res) => {
             usedHours: parseFloat(usedHours.toFixed(2)),
             availability: availabilityRecords.map(record => ({
                 ...record,
-                startDate: record.startDate instanceof Date ? record.startDate.toISOString() : record.startDate,
-                endDate: record.endDate instanceof Date ? record.endDate.toISOString() : record.endDate,
-                isCurrentWeek: new Date(record.startDate) >= currentWeekStart && new Date(record.startDate) <= currentWeekEnd
+                submittedAt: record.submittedAt instanceof Date ? record.submittedAt.toISOString() : record.submittedAt,
+                isCurrentWeek: new Date(record.submittedAt) >= currentWeekStart && new Date(record.submittedAt) <= currentWeekEnd
             }))
         });
     } catch (err) {
@@ -383,7 +350,7 @@ const getPendingRequests = async (req, res) => {
         const { days, department } = req.query;
         console.log('Filter params:', { days, department });
         
-        // Base query
+        // Base query using the correct columns that exist in the table
         let query = `
             SELECT a.*, u.name AS employeeName, u.department 
             FROM availability a
@@ -395,7 +362,7 @@ const getPendingRequests = async (req, res) => {
 
         // Add date filter if days parameter is provided
         if (days && days !== 'all') {
-            query += ` AND a.startDate <= DATE_ADD(CURDATE(), INTERVAL ? DAY)`;
+            query += ` AND a.submittedAt <= DATE_ADD(CURDATE(), INTERVAL ? DAY)`;
             params.push(days);
         }
 
@@ -405,8 +372,8 @@ const getPendingRequests = async (req, res) => {
             params.push(department);
         }
 
-        // Order by start date
-        query += ` ORDER BY a.startDate ASC`;
+        // Order by submitted date
+        query += ` ORDER BY a.submittedAt DESC`;
 
         console.log('Executing query:', query);
         console.log('With params:', params);
@@ -414,13 +381,11 @@ const getPendingRequests = async (req, res) => {
         const [pendingRequests] = await connection.execute(query, params);
         console.log('Raw pending requests:', pendingRequests);
         
-        // Format dates for frontend
+        // Format for frontend - using correct fields
         const formattedRequests = pendingRequests.map(request => ({
             ...request,
-            startDate: request.startDate instanceof Date ? request.startDate.toISOString().split('T')[0] : request.startDate,
-            startTime: request.startTime instanceof Date ? request.startTime.toISOString().split('T')[1].split('.')[0] : request.startTime,
-            endDate: request.endDate instanceof Date ? request.endDate.toISOString().split('T')[0] : request.endDate,
-            endTime: request.endTime instanceof Date ? request.endTime.toISOString().split('T')[1].split('.')[0] : request.endTime
+            submittedAt: request.submittedAt instanceof Date ? request.submittedAt.toISOString() : request.submittedAt,
+            preferredDates: request.preferredDates || ''
         }));
 
         console.log('Formatted requests:', formattedRequests);

@@ -185,17 +185,32 @@ const getAllShifts = async(req, res) => {
     let connection; 
 
     try{ 
-
         connection = await db.getConnection(); 
 
-        const [shifts] = await connection.execute("SELECT * FROM shift");
-        await connection.release();
+        // Enhanced query to include employee name and department information
+        const query = `
+            SELECT s.*, u.name as employeeName, u.department 
+            FROM shift s
+            JOIN user u ON s.employeeId = u.userId
+            ORDER BY s.startDate ASC
+        `;
 
-        res.status(200).json(shifts);
+        const [shifts] = await connection.execute(query);
+        
+        // Format dates for better compatibility
+        const formattedShifts = shifts.map(shift => ({
+            ...shift,
+            startDate: shift.startDate ? new Date(shift.startDate).toISOString().split('T')[0] : null,
+            endDate: shift.endDate ? new Date(shift.endDate).toISOString().split('T')[0] : null
+        }));
 
-    }catch(err) {
+        connection.release();
+        res.status(200).json(formattedShifts);
+    } catch(err) {
         console.error(err);
         res.status(500).json({error: "Internal Server Error"});
+    } finally {
+        if (connection) connection.release();
     }
 }
 
@@ -211,31 +226,57 @@ const generateShift = async (req, res) => {
         F: 5,     // Friday
         S: 6,     // Saturday
         SN: 0     // Sunday
-      };
+    };
 
     let connection; 
-    try{
+    try {
         connection = await db.getConnection(); 
-        //grab employees that have approved preferred availability 
-        const [availabilities] = await connection.execute("SELECT a.employeeId, a.preferredDates, u.department FROM availability a JOIN user u ON a.employeeId = u.userId WHERE a.status = 'Approved'");
+        
+        // Validate that we have departments that can have shifts
+        const [deps] = await connection.execute("SELECT departmentName FROM department WHERE shifting = 1");
+        if (!deps.length) {
+            return res.status(400).json({ error: "No departments are configured for shift generation." });
+        }
 
-        //grab the remaining employees that are supposed to be available for shifts at most times (no approved availabilities)
-        const equery = "SELECT u.userId, u.department FROM user u LEFT JOIN availability a ON u.userId = a.employeeId WHERE a.employeeId IS NULL"
-        const [employees] = await connection.execute(equery);
+        // Get employees with approved availabilities
+        const [availabilities] = await connection.execute(
+            "SELECT a.employeeId, a.preferredDates, u.department FROM availability a " +
+            "JOIN user u ON a.employeeId = u.userId WHERE a.status = 'Approved'"
+        );
+
+        // Get employees without availabilities
+        const [employees] = await connection.execute(
+            "SELECT u.userId, u.department FROM user u " +
+            "LEFT JOIN availability a ON u.userId = a.employeeId WHERE a.employeeId IS NULL"
+        );
+
+        // Check if we have any employees to generate shifts for
+        if (!availabilities.length && !employees.length) {
+            return res.status(400).json({ error: "No eligible employees found for shift generation." });
+        }
 
         const preferred = {};
         const count = {};
 
-        for(const entry of availabilities) {
+        // Process employees with preferred availabilities
+        for (const entry of availabilities) {
             const { employeeId, preferredDates, department } = entry;
-            const preferredDays = preferredDates.split(",").map(day => dayCodeMap[day.trim()]); //convert the days to their corresponding numbers
-            preferred[employeeId] = {preferredDays, department}; //store the preferred days and department of each employee
-            count[employeeId] = 0; //initialize the count of shifts for each employee
+            if (!preferredDates) continue; // Skip if no preferred dates
+            
+            const preferredDays = preferredDates.split(",")
+                .map(day => dayCodeMap[day.trim()])
+                .filter(day => day !== undefined); // Filter out invalid days
+                
+            if (preferredDays.length) {
+                preferred[employeeId] = { preferredDays, department };
+                count[employeeId] = 0;
+            }
         }
 
+        // Initialize counts for employees without availabilities
         for (const employee of employees) {
-            const { userId } = employee;
-            count[userId] = 0; //initialize the count of shifts for the employees without preferred availabilities
+            const { userId, department } = employee;
+            count[userId] = 0;
         }
 
         const shifts = [];
@@ -243,62 +284,121 @@ const generateShift = async (req, res) => {
         const endDate = new Date(end);
         const currentDate = new Date(startDate.getTime());
 
-        const [deps] = await connection.execute("SELECT departmentName FROM department WHERE shifting = 1"); //grab the roles that are supposed to be available for shifts
-
-        while(currentDate.getTime() <= endDate.getTime()) { //while the current date is less than or equal to the end date
-            const dayCode = currentDate.getDay(); //get the day code of the current date
-            const formattedDate = currentDate.toISOString().split("T")[0]; //format the date to YYYY-MM-DD
-            const depCount = {}; //initialize the count of shifts for each role
-            for(const dep of deps) {
-                depCount[dep.roleName] = 0; //initialize the count of shifts for each role
+        // Generate shifts for each day in the range
+        while (currentDate.getTime() <= endDate.getTime()) {
+            const dayCode = currentDate.getDay();
+            const formattedDate = currentDate.toISOString().split("T")[0];
+            const depCount = {};
+            
+            // Initialize department counts
+            for (const dep of deps) {
+                depCount[dep.departmentName] = 0;
             }
-            const sortedPreferred = Object.entries(preferred).sort((a, b) => count[a[0]] - count[b[0]]); //sort the preferred employees by the number of shifts they have
-            //check if there are employees with preferred shifts for the current date  
-            for(const [employeeId, { preferredDays, department }] of sortedPreferred) {
-                if(preferredDays.includes(dayCode)) { // if the employee has a preferred shift for the current date
-                    if(depCount[department] < 2 && count[employeeId] < 6) { // if the role has not reached its limit and the employee has not reached its limit
-                        console.log(`Adding shift for employee ${employeeId} on ${formattedDate}`);
-                        shifts.push({ employeeId, startDate: formattedDate, endDate: formattedDate, status: "Approved" });
-                        roleCount[role]++; // increment the count of shifts for the role
-                        count[employeeId]++; // increment the count of shifts for the employee
-                    }
+
+            // First, assign shifts to employees with preferred availability
+            const sortedPreferred = Object.entries(preferred)
+                .sort((a, b) => count[a[0]] - count[b[0]]);
+                
+            for (const [employeeId, { preferredDays, department }] of sortedPreferred) {
+                if (preferredDays.includes(dayCode) && depCount[department] < 2 && count[employeeId] < 6) {
+                    console.log(`Adding preferred shift for employee ${employeeId} on ${formattedDate}`);
+                    shifts.push({ employeeId, startDate: formattedDate, endDate: formattedDate, status: "Approved" });
+                    depCount[department]++;
+                    count[employeeId]++;
                 }
             }
 
-            const sortedEmployees = [...employees].sort((a, b) => count[a.userId] - count[b.userId]); //sort the employees by the number of shifts they have
-            //check if there are employees without preferred shifts for the current date
-            for(const employee of sortedEmployees) {
+            // Then fill remaining slots with other employees
+            const sortedEmployees = [...employees]
+                .sort((a, b) => count[a.userId] - count[b.userId]);
+                
+            for (const employee of sortedEmployees) {
                 const { userId, department } = employee;
-                if(depCount[department] < 2 && count[userId] < 6) { //if the role has not reached its limit and the employee has not reached its limit
+                if (depCount[department] < 2 && count[userId] < 6) {
+                    console.log(`Adding regular shift for employee ${userId} on ${formattedDate}`);
                     shifts.push({ employeeId: userId, startDate: formattedDate, endDate: formattedDate, status: "Approved" });
-                    roleCount[role]++; //increment the count of shifts for the role
-                    count[userId]++; //increment the count of shifts for the employee
+                    depCount[department]++;
+                    count[userId]++;
                 }
             }
 
-            currentDate.setDate(currentDate.getDate() + 1); //increment the date by 1 day
+            currentDate.setDate(currentDate.getDate() + 1);
         }
-        console.log(shifts);
-        //insert the shifts into the database
-        connection.beginTransaction(); //start transaction to ensure all queries are executed before committing the changes
-        const shiftQuery = "INSERT INTO pendingShift (employeeId, startDate, endDate, status) VALUES (?, ?, ?, ?)";
-        for(const shift of shifts) {
-            //insert each shift into the pendingShift table
-            const { employeeId, startDate, endDate, status } = shift;
-            await connection.execute(shiftQuery, [employeeId, startDate, endDate, status]);
+
+        // If no shifts were generated, return an error
+        if (shifts.length === 0) {
+            return res.status(400).json({ error: "No shifts could be generated for the given date range." });
         }
-        await connection.commit(); //commit the changes
-        connection.release(); //release the connection
 
-        res.status(200).json({ message: "Pending Shifts generated successfully." });
+        console.log(`Generated ${shifts.length} shifts`);
 
-    }catch(err) {
+        // Begin transaction for saving shifts
+        await connection.beginTransaction();
+        
+        try {
+            const shiftQuery = "INSERT INTO pendingShift (employeeId, startDate, endDate, status) VALUES (?, ?, ?, ?)";
+            
+            for (const shift of shifts) {
+                const { employeeId, startDate, endDate, status } = shift;
+                await connection.execute(shiftQuery, [employeeId, startDate, endDate, status]);
+            }
+            
+            await connection.commit();
+            
+            res.status(200).json({ 
+                message: "Pending Shifts generated successfully.",
+                count: shifts.length
+            });
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        }
+
+    } catch (err) {
+        console.error('Error in generateShift:', err);
+        if (connection) {
+            try {
+                await connection.rollback();
+            } catch (rollbackErr) {
+                console.error('Error rolling back transaction:', rollbackErr);
+            }
+        }
+        res.status(500).json({ error: err.message || "Internal Server Error" });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
+const getPendingShifts = async (req, res) => {
+    let connection;
+    try {
+        connection = await db.getConnection();
+
+        // Query to get all pending shifts with employee and department information
+        const query = `
+            SELECT ps.*, u.name as employeeName, u.department 
+            FROM pendingShift ps
+            JOIN user u ON ps.employeeId = u.userId
+            ORDER BY ps.startDate ASC
+        `;
+
+        const [pendingShifts] = await connection.execute(query);
+        connection.release();
+
+        // Format dates for better compatibility
+        const formattedShifts = pendingShifts.map(shift => ({
+            ...shift,
+            startDate: shift.startDate ? new Date(shift.startDate).toISOString().split('T')[0] : null,
+            endDate: shift.endDate ? new Date(shift.endDate).toISOString().split('T')[0] : null
+        }));
+
+        return res.status(200).json(formattedShifts);
+    } catch (err) {
         console.error(err);
         res.status(500).json({error: "Internal Server Error"});
+    } finally {
+        if (connection) connection.release();
     }
-    finally {
-        if (connection) connection.release(); //if something goes wrong, no matter what release the connection
-    }
-}
+};
 
-module.exports = { addShift, getShifts, getShiftsinRange, swapRequest, updateSwap, getAllShifts, generateShift};
+module.exports = { addShift, getShifts, getShiftsinRange, swapRequest, updateSwap, getAllShifts, generateShift, getPendingShifts };

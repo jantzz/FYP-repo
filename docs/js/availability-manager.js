@@ -241,39 +241,36 @@ async function loadPendingRequests() {
                 requestItem.dataset.id = request.availabilityId;
                 requestItem.dataset.employeeId = request.employeeId;
                 
-                // Format dates and times
-                const startDate = new Date(`${request.startDate}T${request.startTime}`);
-                const endDate = new Date(`${request.endDate}T${request.endTime}`);
+                // Format preferred dates (e.g., "M,W,F" to "Monday, Wednesday, Friday")
+                const daysMap = {
+                    'M': 'Monday',
+                    'T': 'Tuesday', 
+                    'W': 'Wednesday',
+                    'TH': 'Thursday',
+                    'F': 'Friday',
+                    'S': 'Saturday',
+                    'SN': 'Sunday'
+                };
                 
-                // Check if we need to apply day adjustment for overnight shifts
-                let endDateAdjusted = new Date(endDate);
-                // If it's a night shift and end time is earlier than start time, assume it spans to next day
-                if (request.preferredShift === 'Night Shift' && 
-                    new Date(`2000-01-01T${request.endTime}`) < new Date(`2000-01-01T${request.startTime}`)) {
-                    endDateAdjusted.setDate(endDateAdjusted.getDate() + 1);
+                let formattedDays = 'No specific days';
+                if (request.preferredDates) {
+                    const daysList = request.preferredDates.split(',');
+                    formattedDays = daysList.map(code => daysMap[code] || code).join(', ');
                 }
                 
-                const dateDisplay = startDate.toLocaleDateString('en-US', { 
+                // Format submission date
+                const submittedDate = new Date(request.submittedAt);
+                const dateDisplay = submittedDate.toLocaleDateString('en-US', { 
                     weekday: 'short', 
                     month: 'short', 
                     day: 'numeric' 
                 });
-                const timeDisplay = `${startDate.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true 
-                })} - ${endDateAdjusted.toLocaleTimeString('en-US', { 
-                    hour: 'numeric', 
-                    minute: '2-digit',
-                    hour12: true 
-                })}`;
                 
                 requestItem.innerHTML = `
                     <div class="request-details">
-                        <div class="request-date">${dateDisplay}</div>
-                        <div class="request-time">${timeDisplay}</div>
-                        <div class="request-shift">${request.preferredShift}</div>
-                        ${request.note ? `<div class="request-note">${request.note}</div>` : ''}
+                        <div class="request-date">Submitted: ${dateDisplay}</div>
+                        <div class="request-days">Preferred Days: ${formattedDays}</div>
+                        <div class="request-hours">Hours: ${request.hours}</div>
                     </div>
                     <div class="request-actions">
                         <button class="btn-approve" data-id="${request.availabilityId}">Approve</button>

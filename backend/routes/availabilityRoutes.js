@@ -10,6 +10,6 @@ router.put('/update', updateAvailabilityStatus);
 router.get('/pending', getPendingRequests);  
 
 // get availability for a specific employee
-router.get('/employee/:employeeId', getEmployeeAvailability);
+router.get('/employee/:id', getEmployeeAvailability);
 
 module.exports = router;

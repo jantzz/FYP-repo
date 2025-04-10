@@ -196,319 +196,233 @@ function updateAvailabilityDisplay() {
                 // Ensure the percentage is between 0 and 100
                 const percentage = Math.max(0, Math.min(100, (remainingHours / totalHours) * 100));
                 progressBar.style.width = `${percentage}%`;
-                
-                // Update color based on remaining hours
-                progressBar.style.backgroundColor = percentage < 20 ? '#ff4444' : 
-                                                  percentage < 50 ? '#ffa700' : 
-                                                  '#00C851';
             }
-        } catch (error) {
-            console.error('Error updating progress bar:', error);
+        } catch (e) {
+            console.error('Error updating progress bar:', e);
         }
     }
-
-    // Create or get the availability container
-    let availabilityContainer = document.querySelector('#availability-container');
-    console.log('Availability container found:', availabilityContainer);
     
-    if (!availabilityContainer) {
-        availabilityContainer = document.createElement('div');
-        availabilityContainer.id = 'availability-container';
-        mainContainer.appendChild(availabilityContainer);
-        console.log('Created availability container');
-    }
-
-    // Create or get the availability list
+    // Get availability list container
     let availabilityList = document.querySelector('.availability-list');
-    console.log('Availability list found:', availabilityList);
-    
     if (!availabilityList) {
+        const availabilityContainer = document.querySelector('#availability-container') || document.createElement('div');
+        availabilityContainer.id = 'availability-container';
+        
+        if (!availabilityContainer.parentNode) {
+            mainContainer.appendChild(availabilityContainer);
+        }
+        
         availabilityList = document.createElement('div');
         availabilityList.className = 'availability-list';
         availabilityContainer.appendChild(availabilityList);
-        console.log('Created availability list');
     }
-
-    // Create a function to safely update the list
+    
+    // Helper function to safely update list content
     const safelyUpdateList = (list, content) => {
-        if (list && typeof list.innerHTML !== 'undefined') {
+        if (list) {
             list.innerHTML = content;
-            console.log('Safely updated list content');
-            return true;
-        }
-        console.error('Could not update list content - list is not a valid element');
-        return false;
-    };
-
-    // Function to get shift time display based on shift type
-    const getShiftTimeDisplay = (preferredShift) => {
-        switch(preferredShift) {
-            case 'Morning Shift':
-                return '6:00 AM - 2:00 PM';
-            case 'Afternoon Shift':
-                return '2:00 PM - 10:00 PM';
-            case 'Night Shift':
-                return '10:00 PM - 6:00 AM';
-            default:
-                return null; // Return null for custom times
+        } else {
+            console.error('Cannot find availability list element to update');
         }
     };
 
-    // Update availability list if it exists
-    if (employeeAvailability.availability && employeeAvailability.availability.length > 0) {
-        const content = employeeAvailability.availability.map(item => {
-            // Get predefined shift time display or use actual times
-            const timeDisplay = getShiftTimeDisplay(item.preferredShift) || 
-                `${new Date('2000-01-01T' + item.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} - 
-                 ${new Date('2000-01-01T' + item.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-
+    // Parse preferred dates for display
+    const getPreferredDatesDisplay = (preferredDates) => {
+        if (!preferredDates) return 'No dates specified';
+        
+        // Format M,W,F style codes into readable text
+        const daysMap = {
+            'M': 'Monday',
+            'T': 'Tuesday', 
+            'W': 'Wednesday',
+            'TH': 'Thursday',
+            'F': 'Friday',
+            'S': 'Saturday',
+            'SN': 'Sunday'
+        };
+        
+        const dateArray = preferredDates.split(',');
+        return dateArray.map(code => daysMap[code] || code).join(', ');
+    };
+    
+    // Update availability list content
+    if (employeeAvailability.availability && employeeAvailability.availability.length) {
+        console.log('Updating availability list with:', employeeAvailability.availability);
+        
+        const availabilityContent = employeeAvailability.availability.map(item => {
+            // Format the date for display
+            const submittedDate = new Date(item.submittedAt);
+            const formattedDate = submittedDate.toLocaleDateString();
+            
+            // Get status class for color coding
+            const statusClass = item.status === 'Approved' 
+                ? 'status-approved' 
+                : item.status === 'Declined' 
+                    ? 'status-declined' 
+                    : 'status-pending';
+            
             return `
-                <div class="availability-item ${item.status.toLowerCase()}">
-                    <div class="availability-date">${new Date(item.startDate).toLocaleDateString()}</div>
-                    <div class="availability-time">${timeDisplay}</div>
-                    <div class="availability-shift">${item.preferredShift}</div>
-                    <div class="availability-status">${item.status}</div>
-                    ${item.note ? `<div class="availability-note">${item.note}</div>` : ''}
+                <div class="availability-item ${item.isCurrentWeek ? 'current-week' : ''}">
+                    <div class="availability-header">
+                        <span class="availability-date">${formattedDate}</span>
+                        <span class="availability-status ${statusClass}">${item.status}</span>
+                    </div>
+                    <div class="availability-details">
+                        <p><strong>Preferred Days:</strong> ${getPreferredDatesDisplay(item.preferredDates)}</p>
+                        <p><strong>Hours:</strong> ${item.hours}</p>
+                    </div>
                 </div>
             `;
         }).join('');
         
-        safelyUpdateList(availabilityList, content);
+        safelyUpdateList(availabilityList, availabilityContent);
     } else {
-        safelyUpdateList(availabilityList, '<div class="no-availability">No availability records found.</div>');
+        safelyUpdateList(availabilityList, '<p class="no-availability">No availability records found. Submit your availability using the form below.</p>');
     }
 }
 
-// Function to create the availability form if it doesn't exist
-function createAvailabilityFormIfNeeded() {
-    console.log('Checking for availability form');
-    
-    if (!document.getElementById('availabilityForm')) {
-        console.log('Creating availability form');
-        
-        // Get or create the container
-        let container = document.querySelector('#availability-container');
-        if (!container) {
-            const mainContainer = document.querySelector('#my-availability-tab');
-            if (!mainContainer) {
-                console.error('Main container not found!');
-                return;
-            }
-            
-            container = document.createElement('div');
-            container.id = 'availability-container';
-            mainContainer.appendChild(container);
-        }
-        
-        // Create the form
-        const form = document.createElement('form');
-        form.id = 'availabilityForm';
-        form.className = 'availability-form';
-        
-        form.innerHTML = `
-            <h3>Submit Availability</h3>
-            <div class="form-group date-selection">
-                <label for="availability-date">Date</label>
-                <input type="date" id="availability-date" required>
-            </div>
-            <div class="form-group">
-                <label for="availability-start-time">Start Time</label>
-                <input type="time" id="availability-start-time" value="06:00" required>
-            </div>
-            <div class="form-group">
-                <label for="availability-end-time">End Time</label>
-                <input type="time" id="availability-end-time" value="14:00" required>
-            </div>
-            <div class="form-group">
-                <label for="availability-note">Notes</label>
-                <textarea id="availability-note" placeholder="Add any notes about your availability"></textarea>
-            </div>
-            <div class="form-group checkbox-group">
-                <label>
-                    <input type="checkbox" id="repeat-checkbox">
-                    Repeat Weekly
-                </label>
-            </div>
-            <button type="submit" class="btn-primary">Submit Availability</button>
-        `;
-        
-        container.insertBefore(form, container.firstChild);
-        console.log('Availability form created');
-    }
-}
-
+// Function to initialize the availability form
 function initializeAvailabilityForm() {
     console.log('Initializing availability form');
-
-    // Check if form already exists
-    if (!document.getElementById('availabilityForm')) {
-        console.error('Availability form not found!');
-        return;
-    }
-
-    // Check if shift type container already exists
-    if (document.querySelector('.shift-type-selection')) {
-        console.log('Shift type selection already exists, skipping creation');
-        return;
-    }
-
-    const shiftTypeContainer = document.createElement('div');
-    shiftTypeContainer.className = 'form-group';
-    shiftTypeContainer.innerHTML = `
-        <label>Preferred Shift Type</label>
-        <div class="shift-type-selection">
-            ${Object.entries(SHIFT_TYPES).map(([key, shift]) => `
-                <label class="shift-type-label">
-                    <input type="radio" name="shift-type" value="${key}">
-                    <span>${shift.name}</span>
-                    <div class="shift-time">${shift.displayTime}</div>
-                </label>
-            `).join('')}
-        </div>
-    `;
-
-    // Insert the shift type selection before the date selection
-    const dateSelection = document.querySelector('#availabilityForm .date-selection');
-    if (dateSelection) {
-        dateSelection.parentNode.insertBefore(shiftTypeContainer, dateSelection);
-    } else {
-        console.error('Date selection element not found!');
-        document.getElementById('availabilityForm').appendChild(shiftTypeContainer);
-    }
-
-    // Add remaining hours display if it doesn't exist
-    if (!document.querySelector('.remaining-hours')) {
-        const mainContainer = document.querySelector('#my-availability-tab');
-        if (!mainContainer) {
-            console.error('Main container not found!');
-            return;
-        }
-
-        const remainingHoursDiv = document.createElement('div');
-        remainingHoursDiv.className = 'remaining-hours';
-        remainingHoursDiv.innerHTML = `
-            <h3>Hours: <span id="remainingHours">${employeeAvailability.remainingHours}</span> of 40 remaining</h3>
-            <div class="progress-container" style="width: 100%; background-color: #f5f5f5; height: 20px; border-radius: 4px; position: relative; overflow: hidden;">
+    
+    // Create form if it doesn't exist
+    createAvailabilityFormIfNeeded();
+    
+    // Add day options to form
+    const dayOptions = [
+        { value: 'M', label: 'Monday' },
+        { value: 'T', label: 'Tuesday' },
+        { value: 'W', label: 'Wednesday' },
+        { value: 'TH', label: 'Thursday' },
+        { value: 'F', label: 'Friday' },
+        { value: 'S', label: 'Saturday' },
+        { value: 'SN', label: 'Sunday' }
+    ];
+    
+    const daysContainer = document.querySelector('.days-checkboxes');
+    if (daysContainer) {
+        daysContainer.innerHTML = dayOptions.map(day => `
+            <div class="day-checkbox">
+                <input type="checkbox" id="day-${day.value}" name="preferredDays" value="${day.value}">
+                <label for="day-${day.value}">${day.label}</label>
             </div>
-        `;
-
-        // Create the progress element
-        const progressContainer = remainingHoursDiv.querySelector('.progress-container');
-        const progressElement = document.createElement('div');
-        progressElement.className = 'progress-bar';
-        progressElement.style.cssText = `
-            position: absolute;
-            height: 100%;
-            top: 0;
-            left: 0;
-            background-color: #00C851;
-            transition: width 0.3s ease;
-            width: ${(employeeAvailability.remainingHours / 40) * 100}%;
-        `;
-        progressContainer.appendChild(progressElement);
-
-        const availabilityHeader = document.querySelector('.availability-header');
-        if (availabilityHeader) {
-            mainContainer.insertBefore(remainingHoursDiv, availabilityHeader);
-        } else {
-            mainContainer.appendChild(remainingHoursDiv);
-        }
+        `).join('');
     }
 }
 
+// Function to setup availability listeners
 function setupAvailabilityListeners() {
     console.log('Setting up availability listeners');
 
-    const availabilityForm = document.getElementById('availabilityForm');
-    if (!availabilityForm) {
-        console.error('Availability form not found! Cannot set up listeners.');
-        return;
-    }
-
-    // Listen for shift type selection
-    document.querySelectorAll('input[name="shift-type"]').forEach(radio => {
-        radio.addEventListener('change', function() {
-            const startTimeEl = document.getElementById('availability-start-time');
-            const endTimeEl = document.getElementById('availability-end-time');
+    // Form submission listener
+    const availabilityForm = document.getElementById('availability-form');
+    if (availabilityForm) {
+        availabilityForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
             
-            if (!startTimeEl || !endTimeEl) {
-                console.error('Start time or end time input not found!');
-                return;
-            }
-            
-            const selectedShift = SHIFT_TYPES[this.value];
-            startTimeEl.value = selectedShift.defaultStart;
-            endTimeEl.value = selectedShift.defaultEnd;
-            updateAvailabilityFeedback();
-        });
-    });
-
-    // Listen for time changes
-    ['availability-start-time', 'availability-end-time'].forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.addEventListener('change', updateAvailabilityFeedback);
-        } else {
-            console.error(`Element with id ${id} not found!`);
-        }
-    });
-
-    // Enhanced form submission
-    availabilityForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        try {
-            // Get user info from localStorage
-            const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-            if (!userInfo.userId) {
-                throw new Error('User not logged in');
-            }
-
-            // Get form values
-            const date = document.getElementById('availability-date').value;
-            const startTime = document.getElementById('availability-start-time').value;
-            const endTime = document.getElementById('availability-end-time').value;
-            const shiftType = document.querySelector('input[name="shift-type"]:checked')?.value;
+            const hours = document.getElementById('availability-hours').value;
             const note = document.getElementById('availability-note').value;
             
-            // Validate required fields
-            if (!date || !startTime || !endTime || !shiftType) {
-                const missingFields = [];
-                if (!date) missingFields.push('date');
-                if (!startTime) missingFields.push('start time');
-                if (!endTime) missingFields.push('end time');
-                if (!shiftType) missingFields.push('shift type');
-                
-                alert(`Please fill in all required fields: ${missingFields.join(', ')}`);
+            // Get selected days
+            const selectedDays = [];
+            document.querySelectorAll('input[name="preferredDays"]:checked').forEach(checkbox => {
+                selectedDays.push(checkbox.value);
+            });
+            
+            if (selectedDays.length === 0) {
+                alert('Please select at least one day');
                 return;
             }
+            
+            if (!hours || isNaN(hours) || hours <= 0) {
+                alert('Please enter valid hours');
+                return;
+            }
+            
+            try {
+                // Submit button
+                const submitButton = document.getElementById('submit-availability');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = 'Submitting...';
+                }
+                
+                // Create form data
+                const formData = {
+                    preferredDays: selectedDays,
+                    hours: parseFloat(hours),
+                    note: note
+                };
+                
+                console.log('Submitting availability:', formData);
+                
+                // Submit the availability
+                const result = await submitAvailability(formData);
+                
+                // Show success message
+                alert('Availability submitted successfully!');
+                
+                // Reload availability data
+                await loadEmployeeAvailability();
+                
+                // Reset the form
+                availabilityForm.reset();
+                
+                // Reset submit button
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = 'Submit Availability';
+                }
+                
+            } catch (error) {
+                console.error('Error submitting availability:', error);
+                alert(`Failed to submit availability: ${error.message}`);
+                
+                // Reset submit button
+                const submitButton = document.getElementById('submit-availability');
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = 'Submit Availability';
+                }
+            }
+        });
+    }
+}
 
-            // Prepare form data
-            const formData = {
-                employeeId: userInfo.userId,
-                startDate: date,
-                startTime: startTime,
-                endDate: date,
-                endTime: endTime,
-                preferredShift: SHIFT_TYPES[shiftType].name,
-                note: note
-            };
-
-            // Submit availability
-            await submitAvailability(formData);
-            
-            // Show success message
-            alert('Availability submitted successfully!');
-            
-            // Close modal and refresh display
-            closeAvailabilityModal();
-            await loadEmployeeAvailability();
-            
-        } catch (error) {
-            console.error('Error in form submission:', error);
-            alert(error.message || 'Failed to submit availability');
+// Function to create the availability form if needed
+function createAvailabilityFormIfNeeded() {
+    console.log('Creating availability form if needed');
+    
+    if (!document.getElementById('availability-form')) {
+        const formContainer = document.createElement('div');
+        formContainer.className = 'availability-form-container';
+        
+        formContainer.innerHTML = `
+            <h3>Submit New Availability</h3>
+            <form id="availability-form" class="availability-form">
+                <div class="form-group">
+                    <label>Preferred Days:</label>
+                    <div class="days-checkboxes"></div>
+                </div>
+                <div class="form-group">
+                    <label for="availability-hours">Hours:</label>
+                    <input type="number" id="availability-hours" min="1" max="40" step="0.5" required>
+                </div>
+                <div class="form-group">
+                    <label for="availability-note">Notes (optional):</label>
+                    <textarea id="availability-note" rows="3"></textarea>
+                </div>
+                <button type="submit" id="submit-availability">Submit Availability</button>
+            </form>
+        `;
+        
+        const availabilityContainer = document.getElementById('availability-container');
+        if (availabilityContainer) {
+            availabilityContainer.appendChild(formContainer);
+        } else {
+            console.error('Could not find availability container to append form');
         }
-    });
+    }
 }
 
 function updateAvailabilityFeedback() {
@@ -645,13 +559,26 @@ function closeAvailabilityModal() {
 // Function to submit availability
 async function submitAvailability(formData) {
     try {
-        const response = await fetch('/api/availability/submit', {
+        // Convert form data format to match backend schema
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        
+        // Format into the schema needed for the backend
+        const requestData = {
+            employeeId: userInfo.userId,
+            preferredDates: formData.preferredDays.join(','), // convert array to comma-separated string
+            hours: formData.hours,
+            note: formData.note || ''
+        };
+        
+        console.log('Submitting availability data:', requestData);
+        
+        const response = await fetch('http://localhost:8800/api/availability/submit', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             },
-            body: JSON.stringify(formData)
+            body: JSON.stringify(requestData)
         });
 
         if (!response.ok) {
@@ -692,7 +619,7 @@ async function loadEmployeeAvailability() {
             throw new Error('User not logged in');
         }
 
-        const response = await fetch(`/api/availability/employee/${userInfo.userId}`, {
+        const response = await fetch(`http://localhost:8800/api/availability/employee/${userInfo.userId}`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
