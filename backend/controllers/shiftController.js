@@ -401,4 +401,50 @@ const getPendingShifts = async (req, res) => {
     }
 };
 
-module.exports = { addShift, getShifts, getShiftsinRange, swapRequest, updateSwap, getAllShifts, generateShift, getPendingShifts };
+const approvePendingShifts = async (req, res) => {
+    let connection;
+
+    try{
+        connection = await db.getConnection();
+        [pendingShifts] = await connection.execute(`SELECT * FROM pendingShift`);
+
+        for (shift of pendingShifts) {
+            const { employeeId, startDate, endDate } = shift;
+            const query = `INSERT INTO shift (employeeId, startDate, endDate, status) VALUES (?, ?, ?, ?)`;
+            await connection.execute(query, [employeeId, startDate, endDate, "Assigned"]);
+        }
+        // Delete the pending shifts after approval
+        const deleteQuery = `DELETE FROM pendingShift`;
+        await connection.execute(deleteQuery);
+        connection.release();
+        return res.status(200).json({ message: "Pending shifts approved and deleted." });
+    } catch(err) {
+        console.error(err);
+        res.status(500).json({error: "Internal Server Error"});
+    }
+    finally {
+        if (connection) connection.release();
+    }
+}
+
+const logAttendance = async (req, res) => {
+    const {shiftId, status } = req.body;
+    if (!shiftId || !status) return res.status(400).json({ error: "Shift ID and status are required." });
+    let connection;
+
+    try{
+        connection = await db.getConnection();
+        //query to update the attendance status of a shift
+        const query = `UPDATE shift SET status = ? WHERE shiftId = ?`;
+        await connection.execute(query, [status, shiftId]);
+        connection.release();
+        return res.status(200).json({ message: "Attendance logged successfully." });
+    } catch(err) {
+        console.error(err);
+        res.status(500).json({error: "Internal Server Error"});
+    }finally{ 
+        if (connection) connection.release();
+    }
+}
+
+module.exports = { addShift, getShifts, getShiftsinRange, swapRequest, updateSwap, getAllShifts, generateShift, getPendingShifts, approvePendingShifts, logAttendance };
