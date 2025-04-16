@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Create a "Show More" button
     const showMoreButton = document.createElement('div');
     showMoreButton.className = 'show-more-shifts';
-    showMoreButton.innerHTML = '<span>Show More Shifts</span>';
+    showMoreButton.innerHTML = '<span></span>';
     showMoreButton.style.display = 'none'; // Hide initially
     showMoreButton.addEventListener('click', function() {
         document.querySelectorAll('.shift-card.future-shift').forEach(card => {

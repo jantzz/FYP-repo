@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Approve All Pending Shifts - Employee Smart Roster</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <style>
+        .approve-shifts-content {
+            padding: 20px;
+        }
+        .approve-btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .approve-btn:hover {
+            background-color: #45a049;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            animation: fadeIn 0.5s ease;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        .shifts-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .shifts-table th, .shifts-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        .shifts-table th {
+            background-color: #f8f9fa;
+            position: sticky;
+            top: 0;
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+        .shifts-table tbody tr {
+            transition: all 0.2s ease;
+        }
+        .shifts-table tbody tr:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .shifts-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .action-btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-right: 8px;
+            border: none;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .approve-single-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .approve-single-btn:hover {
+            background-color: #45a049;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        }
+        .edit-btn {
+            background-color: #2196F3;
+            color: white;
+        }
+        .edit-btn:hover {
+            background-color: #0b7dda;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        }
+        .filter-options {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .filter-options select {
+            padding: 10px 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 1em;
+            padding-right: 30px;
+        }
+        .filter-options select:hover, .filter-options select:focus {
+            border-color: #aaa;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .no-shifts-message {
+            padding: 30px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            color: #6c757d;
+        }
+        .no-shifts-message i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #adb5bd;
+            display: block;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        .loading i {
+            font-size: 36px;
+            margin-bottom: 15px;
+            color: #2196F3;
+            display: block;
+            animation: spin 1s infinite linear;
+        }
+        .shifts-table-container {
+            max-height: 600px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        .page-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .shift-count {
+            font-weight: 600;
+            font-size: 14px;
+            color: #495057;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .shift-count span {
+            color: #2196F3;
+            font-weight: 700;
+        }
+        /* Modal styles */
+        .edit-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s ease;
+        }
+        .edit-modal-content {
+            background-color: #fff;
+            margin: 7% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 65%;
+            max-width: 700px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease;
+        }
+        .close-modal {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+        .close-modal:hover {
+            color: #000;
+        }
+        
+        /* Summary cards styles */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .summary-card {
+            padding: 20px;
+            border-radius: 8px;
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .summary-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        .summary-card .icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            font-size: 22px;
+            color: white;
+        }
+        .summary-card.total-pending .icon {
+            background-color: #2196F3;
+        }
+        .summary-card.total-employees .icon {
+            background-color: #9C27B0;
+        }
+        .summary-card.total-departments .icon {
+            background-color: #FF9800;
+        }
+        .summary-card .number {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 5px 0;
+            color: #343a40;
+        }
+        .summary-card .label {
+            font-size: 14px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Department color indicators */
+        .department-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .department-badge.doctor {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+        .department-badge.nurse {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .department-badge.receptionist {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+        .department-badge.default {
+            background-color: #f5f5f5;
+            color: #757575;
+        }
+        
+        /* Date display styling */
+        .date-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .date-display .date-icon {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        /* Time display styling */
+        .time-display {
+            display: inline-flex;
+            align-items: center;
+            background-color: #f8f9fa;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .time-display i {
+            margin-right: 5px;
+            color: #6c757d;
+        }
+        
+        /* Employee name styling */
+        .employee-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .employee-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: #495057;
+            font-size: 12px;
+        }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Confirmation dialog */
+        .confirm-dialog {
+            display: none;
+            position: fixed;
+            z-index: 1010;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s ease;
+        }
+        .confirm-dialog-content {
+            background-color: #fff;
+            margin: 15% auto;
+            padding: 25px;
+            border-radius: 10px;
+            width: 400px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+            text-align: center;
+            animation: slideIn 0.3s ease;
+        }
+        .confirm-dialog-icon {
+            font-size: 48px;
+            color: #FF9800;
+            margin-bottom: 15px;
+        }
+        .confirm-dialog-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #343a40;
+        }
+        .confirm-dialog-message {
+            margin-bottom: 25px;
+            color: #6c757d;
+        }
+        .confirm-dialog-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .confirm-dialog-btn {
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .confirm-dialog-btn.cancel {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+        .confirm-dialog-btn.confirm {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .confirm-dialog-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        /* Responsive styles */
+        @media (max-width: 768px) {
+            .page-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filter-options {
+                flex-wrap: wrap;
+            }
+            .edit-modal-content {
+                width: 90%;
+                margin: 10% auto;
+                padding: 20px;
+            }
+            .shifts-table th:nth-child(1), 
+            .shifts-table td:nth-child(1) {
+                display: none;
+            }
+            .shifts-table th:nth-child(4), 
+            .shifts-table td:nth-child(4) {
+                display: none;
+            }
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .status-badge.pending {
+            background-color: #fff8e1;
+            color: #ff8f00;
+        }
+        .status-badge.approved {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status-badge.scheduled {
+            background-color: #e1f5fe;
+            color: #0277bd;
+        }
+        .status-badge.completed {
+            background-color: #e0f2f1;
+            color: #00796b;
+        }
+        .status-badge.cancelled {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .sidebar {
+            height: calc(100vh - 60px);
+            width: 250px;
+            background-color: #fff;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            transition: width 0.3s ease;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* Add styles for collapsed sidebar */
+        .sidebar.collapsed {
+            width: 60px;
+        }
+        
+        .sidebar.collapsed .nav-item {
+            text-align: center;
+            padding: 15px 0;
+        }
+        
+        .sidebar.collapsed .nav-item i {
+            margin-right: 0;
+        }
+        
+        .sidebar.collapsed .nav-item span {
+            display: none;
+        }
+        
+        /* Toggle button styles */
+        .sidebar-toggle {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: #f8f9fa;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 5;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-toggle:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        /* Adjust main content when sidebar is collapsed */
+        .sidebar.collapsed + .main-content {
+            margin-left: 60px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">ShiftRoster</div>
+        <div class="search-bar">
+            <input type="text" placeholder="Search...">
+        </div>
+        <div class="header-right">
+            <div class="notification-icon">
+                <i class="fas fa-bell"></i>
+            </div>
+            <div class="profile-icon" onclick="toggleProfileModal()">
+                <i class="fas fa-user"></i>
+            </div>
+            <div class="settings-dropdown">
+                <i class="fas fa-cog" onclick="toggleDropdown()"></i>
+                <div id="settingsDropdown" class="dropdown-content">
+                    <a href="#"><i class="fas fa-user-cog"></i> Settings</a>
+                    <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="nav-item" id="dashboard">
+                <i class="fas fa-th-large"></i>
+                <span>Dashboard</span>
+            </div>
+            <div class="nav-item admin-only" id="employee-management">
+                <i class="fas fa-users-cog"></i>
+                <span>Employee Management</span>
+            </div>
+            <div class="nav-item" id="schedule">
+                <i class="fas fa-calendar-alt"></i>
+                <span>Schedule</span>
+            </div>
+            <div class="nav-item" id="availability">
+                <i class="fas fa-calendar-check"></i>
+                <span>Availability</span>
+            </div>
+            <div class="nav-item manager-only" id="generate-shifts-nav">
+                <i class="fas fa-magic"></i>
+                <span>Generate Shifts</span>
+            </div>
+            <div class="nav-item manager-only active" id="approve-shifts-nav">
+                <i class="fas fa-check"></i>
+                <span>Approve All Shifts</span>
+            </div>
+            <div class="nav-item" id="time-off">
+                <i class="fas fa-clock"></i>
+                <span>Time Off</span>
+            </div>
+            <div class="nav-item" id="reports">
+                <i class="fas fa-chart-bar"></i>
+                <span>Reports</span>
+            </div>
+            <div class="nav-item" id="attendance">
+                <i class="fas fa-check-circle"></i>
+                <span>Attendance Rate</span>
+            </div>
+            <div class="nav-item" id="payroll">
+                <i class="fas fa-money-bill-wave"></i>
+                <span>Payroll</span>
+            </div>
+            
+            <!-- Add sidebar toggle button -->
+            <button class="sidebar-toggle" id="sidebarToggle">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="content-header">
+                <h1>Approve Pending Shifts</h1>
+            </div>
+            
+            <div class="approve-shifts-content">
+                <div class="section-header">
+                    <h2>Review and Approve Pending Shifts</h2>
+                </div>
+                
+                <p>Review all pending shifts below before approving them. You can approve individual shifts or approve all at once.</p>
+                
+                <!-- Summary Cards -->
+                <div class="summary-cards">
+                    <div class="summary-card total-pending">
+                        <div class="icon"><i class="fas fa-clock"></i></div>
+                        <div class="number" id="pendingShiftsCount">0</div>
+                        <div class="label">Pending Shifts</div>
+                    </div>
+                    <div class="summary-card total-employees">
+                        <div class="icon"><i class="fas fa-users"></i></div>
+                        <div class="number" id="employeesCount">0</div>
+                        <div class="label">Employees</div>
+                    </div>
+                    <div class="summary-card total-departments">
+                        <div class="icon"><i class="fas fa-hospital"></i></div>
+                        <div class="number" id="departmentsCount">0</div>
+                        <div class="label">Departments</div>
+                    </div>
+                </div>
+                
+                <div class="page-controls">
+                    <div class="filter-options">
+                        <select id="department-filter">
+                            <option value="all">All Departments</option>
+                            <!-- Will be populated dynamically -->
+                        </select>
+                        <select id="employee-filter">
+                            <option value="all">All Employees</option>
+                            <!-- Will be populated dynamically -->
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <button id="approveAllButton" class="approve-btn">
+                            <i class="fas fa-check-circle"></i> Approve All Pending Shifts
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="loading" class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Loading pending shifts...</span>
+                </div>
+                
+                <div id="shiftsTableContainer" class="shifts-table-container" style="display: none;">
+                    <div class="shift-count">Showing <span id="shiftCount">0</span> pending shifts</div>
+                    <table class="shifts-table" id="pendingShiftsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Employee</th>
+                                <th>Department</th>
+                                <th>Date</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingShiftsBody">
+                            <!-- Will be populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="noShiftsMessage" class="no-shifts-message" style="display: none;">
+                    <i class="fas fa-calendar-times"></i>
+                    <h3>No Pending Shifts Found</h3>
+                    <p>Use the "Generate Shifts" feature to create new shifts.</p>
+                    <button class="approve-btn" onclick="window.location.href='dashboard.html#generate-shifts'">
+                        <i class="fas fa-magic"></i> Generate Shifts
+                    </button>
+                </div>
+                
+                <div id="result" class=""></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Shift Modal -->
+    <div id="editShiftModal" class="edit-modal">
+        <div class="edit-modal-content">
+            <span class="close-modal" onclick="closeEditModal()">&times;</span>
+            <h2>Edit Pending Shift</h2>
+            <form id="editShiftForm">
+                <div class="form-group">
+                    <label for="edit-shift-title">Shift Title</label>
+                    <input type="text" id="edit-shift-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-shift-employee">Employee</label>
+                    <select id="edit-shift-employee" required>
+                        <!-- Will be populated dynamically -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-shift-department">Department</label>
+                    <input type="text" id="edit-shift-department" readonly class="readonly-field">
+                </div>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="edit-shift-date">Date</label>
+                        <input type="date" id="edit-shift-date" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="edit-shift-start-time">Start Time</label>
+                        <input type="time" id="edit-shift-start-time" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="edit-shift-end-time">End Time</label>
+                        <input type="time" id="edit-shift-end-time" required>
+                    </div>
+                </div>
+                <input type="hidden" id="edit-shift-id">
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                    <button type="button" class="btn-danger" onclick="closeEditModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Confirmation Dialog -->
+    <div id="confirmDialog" class="confirm-dialog">
+        <div class="confirm-dialog-content">
+            <div class="confirm-dialog-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 class="confirm-dialog-title">Approve All Shifts?</h3>
+            <p class="confirm-dialog-message">
+                You are about to approve <span id="confirmShiftCount">0</span> pending shifts. 
+                This action cannot be undone. All shifts will be added to the schedule.
+            </p>
+            <div class="confirm-dialog-buttons">
+                <button class="confirm-dialog-btn cancel" id="cancelConfirmBtn" onclick="closeConfirmDialog()">Cancel</button>
+                <button class="confirm-dialog-btn confirm" id="confirmApproveBtn" onclick="bulkApproveShifts()">Approve All</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Define functions in global scope
+        let allPendingShifts = [];
+        let employees = [];
+        let departments = [];
+        
+        function closeConfirmDialog() {
+            document.getElementById('confirmDialog').style.display = 'none';
+        }
+        
+        function bulkApproveShifts() {
+            closeConfirmDialog();
+            
+            const bulkApproveBtn = document.getElementById('approveAllButton');
+            const resultDiv = document.getElementById('result');
+            const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
+            
+            // Show loading state on button
+            bulkApproveBtn.disabled = true;
+            bulkApproveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            
+            fetch(`${API_BASE_URL}/shift/approve-all-pending`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Success handling
+                resultDiv.className = 'success';
+                resultDiv.innerHTML = `<i class="fas fa-check-circle"></i> All pending shifts have been approved successfully!`;
+                resultDiv.style.display = 'block';
+                
+                // Reset button state
+                bulkApproveBtn.disabled = false;
+                bulkApproveBtn.innerHTML = '<i class="fas fa-check-circle"></i> Approve All Pending Shifts';
+                
+                // Fade out the success message after 5 seconds
+                setTimeout(() => {
+                    resultDiv.style.opacity = '0';
+                    setTimeout(() => {
+                        resultDiv.style.display = 'none';
+                        resultDiv.style.opacity = '1';
+                    }, 500);
+                }, 5000);
+                
+                // Refresh data
+                if (document.readyState === "complete") {
+                    window.fetchData();
+                }
+                
+                showNotification('Success! All pending shifts have been approved.', 'success');
+            })
+            .catch(error => {
+                // Error handling
+                console.error('Error approving shifts:', error);
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Error: ${error.message}`;
+                resultDiv.style.display = 'block';
+                
+                // Reset button state
+                bulkApproveBtn.disabled = false;
+                bulkApproveBtn.innerHTML = '<i class="fas fa-check-circle"></i> Approve All Pending Shifts';
+                
+                showNotification('Error approving shifts. Please try again.', 'error');
+            });
+        }
+        
+        function showNotification(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = type;
+            resultDiv.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
+            resultDiv.style.display = 'block';
+            
+            // Auto hide after 3 seconds
+            setTimeout(() => {
+                resultDiv.style.opacity = '0';
+                setTimeout(() => {
+                    resultDiv.style.display = 'none';
+                    resultDiv.style.opacity = '1';
+                }, 500);
+            }, 3000);
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const approveAllButton = document.getElementById('approveAllButton');
+            const resultDiv = document.getElementById('result');
+            const pendingShiftsBody = document.getElementById('pendingShiftsBody');
+            const shiftsTableContainer = document.getElementById('shiftsTableContainer');
+            const noShiftsMessage = document.getElementById('noShiftsMessage');
+            const loading = document.getElementById('loading');
+            const shiftCountSpan = document.getElementById('shiftCount');
+            const departmentFilter = document.getElementById('department-filter');
+            const employeeFilter = document.getElementById('employee-filter');
+            const editShiftModal = document.getElementById('editShiftModal');
+            const confirmDialog = document.getElementById('confirmDialog');
+            const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
+            const confirmApproveBtn = document.getElementById('confirmApproveBtn');
+            
+            // Get API base URL from localStorage or use default
+            const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
+            
+            console.log('Using API URL:', API_BASE_URL);
+            
+            // Function to handle sidebar navigation
+            function initSidebar() {
+                // Get user info to check permissions
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                const userRole = (userInfo.role || '').toLowerCase();
+                
+                // Check if user is admin or manager
+                const isAdmin = userRole === 'admin';
+                const isManager = userRole === 'admin' || userRole === 'manager';
+                
+                console.log('User role:', userRole, 'Is admin:', isAdmin, 'Is manager:', isManager);
+                
+                // Add classes to body if user is admin/manager for CSS targeting
+                if (isAdmin) {
+                    document.body.classList.add('admin-visible');
+                }
+                if (isManager) {
+                    document.body.classList.add('manager-visible');
+                }
+                
+                // Hide admin-only elements for non-admins
+                document.querySelectorAll('.admin-only').forEach(item => {
+                    item.style.display = isAdmin ? 'flex' : 'none';
+                });
+                
+                // Hide manager-only elements for non-managers
+                document.querySelectorAll('.manager-only').forEach(item => {
+                    item.style.display = isManager ? 'flex' : 'none';
+                });
+                
+                // Setup sidebar item click events
+                document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+                    if (item.classList.contains('active')) return; // Skip the active item
+                    
+                    item.addEventListener('click', function() {
+                        const id = this.id || this.textContent.trim().toLowerCase().replace(/\s+/g, '-');
+                        if (this.hasAttribute('onclick')) return; // Skip if it already has an onclick attribute
+                        
+                        // Navigate to dashboard with section hash
+                        window.location.href = `dashboard.html#${id}`;
+                    });
+                });
+            }
+            
+            // Fetch pending shifts, employees, and departments
+            async function fetchData() {
+                loading.style.display = 'block';
+                shiftsTableContainer.style.display = 'none';
+                noShiftsMessage.style.display = 'none';
+                
+                try {
+                    const token = localStorage.getItem('token');
+                    
+                    if (!token) {
+                        throw new Error('You need to be logged in. Please log in through the main application first.');
+                    }
+                    
+                    console.log('Attempting to fetch pending shifts...');
+                    
+                    // Fetch pending shifts
+                    const response = await fetch(`${API_BASE_URL}/shift/pending`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(e => ({ error: `HTTP error: ${response.status}` }));
+                        throw new Error(errorData.error || `Failed to fetch pending shifts: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    allPendingShifts = await response.json();
+                    console.log('Pending shifts loaded:', allPendingShifts.length);
+                    
+                    // Fetch employees for filters
+                    const employeesResponse = await fetch(`${API_BASE_URL}/user/getUsers`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (employeesResponse.ok) {
+                        employees = await employeesResponse.json();
+                        populateEmployeeFilter();
+                    }
+                    
+                    // Extract unique departments from shifts
+                    const deptSet = new Set();
+                    allPendingShifts.forEach(shift => {
+                        if (shift.department) {
+                            deptSet.add(shift.department);
+                        }
+                    });
+                    departments = Array.from(deptSet);
+                    populateDepartmentFilter();
+                    
+                    // Display shifts
+                    renderPendingShifts();
+                    
+                } catch (error) {
+                    console.error('Error loading data:', error);
+                    resultDiv.className = 'error';
+                    resultDiv.textContent = `Error: ${error.message}`;
+                    resultDiv.style.display = 'block';
+                } finally {
+                    loading.style.display = 'none';
+                }
+            }
+            
+            // Populate department filter
+            function populateDepartmentFilter() {
+                departmentFilter.innerHTML = '<option value="all">All Departments</option>';
+                departments.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept;
+                    option.textContent = dept;
+                    departmentFilter.appendChild(option);
+                });
+            }
+            
+            // Populate employee filter
+            function populateEmployeeFilter() {
+                employeeFilter.innerHTML = '<option value="all">All Employees</option>';
+                employees.forEach(emp => {
+                    const option = document.createElement('option');
+                    option.value = emp.userId;
+                    option.textContent = emp.name || emp.email;
+                    employeeFilter.appendChild(option);
+                });
+            }
+            
+            // Render pending shifts table
+            function renderPendingShifts() {
+                pendingShiftsBody.innerHTML = '';
+                
+                const deptFilter = departmentFilter.value;
+                const empFilter = employeeFilter.value;
+                
+                const filteredShifts = allPendingShifts.filter(shift => {
+                    if (deptFilter !== 'all' && shift.department !== deptFilter) return false;
+                    if (empFilter !== 'all' && shift.employeeId != empFilter) return false;
+                    return true;
+                });
+                
+                // Update counts in summary cards
+                document.getElementById('pendingShiftsCount').textContent = allPendingShifts.length;
+                document.getElementById('employeesCount').textContent = employees.length;
+                document.getElementById('departmentsCount').textContent = departments.length;
+                
+                // Update shift count display
+                shiftCountSpan.textContent = filteredShifts.length;
+                
+                // Update confirmation dialog count
+                document.getElementById('confirmShiftCount').textContent = filteredShifts.length;
+                
+                if (filteredShifts.length === 0) {
+                    shiftsTableContainer.style.display = 'none';
+                    noShiftsMessage.style.display = 'block';
+                    return;
+                }
+                
+                filteredShifts.forEach(shift => {
+                    const tr = document.createElement('tr');
+                    
+                    // Parse dates
+                    const startDate = new Date(shift.startDate);
+                    const endDate = new Date(shift.endDate);
+                    
+                    // Format date and time
+                    const dateStr = startDate.toLocaleDateString();
+                    const startTimeStr = startDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    const endTimeStr = endDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    // Get department class for styling
+                    const deptClass = getDepartmentClass(shift.department);
+                    
+                    // Get employee initials for avatar
+                    const initials = getInitials(shift.employeeName || 'Unknown');
+                    
+                    tr.innerHTML = `
+                        <td>${shift.pendingShiftId}</td>
+                        <td>
+                            <div class="employee-name">
+                                <div class="employee-avatar">${initials}</div>
+                                <span>${shift.employeeName || 'Unknown'}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="department-badge ${deptClass}">${shift.department || 'Unassigned'}</span>
+                        </td>
+                        <td>
+                            <div class="date-display">
+                                <i class="fas fa-calendar-day date-icon"></i>
+                                <span>${dateStr}</span>
+                            </div>
+                        </td>
+                        <td><div class="time-display"><i class="fas fa-clock"></i>${startTimeStr}</div></td>
+                        <td><div class="time-display"><i class="fas fa-clock"></i>${endTimeStr}</div></td>
+                        <td>
+                            <span class="status-badge ${(shift.status || 'pending').toLowerCase()}">${shift.status || 'Pending'}</span>
+                        </td>
+                        <td>
+                            <button class="action-btn approve-single-btn" data-id="${shift.pendingShiftId}">
+                                <i class="fas fa-check"></i> Approve
+                            </button>
+                            <button class="action-btn edit-btn" data-id="${shift.pendingShiftId}">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                        </td>
+                    `;
+                    
+                    pendingShiftsBody.appendChild(tr);
+                });
+                
+                // Add event listeners to buttons
+                document.querySelectorAll('.approve-single-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const shiftId = this.getAttribute('data-id');
+                        approveSingleShift(shiftId);
+                    });
+                });
+                
+                document.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const shiftId = this.getAttribute('data-id');
+                        openEditModal(shiftId);
+                    });
+                });
+                
+                shiftsTableContainer.style.display = 'block';
+                noShiftsMessage.style.display = 'none';
+            }
+            
+            // Helper for getting department class
+            function getDepartmentClass(department) {
+                if (!department) return 'default';
+                
+                department = department.toLowerCase();
+                if (department.includes('doctor')) return 'doctor';
+                if (department.includes('nurse')) return 'nurse';
+                if (department.includes('recept')) return 'receptionist';
+                return 'default';
+            }
+            
+            // Helper for getting initials from name
+            function getInitials(name) {
+                if (!name || name === 'Unknown') return '?';
+                
+                return name
+                    .split(' ')
+                    .map(part => part.charAt(0))
+                    .join('')
+                    .toUpperCase()
+                    .substring(0, 2);
+            }
+            
+            // Approve a single shift
+            async function approveSingleShift(pendingShiftId) {
+                try {
+                    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                    const token = localStorage.getItem('token');
+                    
+                    if (!token) {
+                        throw new Error('You need to be logged in');
+                    }
+                    
+                    const response = await fetch(`${API_BASE_URL}/shift/approve-pending`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            pendingShiftId: pendingShiftId,
+                            managerId: userInfo.userId
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to approve shift');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    // Show success message
+                    showNotification('Shift approved successfully!', 'success');
+                    
+                    // Refresh the data
+                    fetchData();
+                    
+                } catch (error) {
+                    console.error('Error approving shift:', error);
+                    showNotification(`Error: ${error.message}`, 'error');
+                }
+            }
+            
+            // Open edit modal for a shift
+            function openEditModal(shiftId) {
+                const shift = allPendingShifts.find(s => s.pendingShiftId == shiftId);
+                if (!shift) return;
+                
+                const startDate = new Date(shift.startDate);
+                const endDate = new Date(shift.endDate);
+                
+                document.getElementById('edit-shift-id').value = shift.pendingShiftId;
+                document.getElementById('edit-shift-title').value = shift.title || `${shift.department} Shift`;
+                document.getElementById('edit-shift-department').value = shift.department || '';
+                document.getElementById('edit-shift-date').value = startDate.toISOString().split('T')[0];
+                document.getElementById('edit-shift-start-time').value = startDate.toTimeString().slice(0, 5);
+                document.getElementById('edit-shift-end-time').value = endDate.toTimeString().slice(0, 5);
+                
+                // Populate employee dropdown
+                const employeeSelect = document.getElementById('edit-shift-employee');
+                employeeSelect.innerHTML = '';
+                
+                employees.forEach(emp => {
+                    const option = document.createElement('option');
+                    option.value = emp.userId;
+                    option.textContent = emp.name || emp.email;
+                    if (emp.userId == shift.employeeId) {
+                        option.selected = true;
+                    }
+                    employeeSelect.appendChild(option);
+                });
+                
+                editShiftModal.style.display = 'block';
+            }
+            
+            // Close edit modal
+            function closeEditModal() {
+                editShiftModal.style.display = 'none';
+            }
+            
+            // Handle edit form submission
+            document.getElementById('editShiftForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const shiftId = document.getElementById('edit-shift-id').value;
+                const title = document.getElementById('edit-shift-title').value;
+                const employeeId = document.getElementById('edit-shift-employee').value;
+                const date = document.getElementById('edit-shift-date').value;
+                const startTime = document.getElementById('edit-shift-start-time').value;
+                const endTime = document.getElementById('edit-shift-end-time').value;
+                
+                // Combine date and time
+                const startDate = `${date}T${startTime}:00`;
+                const endDate = `${date}T${endTime}:00`;
+                
+                try {
+                    const token = localStorage.getItem('token');
+                    
+                    if (!token) {
+                        throw new Error('You need to be logged in');
+                    }
+                    
+                    const response = await fetch(`${API_BASE_URL}/shift/update-pending/${shiftId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            title,
+                            employeeId,
+                            startDate,
+                            endDate
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to update shift');
+                    }
+                    
+                    // Show success message
+                    resultDiv.className = 'success';
+                    resultDiv.textContent = 'Shift updated successfully!';
+                    resultDiv.style.display = 'block';
+                    
+                    // Close modal and refresh data
+                    closeEditModal();
+                    fetchData();
+                    
+                } catch (error) {
+                    console.error('Error updating shift:', error);
+                    resultDiv.className = 'error';
+                    resultDiv.textContent = `Error: ${error.message}`;
+                    resultDiv.style.display = 'block';
+                }
+            });
+            
+            // Handle approve all button click
+            approveAllButton.addEventListener('click', function() {
+                if (allPendingShifts.length === 0) {
+                    showNotification('No pending shifts to approve', 'error');
+                    return;
+                }
+                
+                // Show confirm dialog instead of immediately approving
+                document.getElementById('confirmDialog').style.display = 'block';
+            });
+            
+            // Handle filter changes
+            departmentFilter.addEventListener('change', renderPendingShifts);
+            employeeFilter.addEventListener('change', renderPendingShifts);
+            
+            // When we click outside the modal, close it
+            window.onclick = function(event) {
+                if (event.target == editShiftModal) {
+                    closeEditModal();
+                }
+                
+                if (!event.target.matches('.fa-cog')) {
+                    var dropdowns = document.getElementsByClassName("dropdown-content");
+                    for (var i = 0; i < dropdowns.length; i++) {
+                        var openDropdown = dropdowns[i];
+                        if (openDropdown.classList.contains('show')) {
+                            openDropdown.classList.remove('show');
+                        }
+                    }
+                }
+            }
+            
+            // Add other needed functions
+            function toggleDropdown() {
+                document.getElementById("settingsDropdown").classList.toggle("show");
+            }
+            
+            function logout() {
+                localStorage.removeItem('token');
+                localStorage.removeItem('userInfo');
+                window.location.href = 'index.html';
+            }
+            
+            window.closeEditModal = closeEditModal;
+            window.toggleDropdown = toggleDropdown;
+            window.bulkApproveShifts = bulkApproveShifts;
+            window.closeConfirmDialog = closeConfirmDialog;
+            window.fetchData = fetchData;
+            
+            // Add event listeners for the confirmation dialog buttons
+            document.getElementById('confirmApproveBtn').addEventListener('click', bulkApproveShifts);
+            document.getElementById('cancelConfirmBtn').addEventListener('click', closeConfirmDialog);
+            
+            // Add event listener for sidebar toggle
+            document.getElementById('sidebarToggle').addEventListener('click', function() {
+                const sidebar = document.getElementById('sidebar');
+                sidebar.classList.toggle('collapsed');
+                
+                // Change the icon based on sidebar state
+                const icon = this.querySelector('i');
+                if (sidebar.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-chevron-left');
+                    icon.classList.add('fa-chevron-right');
+                } else {
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-left');
+                }
+                
+                // Save preference to localStorage
+                localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+            });
+            
+            // Check if sidebar was collapsed previously
+            if (localStorage.getItem('sidebarCollapsed') === 'true') {
+                const sidebar = document.getElementById('sidebar');
+                const toggleIcon = document.querySelector('#sidebarToggle i');
+                
+                sidebar.classList.add('collapsed');
+                toggleIcon.classList.remove('fa-chevron-left');
+                toggleIcon.classList.add('fa-chevron-right');
+            }
+            
+            // Initial data load
+            fetchData();
+            initSidebar();
+        });
+    </script>
+</body>
+</html> 

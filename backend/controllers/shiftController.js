@@ -405,7 +405,7 @@ const getPendingShifts = async (req, res) => {
 
         const [pendingShifts] = await connection.execute(query);
         console.log('Raw pending shifts result:', pendingShifts);
-        
+
         // Format dates for better compatibility
         const formattedShifts = pendingShifts.map(shift => ({
             ...shift,

@@ -2268,4 +2268,58 @@ body.admin-visible .admin-only {
 /* Make the event slightly larger when it contains an approve button */
 .fc-event:has(.approve-pending-shift-btn) {
     min-height: 45px;
+}
+
+/* Show More Button Styles */
+.show-more-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.show-more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(to right, #4A90E2, #5CA9FB);
+    color: white;
+    border: none;
+    border-radius: 30px;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+}
+
+.show-more-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(74, 144, 226, 0.4);
+    background: linear-gradient(to right, #3A80D2, #4A99EB);
+}
+
+.show-more-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+}
+
+.show-more-btn i {
+    transition: transform 0.3s ease;
+}
+
+.show-more-btn.expanded i {
+    transform: rotate(180deg);
+}
+
+.shifts-container {
+    max-height: 350px;
+    overflow: hidden;
+    transition: max-height 0.5s ease;
+}
+
+.shifts-container.expanded {
+    max-height: 1200px;
 } 

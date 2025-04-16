@@ -23,6 +23,66 @@
     <script src="js/payroll.js" defer></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/notifications.js"></script>
+    <style>
+        /* Sidebar collapse styles */
+        .sidebar {
+            height: calc(100vh - 60px);
+            width: 250px;
+            background-color: #fff;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            transition: width 0.3s ease;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* Styles for collapsed sidebar */
+        .sidebar.collapsed {
+            width: 60px;
+        }
+        
+        .sidebar.collapsed .nav-item {
+            text-align: center;
+            padding: 15px 0;
+        }
+        
+        .sidebar.collapsed .nav-item i {
+            margin-right: 0;
+        }
+        
+        .sidebar.collapsed .nav-item span {
+            display: none;
+        }
+        
+        /* Toggle button styles */
+        .sidebar-toggle {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: #f8f9fa;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 5;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-toggle:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        /* Adjust main content when sidebar is collapsed */
+        .sidebar.collapsed + .main-content {
+            margin-left: 60px;
+        }
+    </style>
 </head>
 <body>      
     <!-- Header -->
@@ -51,43 +111,52 @@
     <!-- Main Container -->
     <div class="container">
         <!-- Sidebar -->
-        <div class="sidebar">
+        <div class="sidebar" id="sidebar">
             <div class="nav-item active">
                 <i class="fas fa-th-large"></i>
-                Dashboard
+                <span>Dashboard</span>
             </div>
             <div class="nav-item admin-only" id="employee-management">
                 <i class="fas fa-users-cog"></i>
-                Employee Management
+                <span>Employee Management</span>
             </div>
             <div class="nav-item">
                 <i class="fas fa-calendar-alt"></i>
-                Schedule
+                <span>Schedule</span>
             </div>
             <div class="nav-item">
                 <i class="fas fa-calendar-check"></i>
-                Availability
+                <span>Availability</span>
             </div>
             <div class="nav-item manager-only" id="generate-shifts-nav">
                 <i class="fas fa-magic"></i>
-                Generate Shifts
+                <span>Generate Shifts</span>
+            </div>
+            <div class="nav-item manager-only" id="approve-shifts-nav" onclick="window.location.href='approve-pending-shifts.html'">
+                <i class="fas fa-check"></i>
+                <span>Approve All Shifts</span>
             </div>
             <div class="nav-item">
                 <i class="fas fa-clock"></i>
-                Time Off
+                <span>Time Off</span>
             </div>
             <div class="nav-item">
                 <i class="fas fa-chart-bar"></i>
-                Reports
+                <span>Reports</span>
             </div>
             <div class="nav-item">
                 <i class="fas fa-check-circle"></i>
-                Attendance Rate
+                <span>Attendance Rate</span>
             </div>
             <div class="nav-item">
                 <i class="fas fa-money-bill-wave"></i>
-                Payroll
+                <span>Payroll</span>
             </div>
+            
+            <!-- Add sidebar toggle button -->
+            <button class="sidebar-toggle" id="sidebarToggle">
+                <i class="fas fa-chevron-left"></i>
+            </button>
         </div>
 
         <!-- Main Content -->
@@ -101,6 +170,14 @@
                 <h2>Upcoming Shifts</h2>
                 <div class="shifts-container">
                     <!-- Shifts will be added dynamically here -->
+                </div>
+                
+                <!-- Show More Button -->
+                <div class="show-more-container">
+                    <button id="showMoreShifts" class="show-more-btn">
+                        <span class="show-more-text">Show More</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
                 </div>
             </div>
             
@@ -1401,5 +1478,57 @@
             </form>
         </div>
     </div>
+
+    <script>
+        // Add this at the end of the file, just before the closing </body> tag
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add event listener for sidebar toggle
+            document.getElementById('sidebarToggle').addEventListener('click', function() {
+                const sidebar = document.getElementById('sidebar');
+                sidebar.classList.toggle('collapsed');
+                
+                // Change the icon based on sidebar state
+                const icon = this.querySelector('i');
+                if (sidebar.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-chevron-left');
+                    icon.classList.add('fa-chevron-right');
+                } else {
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-left');
+                }
+                
+                // Save preference to localStorage
+                localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+            });
+            
+            // Check if sidebar was collapsed previously
+            if (localStorage.getItem('sidebarCollapsed') === 'true') {
+                const sidebar = document.getElementById('sidebar');
+                const toggleIcon = document.querySelector('#sidebarToggle i');
+                
+                sidebar.classList.add('collapsed');
+                toggleIcon.classList.remove('fa-chevron-left');
+                toggleIcon.classList.add('fa-chevron-right');
+            }
+            
+            // Add event listener for show more button
+            const showMoreBtn = document.getElementById('showMoreShifts');
+            if (showMoreBtn) {
+                showMoreBtn.addEventListener('click', function() {
+                    const shiftsContainer = document.querySelector('.shifts-container');
+                    const buttonText = this.querySelector('.show-more-text');
+                    
+                    shiftsContainer.classList.toggle('expanded');
+                    this.classList.toggle('expanded');
+                    
+                    if (shiftsContainer.classList.contains('expanded')) {
+                        buttonText.textContent = 'Show Less';
+                    } else {
+                        buttonText.textContent = 'Show More';
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html> 
