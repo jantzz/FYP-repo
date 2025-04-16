@@ -54,6 +54,7 @@ CREATE TABLE pendingShift
     status VARCHAR(50) NOT NULL, 
     CONSTRAINT pendingShiftFK1 FOREIGN KEY (employeeId)
         REFERENCES user(userId)
-        ON UPDATE CASCADE ON DELETE CASCADE
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    INDEX idx_status (status)
 ) AUTO_INCREMENT = 1;
 

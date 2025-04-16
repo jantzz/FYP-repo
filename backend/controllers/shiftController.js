@@ -302,7 +302,13 @@ const generateShift = async (req, res) => {
             for (const [employeeId, { preferredDays, department }] of sortedPreferred) {
                 if (preferredDays.includes(dayCode) && depCount[department] < 2 && count[employeeId] < 6) {
                     console.log(`Adding preferred shift for employee ${employeeId} on ${formattedDate}`);
-                    shifts.push({ employeeId, startDate: formattedDate, endDate: formattedDate, status: "Approved" });
+                    shifts.push({ 
+                        employeeId, 
+                        startDate: formattedDate, 
+                        endDate: formattedDate, 
+                        status: "Pending",
+                        title: `Generated shift for ${employeeId}`
+                    });
                     depCount[department]++;
                     count[employeeId]++;
                 }
@@ -316,7 +322,13 @@ const generateShift = async (req, res) => {
                 const { userId, department } = employee;
                 if (depCount[department] < 2 && count[userId] < 6) {
                     console.log(`Adding regular shift for employee ${userId} on ${formattedDate}`);
-                    shifts.push({ employeeId: userId, startDate: formattedDate, endDate: formattedDate, status: "Approved" });
+                    shifts.push({ 
+                        employeeId: userId, 
+                        startDate: formattedDate, 
+                        endDate: formattedDate, 
+                        status: "Pending",
+                        title: `Generated shift for ${userId}`
+                    });
                     depCount[department]++;
                     count[userId]++;
                 }
@@ -336,20 +348,24 @@ const generateShift = async (req, res) => {
         await connection.beginTransaction();
         
         try {
-            const shiftQuery = "INSERT INTO pendingShift (employeeId, startDate, endDate, status) VALUES (?, ?, ?, ?)";
+            const shiftQuery = "INSERT INTO pendingShift (employeeId, startDate, endDate, status, title) VALUES (?, ?, ?, ?, ?)";
             
             for (const shift of shifts) {
-                const { employeeId, startDate, endDate, status } = shift;
-                await connection.execute(shiftQuery, [employeeId, startDate, endDate, status]);
+                const { employeeId, startDate, endDate, status, title } = shift;
+                console.log('Inserting shift:', { employeeId, startDate, endDate, status, title });
+                const [result] = await connection.execute(shiftQuery, [employeeId, startDate, endDate, status, title]);
+                console.log('Insert result:', result);
             }
             
             await connection.commit();
+            console.log('Transaction committed');
             
             res.status(200).json({ 
                 message: "Pending Shifts generated successfully.",
                 count: shifts.length
             });
         } catch (error) {
+            console.error('Error in transaction:', error);
             await connection.rollback();
             throw error;
         }
@@ -374,7 +390,12 @@ const getPendingShifts = async (req, res) => {
     try {
         connection = await db.getConnection();
 
-        // Query to get all pending shifts with employee and department information
+        // First get a count of all pending shifts
+        const countQuery = `SELECT COUNT(*) as count FROM pendingShift`;
+        const [countResult] = await connection.execute(countQuery);
+        console.log('Total pending shifts:', countResult[0].count);
+
+        // Get all pending shifts regardless of status
         const query = `
             SELECT ps.*, u.name as employeeName, u.department 
             FROM pendingShift ps
@@ -383,8 +404,8 @@ const getPendingShifts = async (req, res) => {
         `;
 
         const [pendingShifts] = await connection.execute(query);
-        connection.release();
-
+        console.log('Raw pending shifts result:', pendingShifts);
+        
         // Format dates for better compatibility
         const formattedShifts = pendingShifts.map(shift => ({
             ...shift,
@@ -447,4 +468,133 @@ const logAttendance = async (req, res) => {
     }
 }
 
-module.exports = { addShift, getShifts, getShiftsinRange, swapRequest, updateSwap, getAllShifts, generateShift, getPendingShifts, approvePendingShifts, logAttendance };
+const approvePendingShift = async (req, res) => {
+    const { pendingShiftId, managerId } = req.body;
+    
+    if (!pendingShiftId || !managerId) {
+        return res.status(400).json({ error: "Pending shift ID and manager ID are required." });
+    }
+    
+    let connection;
+    try {
+        connection = await db.getConnection();
+        
+        // Check if the user is a manager
+        const [managers] = await connection.execute(
+            "SELECT role FROM user WHERE userId = ?",
+            [managerId]
+        );
+        
+        if (managers.length === 0 || !['Manager', 'Admin'].includes(managers[0].role)) {
+            connection.release();
+            return res.status(403).json({ error: "Only managers and admins can approve shifts." });
+        }
+        
+        // Begin transaction
+        await connection.beginTransaction();
+        
+        try {
+            // Get the pending shift
+            const [pendingShifts] = await connection.execute(
+                "SELECT * FROM pendingShift WHERE pendingShiftId = ?",
+                [pendingShiftId]
+            );
+            
+            if (pendingShifts.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ error: "Pending shift not found." });
+            }
+            
+            const shift = pendingShifts[0];
+            const { employeeId, startDate, endDate, title } = shift;
+            
+            // Insert into shift table
+            const query = `
+                INSERT INTO shift (employeeId, startDate, endDate, title, status) 
+                VALUES (?, ?, ?, ?, ?)
+            `;
+            
+            await connection.execute(query, [
+                employeeId, 
+                startDate,
+                endDate,
+                title || `Approved shift for ${employeeId}`,
+                "Scheduled"
+            ]);
+            
+            // Delete from pendingShift table
+            await connection.execute(
+                "DELETE FROM pendingShift WHERE pendingShiftId = ?",
+                [pendingShiftId]
+            );
+            
+            // Commit transaction
+            await connection.commit();
+            
+            // Send notification to employee if socket.io is available
+            const io = req.app.get('io');
+            if (io && employeeId) {
+                io.to(`user_${employeeId}`).emit('shift_approved', {
+                    message: `Your pending shift has been approved.`,
+                    type: 'shift',
+                    shiftDetails: {
+                        start: startDate,
+                        end: endDate,
+                        title: title || `Approved shift for ${employeeId}`,
+                    }       
+                });
+            }
+            
+            return res.status(200).json({ 
+                message: "Pending shift approved successfully.",
+                shift: {
+                    employeeId,
+                    startDate,
+                    endDate,
+                    title
+                }
+            });
+        } catch (err) {
+            // Rollback in case of error
+            await connection.rollback();
+            throw err;
+        }
+    } catch (err) {
+        console.error('Error approving pending shift:', err);
+        res.status(500).json({ error: "Internal Server Error." });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
+const addPendingShift = async (req, res) => {
+    const { employeeId, startDate, endDate, title } = req.body;
+    //to validate required fields are provided
+    if (!employeeId || !startDate || !endDate) {
+        return res.status(400).json({ error: "Employee ID, start date, and end date are required." });
+    }
+
+    let connection;
+    try {
+        connection = await db.getConnection();
+        //query to insert a new pending shift into DB 
+        const q = "INSERT INTO pendingShift (employeeId, startDate, endDate, status, title) VALUES (?, ?, ?, ?, ?)";
+        const data = [employeeId, startDate, endDate, "Pending", title || `Pending shift for ${employeeId}`];
+
+        const [result] = await connection.execute(q, data);
+        console.log('Insert result:', result);
+
+        return res.status(201).json({ 
+            message: "Pending shift added successfully.",
+            pendingShiftId: result.insertId
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error." });
+    } finally { //close the connection after executing sql scripts
+        if (connection) connection.release(); //if connection is not released no response will be given
+    }
+};
+
+module.exports = { addShift, getShifts, getShiftsinRange, swapRequest, updateSwap, getAllShifts, generateShift, getPendingShifts, approvePendingShifts, approvePendingShift, logAttendance, addPendingShift };

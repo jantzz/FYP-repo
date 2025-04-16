@@ -1474,7 +1474,48 @@ function initEmployeeCalendar() {
                 // Add "Pending" badge to title
                 const titleEl = info.el.querySelector('.fc-event-title');
                 if (titleEl) {
-                    titleEl.innerHTML = `${titleEl.innerHTML} <span class="pending-badge">Generated</span>`;
+                    titleEl.innerHTML = `${titleEl.innerHTML} <span class="pending-badge">Pending</span>`;
+                }
+                
+                // Check if user is manager or admin to add approve button
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                const isManager = ['Manager', 'Admin'].includes(userInfo.role);
+                
+                if (isManager) {
+                    // Add an approve button to the event
+                    const approveBtn = document.createElement('button');
+                    approveBtn.className = 'approve-pending-shift-btn';
+                    approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+                    approveBtn.style.cssText = `
+                        background-color: #4CAF50;
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        padding: 2px 5px;
+                        margin-top: 3px;
+                        font-size: 10px;
+                        cursor: pointer;
+                        display: block;
+                    `;
+                    
+                    // Extract the pendingShiftId from the event ID
+                    const pendingShiftId = info.event.id.replace('pending-', '');
+                    
+                    // Add click handler for the approve button
+                    approveBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation(); // Prevent the event click handler from firing
+                        
+                        try {
+                            await handlePendingShiftApproval(pendingShiftId);
+                            // Refresh the calendar after approval
+                            employeeCalendar.refetchEvents();
+                        } catch (error) {
+                            console.error('Failed to approve shift:', error);
+                        }
+                    });
+                    
+                    // Add the button to the event
+                    info.el.appendChild(approveBtn);
                 }
             }
             
@@ -1499,6 +1540,36 @@ function initEmployeeCalendar() {
                 if (info.event.extendedProps.employeeName) {
                     info.el.title = `Employee: ${info.event.extendedProps.employeeName}`;
                 }
+            }
+        },
+        eventClick: function(info) {
+            // Check if this is a pending shift
+            if (info.event.extendedProps.type === 'pending') {
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                const isManager = ['Manager', 'Admin'].includes(userInfo.role);
+                
+                if (isManager) {
+                    // For managers, show a confirmation dialog to approve the shift
+                    const pendingShiftId = info.event.id.replace('pending-', '');
+                    const employeeName = info.event.extendedProps.employeeName || 'Unknown employee';
+                    
+                    if (confirm(`Do you want to approve this pending shift for ${employeeName}?`)) {
+                        handlePendingShiftApproval(pendingShiftId)
+                            .then(() => {
+                                // Refresh the calendar after approval
+                                employeeCalendar.refetchEvents();
+                            })
+                            .catch(error => {
+                                console.error('Failed to approve shift:', error);
+                            });
+                    }
+                } else {
+                    // For non-managers, just show info that this is a pending shift
+                    alert('This shift is pending manager approval.');
+                }
+            } else {
+                // For regular shifts, use the normal edit shift modal
+                openEditShiftModal(info.event);
             }
         },
         eventContent: function(eventInfo) {
@@ -1653,7 +1724,7 @@ function renderAvailabilityData(availabilityItems) {
             <td>${timeDisplay}</td>
             <td><span class="availability-status ${statusClass}">${shiftType}</span></td>
             <td>${item.note || '-'}</td>
-            <td><span class="availability-status ${item.status === 'Approved' ? 'status-approved' : 'status-declined'}">${item.status || 'Pending'}</span></td>
+            <td><span class="availability-status status-approved">Approved</span></td>
             <td class="request-actions">
                 <button class="action-btn view-btn" onclick="editAvailability(${item.availabilityId})">
                     <i class="fas fa-edit"></i>
@@ -1708,7 +1779,7 @@ function createDefaultAvailabilityDisplay() {
             date: todayStr,
             type: 'Night Shift',
             note: 'Sample night shift',
-            status: 'Declined'
+            status: 'Approved'
         }
     ];
     
@@ -1734,7 +1805,7 @@ function createDefaultAvailabilityDisplay() {
             <td>${timeDisplay}</td>
             <td><span class="availability-status ${statusClass}">${item.type}</span></td>
             <td>${item.note || '-'}</td>
-            <td><span class="availability-status ${item.status === 'Approved' ? 'status-approved' : 'status-declined'}">${item.status}</span></td>
+            <td><span class="availability-status status-approved">Approved</span></td>
             <td class="request-actions">
                 <button class="action-btn view-btn" onclick="editAvailability(${item.id})">
                     <i class="fas fa-edit"></i>
@@ -2471,6 +2542,49 @@ loadRosterData = function() {
 async function handleAvailabilityApproval(id, action) {
     // Deprecated - Availability functionality moved to availability.js
     console.warn('Availability functionality has been moved to availability.js');
+}
+
+// Function to handle pending shift approval
+async function handlePendingShiftApproval(pendingShiftId) {
+    try {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        
+        if (!['Manager', 'Admin'].includes(userInfo.role)) {
+            showNotification('Only managers can approve shifts', 'error');
+            return;
+        }
+        
+        const response = await fetch(`${window.API_BASE_URL}/shift/approve-pending`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                pendingShiftId: pendingShiftId,
+                managerId: userInfo.userId
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to approve pending shift');
+        }
+        
+        const result = await response.json();
+        showNotification('Shift approved successfully', 'success');
+        
+        // Refresh calendar to show the new approved shift
+        if (window.employeeCalendar) {
+            window.employeeCalendar.refetchEvents();
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('Error approving pending shift:', error);
+        showNotification(`Error: ${error.message}`, 'error');
+        throw error;
+    }
 }
 
 // Function to handle replacement request approval
@@ -3960,7 +4074,7 @@ async function loadAvailabilityPreferences() {
 
             row.innerHTML = `
                 <td>${preferredDates}</td>
-                <td><span class="status-badge ${(pref.status || 'pending').toLowerCase()}">${pref.status || 'Pending'}</span></td>
+                <td><span class="status-badge approved">Approved</span></td>
                 <td>
                     <button class="action-btn delete-btn" onclick="deleteAvailabilityPreference(${pref.availabilityId})">
                         <i class="fas fa-trash"></i>
@@ -4037,8 +4151,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: JSON.stringify({
                         employeeId: userInfo.userId,
                         preferredDates: selectedDays,
-                        hours: 8, // Default to 8 hours per day
-                        status: 'Pending'
+                        hours: 8 // Default to 8 hours per day
                     })
                 });
 

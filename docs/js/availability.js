@@ -566,8 +566,7 @@ async function submitAvailability(formData) {
         const requestData = {
             employeeId: userInfo.userId,
             preferredDates: formData.preferredDays.join(','), // convert array to comma-separated string
-            hours: formData.hours,
-            note: formData.note || ''
+            hours: formData.hours
         };
         
         console.log('Submitting availability data:', requestData);

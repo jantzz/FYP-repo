@@ -60,10 +60,10 @@ const submitAvailability = async (req, res) => {
             });
         }
 
-        // Insert availability record - removing note since it doesn't exist in the table
+        // Insert availability record - automatically set to Approved (no manager approval needed)
         const query = `
             INSERT INTO availability (employeeId, preferredDates, hours, status) 
-            VALUES (?, ?, ?, 'Pending')
+            VALUES (?, ?, ?, 'Approved')
         `;
 
         await connection.execute(query, [
@@ -72,11 +72,58 @@ const submitAvailability = async (req, res) => {
             requestedHours
         ]);
 
+        // Create a pending shift that requires manager approval
+        const daysString = preferredDates || 'No specific days';
+        
+        // Get current date for the start date and add hours to end date
+        const start = new Date(now);
+        const end = new Date(now);
+        end.setHours(end.getHours() + Math.floor(requestedHours));
+        
+        // Format dates for MySQL
+        const formattedStartDate = start.toISOString().slice(0, 19).replace('T', ' ');
+        const formattedEndDate = end.toISOString().slice(0, 19).replace('T', ' ');
+
+        // Insert into pendingShift table
+        const shiftQuery = `
+            INSERT INTO pendingShift (employeeId, startDate, endDate, title, status)
+            VALUES (?, ?, ?, ?, ?)
+        `;
+        
+        await connection.execute(shiftQuery, [
+            employeeId,
+            formattedStartDate,
+            formattedEndDate,
+            `Availability for ${daysString}`,
+            "Pending"
+        ]);
+        
+        console.log('Created pending shift with data:', {
+            startDate: formattedStartDate,
+            endDate: formattedEndDate,
+            employeeId,
+            daysString
+        });
+
         // Calculate new remaining hours
         const newRemainingHours = remainingHours - requestedHours;
 
+        // Send notification about pending shift if socket.io is available
+        const io = req.app.get('io');
+        if (io && employeeId) {
+            io.to(`user_${employeeId}`).emit('pending_shift_created', {
+                message: `Your availability has been submitted and a shift is pending manager approval.`,
+                type: 'shift',
+                shiftDetails: {
+                    start: formattedStartDate,
+                    end: formattedEndDate,
+                    title: `Availability for ${daysString}`,
+                }       
+            });
+        }
+
         return res.status(201).json({ 
-            message: "Availability submitted successfully.",
+            message: "Availability submitted successfully and pending shift created.",
             requestedHours: parseFloat(requestedHours.toFixed(2)),
             remainingHours: parseFloat(newRemainingHours.toFixed(2))
         });
@@ -249,7 +296,7 @@ const getEmployeeAvailability = async (req, res) => {
     try {
         connection = await db.getConnection();
         
-        // query to get employee's availability records
+        // query to get employee's availability records (all records, no status filtering)
         const query = `
             SELECT * FROM availability 
             WHERE employeeId = ? 
@@ -279,45 +326,26 @@ const getEmployeeAvailability = async (req, res) => {
         const maxHoursPerWeek = 40; // Maximum hours per week
         let usedHours = 0;
         
-        // loop through each availability record to calculate hours used
-        for (const record of availabilityRecords) {
-            try {
-                const recordDate = new Date(record.submittedAt);
-                
-                // Only count hours for current week records
-                // This is simplified since we don't have specific dates, just using submitted date
-                if (recordDate >= currentWeekStart && recordDate <= currentWeekEnd) {
-                    const hours = parseFloat(record.hours || 0);
-                    
-                    // Only count approved or pending records
-                    if (record.status !== 'Declined' && !isNaN(hours)) {
-                        console.log(`Adding ${hours.toFixed(2)} hours for record:`, {
-                            id: record.availabilityId,
-                            status: record.status,
-                            date: recordDate.toISOString(),
-                            hours: hours
-                        });
-                        usedHours += hours;
-                    }
-                }
-            } catch (err) {
-                console.error('Error processing availability record:', err, record);
-                // Continue with next record
+        // Only count approved or pending records
+        availabilityRecords.forEach(record => {
+            // If the record is from the current week and the status is not 'Declined'
+            if (
+                new Date(record.submittedAt) >= currentWeekStart && 
+                new Date(record.submittedAt) <= currentWeekEnd && 
+                record.status !== 'Declined'
+            ) {
+                usedHours += parseFloat(record.hours || 0);
             }
-        }
+        });
         
-        console.log(`Total used hours for current week: ${usedHours.toFixed(2)}`);
-        
-        // calculate remaining hours (cap at 0 if negative)
+        // Calculate remaining hours
         const remainingHours = Math.max(0, maxHoursPerWeek - usedHours);
         
-        console.log(`Remaining hours for current week: ${remainingHours.toFixed(2)}`);
-        
-        // Get the week dates for the frontend
+        // Week info for display
         const weekInfo = {
             weekStart: currentWeekStart.toISOString().split('T')[0],
             weekEnd: currentWeekEnd.toISOString().split('T')[0],
-            currentDate: now.toISOString().split('T')[0]
+            currentDate: new Date().toISOString().split('T')[0]
         };
         
         // Return the data with calculated remaining hours and week info
