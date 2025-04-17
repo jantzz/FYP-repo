@@ -289,78 +289,75 @@ const updateAvailabilityStatus = async (req, res) => {
 
 // get availability for a specific employee
 const getEmployeeAvailability = async (req, res) => {
-    console.log('Getting availability for employee:', req.params.id);
-    const employeeId = req.params.id;
-    
+    const { employeeId } = req.params;
+    console.log('Getting availability for employee:', employeeId);
+
+    if (!employeeId) {
+        return res.status(400).json({ error: "Employee ID is required." });
+    }
+
     let connection;
     try {
         connection = await db.getConnection();
-        
-        // query to get employee's availability records (all records, no status filtering)
-        const query = `
-            SELECT * FROM availability 
-            WHERE employeeId = ? 
-            ORDER BY submittedAt DESC
-        `;
-        
-        const [availabilityRecords] = await connection.execute(query, [employeeId]);
-        
-        console.log(`Found ${availabilityRecords.length} availability records for employee ${employeeId}`);
-        
-        // Get the current week's start and end dates
+
+        // Get current week's dates
         const now = new Date();
-        const currentWeekStart = new Date(now);
-        currentWeekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
-        currentWeekStart.setHours(0, 0, 0, 0);
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+        weekStart.setHours(0, 0, 0, 0);
         
-        const currentWeekEnd = new Date(currentWeekStart);
-        currentWeekEnd.setDate(currentWeekStart.getDate() + 6); // End of week (Saturday)
-        currentWeekEnd.setHours(23, 59, 59, 999);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
+        weekEnd.setHours(23, 59, 59, 999);
 
-        console.log('Calculating hours for week:', {
-            weekStart: currentWeekStart.toISOString(),
-            weekEnd: currentWeekEnd.toISOString()
-        });
+        // Get availability records for the current week
+        const [availability] = await connection.execute(
+            `SELECT 
+                availabilityId,
+                preferredDates,
+                hours,
+                status,
+                submittedAt,
+                approvedBy
+            FROM availability 
+            WHERE employeeId = ? 
+            AND submittedAt BETWEEN ? AND ?
+            ORDER BY submittedAt DESC`,
+            [
+                employeeId, 
+                weekStart.toISOString().split('T')[0], 
+                weekEnd.toISOString().split('T')[0]
+            ]
+        );
 
-        // calculate remaining hours
-        const maxHoursPerWeek = 40; // Maximum hours per week
-        let usedHours = 0;
-        
-        // Only count approved or pending records
-        availabilityRecords.forEach(record => {
-            // If the record is from the current week and the status is not 'Declined'
-            if (
-                new Date(record.submittedAt) >= currentWeekStart && 
-                new Date(record.submittedAt) <= currentWeekEnd && 
-                record.status !== 'Declined'
-            ) {
-                usedHours += parseFloat(record.hours || 0);
-            }
-        });
-        
-        // Calculate remaining hours
+        // Get current used hours for this week
+        const [currentHours] = await connection.execute(
+            `SELECT 
+                COALESCE(SUM(hours), 0) as usedHours
+            FROM availability 
+            WHERE employeeId = ? 
+            AND status != 'Declined'
+            AND submittedAt BETWEEN ? AND ?`,
+            [
+                employeeId, 
+                weekStart.toISOString().split('T')[0], 
+                weekEnd.toISOString().split('T')[0]
+            ]
+        );
+
+        const usedHours = parseFloat(currentHours[0].usedHours);
+        const maxHoursPerWeek = 40;
         const remainingHours = Math.max(0, maxHoursPerWeek - usedHours);
-        
-        // Week info for display
-        const weekInfo = {
-            weekStart: currentWeekStart.toISOString().split('T')[0],
-            weekEnd: currentWeekEnd.toISOString().split('T')[0],
-            currentDate: new Date().toISOString().split('T')[0]
-        };
-        
-        // Return the data with calculated remaining hours and week info
+
+        // Return empty array if no availability records found
         return res.status(200).json({
+            availability: availability || [],
             remainingHours: parseFloat(remainingHours.toFixed(2)),
-            weekInfo: weekInfo,
             usedHours: parseFloat(usedHours.toFixed(2)),
-            availability: availabilityRecords.map(record => ({
-                ...record,
-                submittedAt: record.submittedAt instanceof Date ? record.submittedAt.toISOString() : record.submittedAt,
-                isCurrentWeek: new Date(record.submittedAt) >= currentWeekStart && new Date(record.submittedAt) <= currentWeekEnd
-            }))
+            maxHoursPerWeek
         });
     } catch (err) {
-        console.error('Error fetching employee availability:', err);
+        console.error('Error getting employee availability:', err);
         res.status(500).json({ error: "Internal Server Error." });
     } finally {
         if (connection) connection.release();
