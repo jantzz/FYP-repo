@@ -1302,26 +1302,6 @@ body.manager-visible .manager-only {
     display: block;
 }
 
-/* Only show the Pending Requests tab content when it's active */
-#pending-requests-tab {
-    display: none !important;
-}
-
-#pending-requests-tab.active {
-    display: block !important;
-}
-
-/* Hide the pending requests section in other tabs */
-.tab:not([data-tab="pending-requests"]).active ~ #pending-requests-tab {
-    display: none !important;
-}
-
-/* Hide Pending Availability Requests section when not in the pending tab */
-.schedule-section:has(.tab:not([data-tab="pending-requests"]).active) .section-header + div + div h2:contains("Pending Availability Requests"),
-.schedule-section:has(.tab:not([data-tab="pending-requests"]).active) div[class*="pending"] {
-    display: none !important;
-}
-
 /* Add custom styling for shift creation confirmation */
 .shift-created-message {
     font-size: 0.8em;

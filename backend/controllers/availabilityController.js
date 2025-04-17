@@ -367,68 +367,8 @@ const getEmployeeAvailability = async (req, res) => {
     }
 };
 
-//function to retrieve all pending availability requests
-const getPendingRequests = async (req, res) => {
-    let connection;
-    try {
-        console.log('Starting getPendingRequests...');
-        connection = await db.getConnection();
-
-        // Get filter parameters
-        const { days, department } = req.query;
-        console.log('Filter params:', { days, department });
-        
-        // Base query using the correct columns that exist in the table
-        let query = `
-            SELECT a.*, u.name AS employeeName, u.department 
-            FROM availability a
-            JOIN user u ON a.employeeId = u.userId
-            WHERE a.status = 'Pending'
-        `;
-
-        const params = [];
-
-        // Add date filter if days parameter is provided
-        if (days && days !== 'all') {
-            query += ` AND a.submittedAt <= DATE_ADD(CURDATE(), INTERVAL ? DAY)`;
-            params.push(days);
-        }
-
-        // Add department filter if provided
-        if (department) {
-            query += ` AND u.department = ?`;
-            params.push(department);
-        }
-
-        // Order by submitted date
-        query += ` ORDER BY a.submittedAt DESC`;
-
-        console.log('Executing query:', query);
-        console.log('With params:', params);
-
-        const [pendingRequests] = await connection.execute(query, params);
-        console.log('Raw pending requests:', pendingRequests);
-        
-        // Format for frontend - using correct fields
-        const formattedRequests = pendingRequests.map(request => ({
-            ...request,
-            submittedAt: request.submittedAt instanceof Date ? request.submittedAt.toISOString() : request.submittedAt,
-            preferredDates: request.preferredDates || ''
-        }));
-
-        console.log('Formatted requests:', formattedRequests);
-        return res.status(200).json(formattedRequests);
-    } catch (err) {
-        console.error('Error in getPendingRequests:', err);
-        res.status(500).json({ error: "Internal Server Error." });
-    } finally {
-        if (connection) connection.release();
-    }
-};
-
 module.exports = {
     submitAvailability,
     updateAvailabilityStatus,
-    getEmployeeAvailability,
-    getPendingRequests
+    getEmployeeAvailability
 };

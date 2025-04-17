@@ -1,15 +1,17 @@
 const express = require('express');
-const { submitAvailability, updateAvailabilityStatus, getPendingRequests, getEmployeeAvailability } = require('../controllers/availabilityController');
+const { submitAvailability, updateAvailabilityStatus, getEmployeeAvailability } = require('../controllers/availabilityController');
 
 const router = express.Router();
 //employee submits availability
-router.post('/submit', submitAvailability);  
-//manager approves/declines submission
-router.put('/update', updateAvailabilityStatus);  
-//manager views pending requests
-router.get('/pending', getPendingRequests);  
+router.post('/submit', submitAvailability);
 
-// get availability for a specific employee
-router.get('/employee/:id', getEmployeeAvailability);
+//manager updates availability status (approve/decline)
+router.put('/update', updateAvailabilityStatus);
+  
+//manager views pending requests
+//router.get('/pending', getPendingRequests);
+
+//employee views their own availability
+router.get('/employee/:employeeId', getEmployeeAvailability);
 
 module.exports = router;

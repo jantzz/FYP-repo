@@ -379,7 +379,6 @@
                 <div class="schedule-tabs">
                     <div class="tab active" data-tab="my-roster">My Roster</div>
                     <div class="tab" data-tab="replacement">Replacement</div>
-                    <div class="tab manager-only" data-tab="pending-requests">Pending Requests</div>
                 </div>
                 
                 <div class="tab-content">
@@ -478,33 +477,6 @@
                                     </table>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Pending Requests Tab (Manager Only) -->
-                    <div class="tab-pane manager-only" id="pending-requests-tab">
-                        <div class="section-header">
-                            <h2>Pending Availability Requests</h2>
-                            <div class="filter-options">
-                                <select id="department-filter">
-                                    <option value="">All Departments</option>
-                                    <option value="Front Desk">Front Desk</option>
-                                    <option value="Housekeeping">Housekeeping</option>
-                                    <option value="Kitchen">Kitchen</option>
-                                </select>
-                                <select id="date-range-filter">
-                                    <option value="7">Next 7 Days</option>
-                                    <option value="14">Next 14 Days</option>
-                                    <option value="30">Next 30 Days</option>
-                                    <option value="all">All Pending</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="requests-container">
-                            <div class="requests-loading">Loading requests...</div>
-                            <div class="requests-empty" style="display: none;">No pending requests found.</div>
-                            <div class="requests-list"></div>
                         </div>
                     </div>
                 </div>
