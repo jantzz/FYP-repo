@@ -16,7 +16,7 @@ async function start() {
 
         const io = new Server(server, {
             cors: {
-                origin: "http://127.0.0.1:5500",
+                origin: ["http://127.0.0.1:8800", "http://localhost:8800"],
                 methods: ["GET", "POST", "PUT", "DELETE"],
                 credentials: true
             }

@@ -31,8 +31,28 @@ function isShiftInNearFuture(shiftDate) {
     const dayAfterTomorrow = new Date(today);
     dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
     
-    const shiftDateOnly = new Date(shiftDate);
-    shiftDateOnly.setHours(0, 0, 0, 0);
+    // Create a new date object from the shift date, but only use year, month, day
+    // This will ignore timezone issues by just comparing the date part
+    let shiftDateOnly;
+    if (shiftDate instanceof Date) {
+        shiftDateOnly = new Date(
+            shiftDate.getFullYear(),
+            shiftDate.getMonth(),
+            shiftDate.getDate(),
+            0, 0, 0, 0
+        );
+    } else {
+        // If it's a string, extract just the date part before creating Date object
+        const dateStr = typeof shiftDate === 'string' ? shiftDate.split('T')[0] : shiftDate;
+        shiftDateOnly = new Date(dateStr);
+        shiftDateOnly.setHours(0, 0, 0, 0);
+    }
+    
+    console.log('Comparing dates:', {
+        today: today.toISOString(),
+        shiftDateOnly: shiftDateOnly.toISOString(),
+        isToday: shiftDateOnly.getTime() === today.getTime()
+    });
     
     // Return true if shift is today or tomorrow
     return shiftDateOnly >= today && shiftDateOnly < dayAfterTomorrow;
@@ -1476,47 +1496,6 @@ function initEmployeeCalendar() {
                 if (titleEl) {
                     titleEl.innerHTML = `${titleEl.innerHTML} <span class="pending-badge">Pending</span>`;
                 }
-                
-                // Check if user is manager or admin to add approve button
-                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-                const isManager = ['Manager', 'Admin'].includes(userInfo.role);
-                
-                if (isManager) {
-                    // Add an approve button to the event
-                    const approveBtn = document.createElement('button');
-                    approveBtn.className = 'approve-pending-shift-btn';
-                    approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
-                    approveBtn.style.cssText = `
-                        background-color: #4CAF50;
-                        color: white;
-                        border: none;
-                        border-radius: 3px;
-                        padding: 2px 5px;
-                        margin-top: 3px;
-                        font-size: 10px;
-                        cursor: pointer;
-                        display: block;
-                    `;
-                    
-                    // Extract the pendingShiftId from the event ID
-                    const pendingShiftId = info.event.id.replace('pending-', '');
-                    
-                    // Add click handler for the approve button
-                    approveBtn.addEventListener('click', async (e) => {
-                        e.stopPropagation(); // Prevent the event click handler from firing
-                        
-                        try {
-                            await handlePendingShiftApproval(pendingShiftId);
-                            // Refresh the calendar after approval
-                            employeeCalendar.refetchEvents();
-                        } catch (error) {
-                            console.error('Failed to approve shift:', error);
-                        }
-                    });
-                    
-                    // Add the button to the event
-                    info.el.appendChild(approveBtn);
-                }
             }
             
             // Add a data attribute for employee ID to enable filtering
@@ -2374,8 +2353,19 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
     
         // Format date display
         let dateDisplay;
-        const startDateNormalized = new Date(startDate);
-        startDateNormalized.setHours(0, 0, 0, 0); // Normalize for comparison
+        // Create a normalized date using just year, month, day to avoid timezone issues
+        const startDateNormalized = new Date(
+            startDate.getFullYear(),
+            startDate.getMonth(), 
+            startDate.getDate(),
+            0, 0, 0, 0
+        );
+        
+        console.log('Comparing for display:', {
+            todayDate: today.toISOString().split('T')[0],
+            startDateNormalized: startDateNormalized.toISOString().split('T')[0],
+            isToday: startDateNormalized.getTime() === today.getTime()
+        });
         
         if (startDateNormalized.getTime() === today.getTime()) {
             dateDisplay = 'Today';

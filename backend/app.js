@@ -11,13 +11,14 @@ const roleRoutes = require('./routes/roleRoutes');
 const shiftRoutes = require('./routes/shiftRoutes');
 const fileRoutes = require('./routes/fileRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
+const attendanceRoutes = require('./routes/attendanceRoutes');
 
 //express app declared within app constant 
 const app = express(); 
 
 // Allow requests from your frontend
 app.use(cors({
-    origin: "http://127.0.0.1:5500",  // Allow frontend origin
+    origin: ["http://127.0.0.1:8800", "http://localhost:8800"],  // Allow both origins
     methods: "GET,POST,PUT,DELETE",  // Allow HTTP methods
     credentials: true  // Allow auth headers
 }));
@@ -39,6 +40,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/role', roleRoutes);
 app.use('/api/shift', shiftRoutes);
 app.use('/api/availability', availabilityRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 //socket route
 app.post('/api/shift/add', shiftController.addShift);

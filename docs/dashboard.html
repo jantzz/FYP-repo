@@ -134,7 +134,11 @@
             </div>
             <div class="nav-item manager-only" id="approve-shifts-nav" onclick="window.location.href='approve-pending-shifts.html'">
                 <i class="fas fa-check"></i>
-                <span>Approve All Shifts</span>
+                <span>Approve Shifts</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-check-circle"></i>
+                <span>Attendance Rate</span>
             </div>
             <div class="nav-item">
                 <i class="fas fa-clock"></i>
@@ -143,10 +147,6 @@
             <div class="nav-item">
                 <i class="fas fa-chart-bar"></i>
                 <span>Reports</span>
-            </div>
-            <div class="nav-item">
-                <i class="fas fa-check-circle"></i>
-                <span>Attendance Rate</span>
             </div>
             <div class="nav-item">
                 <i class="fas fa-money-bill-wave"></i>
@@ -561,7 +561,7 @@
             <!-- Attendance Rate Section -->
             <div class="attendance-section" style="display: none;">
                 <div class="section-header">
-                    <h2>Attendance Rate Analytics</h2>
+                    <h2>Attendance Management</h2>
                     <div class="filter-options">
                         <select id="attendance-period-filter">
                             <option value="weekly">This Week</option>
@@ -569,6 +569,34 @@
                             <option value="quarterly">This Quarter</option>
                             <option value="yearly">This Year</option>
                         </select>
+                    </div>
+                </div>
+                
+                <!-- Clock In/Out Card -->
+                <div class="attendance-card attendance-actions">
+                    <h3>Clock In/Out</h3>
+                    <div id="clock-container">
+                        <div class="current-time">
+                            <div id="digital-clock">00:00:00</div>
+                            <div id="current-date">Loading date...</div>
+                        </div>
+                        <div class="clock-actions" id="clock-buttons">
+                            <button id="clock-in-btn" class="btn-primary">
+                                <i class="fas fa-sign-in-alt"></i> Clock In
+                            </button>
+                            <button id="clock-out-btn" class="btn-primary">
+                                <i class="fas fa-sign-out-alt"></i> Clock Out
+                            </button>
+                        </div>
+                        <div id="clock-status" class="status-message"></div>
+                    </div>
+                </div>
+
+                <!-- Today's Schedule Card -->
+                <div class="attendance-card today-schedule">
+                    <h3>Today's Schedule</h3>
+                    <div id="today-shifts">
+                        <div class="loading-indicator">Loading your shifts...</div>
                     </div>
                 </div>
                 
@@ -605,6 +633,30 @@
                     </div>
                 </div>
                 
+                <!-- Attendance History Table -->
+                <div class="attendance-records">
+                    <h3>Recent Attendance Records</h3>
+                    <div class="table-container">
+                        <table id="attendance-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Clock In</th>
+                                    <th>Clock Out</th>
+                                    <th>Status</th>
+                                    <th>Total Hours</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-records-body">
+                                <!-- Will be populated via JavaScript -->
+                                <tr>
+                                    <td colspan="5" class="loading-message">Loading your attendance records...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
                 <div class="attendance-history">
                     <h3>Attendance History</h3>
                     <div class="chart-container attendance-chart-container">
@@ -618,12 +670,6 @@
                             <h4>Punctuality Trend</h4>
                             <div class="chart-container trend-chart-container">
                                 <canvas id="punctualityChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="trend-card">
-                            <h4>Department Comparison</h4>
-                            <div class="chart-container trend-chart-container">
-                                <canvas id="departmentComparisonChart"></canvas>
                             </div>
                         </div>
                     </div>

@@ -31,4 +31,7 @@ router.route('/updateUser')
 // get current user information
 router.get('/me', getMe);
 
+// Alias for /me to support the frontend's /current endpoint
+router.get('/current', getMe);
+
 module.exports = router;
