@@ -4161,29 +4161,43 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Function to delete an availability preference
+//function to delete an availability preference
 async function deleteAvailabilityPreference(id) {
     if (!confirm('Are you sure you want to delete this availability preference?')) {
         return;
     }
 
     try {
+        //retrieves user info from localStorage
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        //get userId from localStorage
+        const userId = userInfo.userId || 'unknown'; 
+        //get token from localStorage
+        const token = localStorage.getItem('token'); 
+
+        if (!token) {
+            throw new Error('Token is missing');
+        }
+
         const response = await fetch(`${window.API_BASE_URL}/availability/${id}`, {
             method: 'DELETE',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${token}`,
+                'User-Id': userId
             }
         });
 
         if (!response.ok) {
-            throw new Error('Failed to delete availability preference');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to delete availability preference');
         }
-
+       
         showNotification('Availability preference deleted successfully', 'success');
         loadAvailabilityPreferences();
+        
     } catch (error) {
         console.error('Error deleting availability preference:', error);
-        showNotification('Failed to delete availability preference', 'error');
+        showNotification(error.message || 'Failed to delete availability preference', 'error');
     }
 }
 

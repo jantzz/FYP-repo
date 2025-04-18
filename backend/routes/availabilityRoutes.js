@@ -1,5 +1,5 @@
 const express = require('express');
-const { submitAvailability, updateAvailabilityStatus, getEmployeeAvailability } = require('../controllers/availabilityController');
+const { submitAvailability, updateAvailabilityStatus, getEmployeeAvailability, deleteAvailabilityPreference } = require('../controllers/availabilityController');
 
 const router = express.Router();
 //employee submits availability
@@ -13,5 +13,8 @@ router.put('/update', updateAvailabilityStatus);
 
 //employee views their own availability
 router.get('/employee/:employeeId', getEmployeeAvailability);
+
+//deletes an employee's availability preference
+router.delete('/:id', deleteAvailabilityPreference);
 
 module.exports = router;
