@@ -90,6 +90,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Check authentication when page loads
     checkAuth();
     
+    // Load time off balances from localStorage
+    loadTimeOffBalances();
+    
     // Get user info to check permissions
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const userRole = (userInfo.role || '').toLowerCase();
@@ -116,6 +119,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             employeeManagementItem.style.display = 'flex';
         }
     }
+    
+    // Set up event listeners for sidebar navigation
+    document.querySelector('.nav-item:has(i.fa-clock)').addEventListener('click', showTimeOffSection);
     
     // Set up all modal close buttons
     document.querySelectorAll('.modal .close').forEach(closeBtn => {
@@ -1176,6 +1182,49 @@ function formatDateForDisplay(date) {
 
 // Time Off variables
 let currentTimeOffRequest = null;
+// Store time off balances
+let timeOffBalances = {
+    Paid: 10,
+    Unpaid: 5,
+    Medical: 14
+};
+
+// Function to save time off balances to localStorage
+function saveTimeOffBalances() {
+    localStorage.setItem('timeOffBalances', JSON.stringify(timeOffBalances));
+}
+
+// Function to load time off balances from localStorage
+function loadTimeOffBalances() {
+    const savedBalances = localStorage.getItem('timeOffBalances');
+    if (savedBalances) {
+        timeOffBalances = JSON.parse(savedBalances);
+    }
+}
+
+// Function to update time off policy display
+function updateTimeOffPolicyDisplay() {
+    const policyCards = document.querySelectorAll('.policy-card');
+    if (policyCards.length >= 3) {
+        // Update Paid Leave (PL)
+        policyCards[0].querySelector('.policy-amount').textContent = `${timeOffBalances.Paid} days`;
+        
+        // Update Non-Paid Leave (NPL)
+        policyCards[1].querySelector('.policy-amount').textContent = `${timeOffBalances.Unpaid} days`;
+        
+        // Update Medical Certificate (MC)
+        policyCards[2].querySelector('.policy-amount').textContent = `${timeOffBalances.Medical} days`;
+    }
+}
+
+// Function to calculate days between two dates
+function calculateDaysBetween(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // Include both start and end days
+    return diffDays;
+}
 
 // Function to show the Time Off section
 function showTimeOffSection() {
@@ -1185,56 +1234,68 @@ function showTimeOffSection() {
     document.querySelector('.employee-section').style.display = 'none';
     document.querySelector('.report-section').style.display = 'none';
     document.querySelector('.time-off-section').style.display = 'none';
+    document.querySelector('.availability-section').style.display = 'none';
+    document.querySelector('.schedule-section').style.display = 'none';
+    document.querySelector('.generate-shifts-section').style.display = 'none';
+    document.querySelector('.approve-timeoff-section').style.display = 'none';
     
     // Show Time Off section
     document.querySelector('.time-off-section').style.display = 'block';
+    
+    // Update active state in nav
+    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+    document.querySelector('.nav-item:has(i.fa-clock)').classList.add('active');
+    
+    // Update time off policy display
+    updateTimeOffPolicyDisplay();
     
     // Load time off history
     loadTimeOffHistory();
 }
 
 // Function to load time off history
-function loadTimeOffHistory() {
-    // This would typically fetch from an API
-    // For now, we'll use sample data
-    const sampleRequests = [
-        {
-            id: 1,
-            dateRequested: '2023-05-10',
-            type: 'PL',
-            startDate: '2023-06-01',
-            endDate: '2023-06-05',
-            status: 'Approved',
-            notes: 'Annual vacation'
-        },
-        {
-            id: 2,
-            dateRequested: '2023-07-15',
-            type: 'MC',
-            startDate: '2023-07-16',
-            endDate: '2023-07-17',
-            status: 'Approved',
-            notes: 'Doctor appointment'
-        },
-        {
-            id: 3,
-            dateRequested: '2023-08-20',
-            type: 'NPL',
-            startDate: '2023-09-10',
-            endDate: '2023-09-12',
-            status: 'Pending',
-            notes: 'Personal matters'
-        }
-    ];
-    
+async function loadTimeOffHistory() {
     const tableBody = document.getElementById('timeOffHistoryBody');
+    tableBody.innerHTML = '<tr><td colspan="6" class="loading-message">Loading time off requests...</td></tr>';
+    
+    try {
+        const token = getToken();
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const userId = userInfo.userId;
+        
+        // Determine if user is manager/admin to show all requests or just their own
+        const isAdminOrManager = userInfo.role === 'admin' || userInfo.role === 'manager';
+        
+        let endpoint = `${window.API_BASE_URL}/timeoff/`;
+        if (!isAdminOrManager) {
+            endpoint += `employee/${userId}`;
+        }
+        
+        const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load time off requests');
+        }
+        
+        const requests = await response.json();
     tableBody.innerHTML = '';
     
-    sampleRequests.forEach(request => {
+        if (requests.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6" class="empty-message">No time off requests found</td></tr>';
+            return;
+        }
+        
+        requests.forEach(request => {
         const row = document.createElement('tr');
         
         // Format dates for display
-        const dateRequested = new Date(request.dateRequested).toLocaleDateString();
+            const dateRequested = new Date(request.requestedAt).toLocaleDateString();
         const startDate = new Date(request.startDate).toLocaleDateString();
         const endDate = new Date(request.endDate).toLocaleDateString();
         
@@ -1242,7 +1303,7 @@ function loadTimeOffHistory() {
         let statusClass = '';
         if (request.status === 'Approved') {
             statusClass = 'status-approved';
-        } else if (request.status === 'Rejected') {
+            } else if (request.status === 'Declined') {
             statusClass = 'status-rejected';
         } else {
             statusClass = 'status-pending';
@@ -1255,17 +1316,22 @@ function loadTimeOffHistory() {
             <td>${endDate}</td>
             <td><span class="request-status ${statusClass}">${request.status}</span></td>
             <td class="request-actions">
-                <button class="action-btn view-btn" onclick="viewTimeOffRequest(${request.id})">
+                    <button class="action-btn view-btn" onclick="viewTimeOffRequest(${request.timeOffId})">
                     <i class="fas fa-eye"></i>
                 </button>
-                <button class="action-btn delete-btn" onclick="deleteTimeOffRequest(${request.id})">
+                    ${request.status === 'Pending' ? 
+                    `<button class="action-btn delete-btn" onclick="deleteTimeOffRequest(${request.timeOffId})">
                     <i class="fas fa-trash"></i>
-                </button>
+                    </button>` : ''}
             </td>
         `;
         
         tableBody.appendChild(row);
     });
+    } catch (error) {
+        console.error('Error loading time off history:', error);
+        tableBody.innerHTML = `<tr><td colspan="6" class="error-message">Error loading time off requests: ${error.message}</td></tr>`;
+    }
 }
 
 // Function to show the request time off modal
@@ -1279,6 +1345,15 @@ function showRequestTimeOffModal() {
     document.getElementById('time-off-end-date').value = today;
     document.getElementById('time-off-notes').value = '';
     document.getElementById('time-off-policy').selectedIndex = 0;
+    
+    // Make sure the form has an event listener
+    const form = document.getElementById('requestTimeOffForm');
+    
+    // Remove any existing listeners to avoid duplicates
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    
+    newForm.addEventListener('submit', submitTimeOffRequest);
 }
 
 // Function to close the request time off modal
@@ -1286,35 +1361,127 @@ function closeRequestTimeOffModal() {
     document.getElementById('requestTimeOffModal').style.display = 'none';
 }
 
-// Function to view a time off request
-function viewTimeOffRequest(requestId) {
-    // This would typically fetch the request details from an API
-    // For now, we'll use sample data
-    const request = {
-        id: requestId,
-        employeeName: 'John Doe',
-        dateRequested: '2023-08-20',
-        type: 'PL',
-        startDate: '2023-09-10',
-        endDate: '2023-09-12',
-        status: 'Pending',
-        notes: 'Taking some time off for personal matters.'
-    };
+// Function to submit a time off request
+async function submitTimeOffRequest(event) {
+    event.preventDefault();
     
+    const typeSelect = document.getElementById('time-off-policy');
+    const type = typeSelect.value;
+    const startDate = document.getElementById('time-off-start-date').value;
+    const endDate = document.getElementById('time-off-end-date').value;
+    const reason = document.getElementById('time-off-notes').value;
+    
+    // Validate inputs
+    if (!type || !startDate || !endDate) {
+        showNotification('Please fill all required fields', 'error');
+        return;
+    }
+    
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (end < start) {
+        showNotification('End date cannot be before start date', 'error');
+        return;
+    }
+    
+    // Calculate the number of days being requested
+    const daysRequested = calculateDaysBetween(startDate, endDate);
+    
+    // Map the UI type value to our balance type
+    let balanceType;
+    switch(type) {
+        case 'Paid':
+            balanceType = 'Paid';
+            break;
+        case 'Unpaid':
+            balanceType = 'Unpaid';
+            break;
+        case 'Medical':
+            balanceType = 'Medical';
+            break;
+        default:
+            balanceType = 'Paid';
+    }
+    
+    // Check if there are enough days in the balance
+    if (timeOffBalances[balanceType] < daysRequested) {
+        showNotification(`Cannot submit request: Insufficient ${balanceType} Leave balance. Available: ${timeOffBalances[balanceType]} days, Requested: ${daysRequested} days`, 'error');
+        return; // Stop the submission process
+    }
+    
+    // Get user info for employeeId
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const employeeId = userInfo.userId;
+    
+    try {
+        const token = getToken();
+        const response = await fetch(`${window.API_BASE_URL}/timeoff/request`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                employeeId,
+                type,
+                startDate,
+                endDate,
+                reason
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to submit time off request');
+        }
+        
+        const result = await response.json();
+        
+        // Close modal and refresh time off history
+        closeRequestTimeOffModal();
+        showNotification('Time off request submitted successfully', 'success');
+        loadTimeOffHistory();
+        
+    } catch (error) {
+        console.error('Error submitting time off request:', error);
+        showNotification(`Error: ${error.message}`, 'error');
+    }
+}
+
+
+// Function to view a time off request
+async function viewTimeOffRequest(requestId) {
+    try {
+        const token = getToken();
+        const response = await fetch(`${window.API_BASE_URL}/timeoff/${requestId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load time off request details');
+        }
+        
+        const request = await response.json();
     currentTimeOffRequest = request;
     
     // Populate the details modal
-    document.getElementById('request-employee-name').textContent = request.employeeName;
+        document.getElementById('request-employee-name').textContent = request.employeeName || 'Employee Name';
     
     const detailsContainer = document.getElementById('request-details-container');
     detailsContainer.innerHTML = `
         <div class="detail-row">
             <span class="detail-label">Request ID:</span>
-            <span class="detail-value">${request.id}</span>
+                <span class="detail-value">${request.timeOffId}</span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Date Requested:</span>
-            <span class="detail-value">${new Date(request.dateRequested).toLocaleDateString()}</span>
+                <span class="detail-value">${new Date(request.requestedAt).toLocaleDateString()}</span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Type:</span>
@@ -1332,16 +1499,23 @@ function viewTimeOffRequest(requestId) {
             <span class="detail-label">Status:</span>
             <span class="detail-value">${request.status}</span>
         </div>
+            ${request.approvedBy ? `
+            <div class="detail-row">
+                <span class="detail-label">Approved By:</span>
+                <span class="detail-value">${request.approverName || request.approvedBy}</span>
+            </div>` : ''}
         <div class="detail-row">
             <span class="detail-label">Notes:</span>
-            <span class="detail-value">${request.notes}</span>
+                <span class="detail-value">${request.reason || 'No notes provided'}</span>
         </div>
     `;
     
-    // Show or hide manager actions based on user role
-    const userRole = localStorage.getItem('userRole') || 'Employee';
+        // Show or hide manager actions based on user role and request status
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const isAdminOrManager = userInfo.role === 'admin' || userInfo.role === 'manager';
     const managerActions = document.querySelector('.manager-actions');
-    if (userRole === 'Manager' || userRole === 'Admin') {
+        
+        if (isAdminOrManager && request.status === 'Pending') {
         managerActions.style.display = 'flex';
     } else {
         managerActions.style.display = 'none';
@@ -1349,6 +1523,11 @@ function viewTimeOffRequest(requestId) {
     
     // Show the modal
     document.getElementById('timeOffDetailsModal').style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error loading time off request details:', error);
+        showNotification(`Error: ${error.message}`, 'error');
+    }
 }
 
 // Function to close the time off details modal
@@ -1357,55 +1536,154 @@ function closeTimeOffDetailsModal() {
     currentTimeOffRequest = null;
 }
 
-// Function to approve a time off request
-function approveTimeOff() {
-    if (currentTimeOffRequest) {
-        alert(`Time off request #${currentTimeOffRequest.id} has been approved.`);
-        closeTimeOffDetailsModal();
-        loadTimeOffHistory(); // Refresh the list
+// Function to approve a time off request directly from the list
+async function approveTimeOffRequest(requestId) {
+    try {
+        const token = getToken();
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const approvedBy = userInfo.userId;
+        
+        // Fetch the time off request details first to get type and dates
+        const detailsResponse = await fetch(`${window.API_BASE_URL}/timeoff/${requestId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!detailsResponse.ok) {
+            throw new Error('Failed to fetch time off request details');
+        }
+        
+        const requestDetails = await detailsResponse.json();
+        
+        // Calculate days used
+        const daysUsed = calculateDaysBetween(requestDetails.startDate, requestDetails.endDate);
+        
+        // Map the request type to our balance type
+        let balanceType;
+        switch(requestDetails.type) {
+            case 'Paid':
+                balanceType = 'Paid';
+                break;
+            case 'Unpaid':
+                balanceType = 'Unpaid';
+                break;
+            case 'Medical':
+                balanceType = 'Medical';
+                break;
+            default:
+                balanceType = 'Paid'; // Default to paid leave if type is unknown
+        }
+        
+        // Check if there are enough days in the balance
+        if (timeOffBalances[balanceType] < daysUsed) {
+            showNotification(`Cannot approve request: Insufficient ${balanceType} Leave balance. Available: ${timeOffBalances[balanceType]} days, Requested: ${daysUsed} days`, 'error');
+            return; // Stop the approval process
+        }
+        
+        // If sufficient balance, update the status to approved
+        const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                status: 'Approved',
+                approvedBy
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to approve time off request');
+        }
+        
+        // Deduct days from balance
+        timeOffBalances[balanceType] -= daysUsed;
+        
+        // Save updated balances to localStorage
+        saveTimeOffBalances();
+        
+        // Update policy display if time off section is visible
+        if (document.querySelector('.time-off-section').style.display === 'block') {
+            updateTimeOffPolicyDisplay();
+        }
+        
+        showNotification(`Time off request approved successfully. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'success');
+        loadPendingTimeOffRequests();
+        
+    } catch (error) {
+        console.error('Error approving time off request:', error);
+        showNotification(`Error: ${error.message}`, 'error');
     }
 }
 
-// Function to reject a time off request
-function rejectTimeOff() {
-    if (currentTimeOffRequest) {
-        alert(`Time off request #${currentTimeOffRequest.id} has been rejected.`);
-        closeTimeOffDetailsModal();
-        loadTimeOffHistory(); // Refresh the list
+// Function to reject a time off request directly from the list
+async function rejectTimeOffRequest(requestId) {
+    try {
+        const token = getToken();
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const approvedBy = userInfo.userId;
+        
+        const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                status: 'Declined',
+                approvedBy
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to reject time off request');
+        }
+        
+        // No deduction from balance when rejecting a request
+        
+        showNotification('Time off request rejected. No days deducted from balance.', 'info');
+        loadPendingTimeOffRequests();
+        
+    } catch (error) {
+        console.error('Error rejecting time off request:', error);
+        showNotification(`Error: ${error.message}`, 'error');
     }
 }
 
 // Function to delete a time off request
-function deleteTimeOffRequest(requestId) {
-    if (confirm('Are you sure you want to delete this time off request?')) {
-        alert(`Time off request #${requestId} has been deleted.`);
-        loadTimeOffHistory(); // Refresh the list
-    }
-}
-
-// Handle time off request form submission
-document.getElementById('requestTimeOffForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const policy = document.getElementById('time-off-policy').value;
-    const startDate = document.getElementById('time-off-start-date').value;
-    const endDate = document.getElementById('time-off-end-date').value;
-    const notes = document.getElementById('time-off-notes').value;
-    
-    // Validate that end date is not before start date
-    if (new Date(endDate) < new Date(startDate)) {
-        alert('End date cannot be before start date');
+async function deleteTimeOffRequest(requestId) {
+    if (!confirm('Are you sure you want to delete this time off request?')) {
         return;
     }
     
-    // This would typically send the request to an API
-    // For now, we'll just show a success message
-    alert('Time off request submitted successfully!');
-    
-    // Close the modal and refresh the list
-    closeRequestTimeOffModal();
+    try {
+        const token = getToken();
+        const response = await fetch(`${window.API_BASE_URL}/timeoff/${requestId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to delete time off request');
+        }
+        
+        showNotification('Time off request deleted successfully', 'success');
     loadTimeOffHistory();
-});
+        
+    } catch (error) {
+        console.error('Error deleting time off request:', error);
+        showNotification(`Error: ${error.message}`, 'error');
+    }
+}
 
 // Schedule variables
 let employeeCalendar = null;
@@ -4198,6 +4476,237 @@ async function deleteAvailabilityPreference(id) {
     } catch (error) {
         console.error('Error deleting availability preference:', error);
         showNotification(error.message || 'Failed to delete availability preference', 'error');
+    }
+}
+
+// Function to show the Approve Time Off section
+function showApproveTimeOffSection() {
+    // Hide all sections first
+    document.querySelector('.upcoming-shifts-section').style.display = 'none';
+    document.querySelector('.calendar-section').style.display = 'none';
+    document.querySelector('.employee-section').style.display = 'none';
+    document.querySelector('.report-section').style.display = 'none';
+    document.querySelector('.time-off-section').style.display = 'none';
+    document.querySelector('.availability-section').style.display = 'none';
+    document.querySelector('.schedule-section').style.display = 'none';
+    document.querySelector('.generate-shifts-section').style.display = 'none';
+    // document.querySelector('.approve-timeoff-section').style.display = 'none';
+    
+    // Show Approve Time Off section
+    document.querySelector('.approve-timeoff-section').style.display = 'block';
+    
+    // Update active state in nav
+    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+    document.querySelector('#approve-timeoff-nav').classList.add('active');
+    
+    // Load pending time off requests
+    loadPendingTimeOffRequests();
+}
+
+// Function to load pending time off requests
+async function loadPendingTimeOffRequests() {
+    const tableBody = document.getElementById('pendingTimeOffBody');
+    tableBody.innerHTML = '<tr><td colspan="8" class="loading-message">Loading time off requests...</td></tr>';
+    
+    try {
+        const token = getToken();
+        const statusFilter = document.getElementById('timeoff-status-filter').value;
+        
+        // Get all time off requests (managers/admins can see all)
+        const response = await fetch(`${window.API_BASE_URL}/timeoff/`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load time off requests');
+        }
+        
+        const requests = await response.json();
+        tableBody.innerHTML = '';
+        
+        // Filter requests based on status if needed
+        const filteredRequests = statusFilter === 'all' 
+            ? requests 
+            : requests.filter(req => req.status === statusFilter);
+        
+        if (filteredRequests.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="8" class="empty-message">No time off requests found</td></tr>';
+            return;
+        }
+        
+        filteredRequests.forEach(request => {
+            const row = document.createElement('tr');
+            
+            // Format dates for display
+            const dateRequested = new Date(request.requestedAt).toLocaleDateString();
+            const startDate = new Date(request.startDate).toLocaleDateString();
+            const endDate = new Date(request.endDate).toLocaleDateString();
+            
+            // Determine status class
+            let statusClass = '';
+            if (request.status === 'Approved') {
+                statusClass = 'status-approved';
+            } else if (request.status === 'Declined') {
+                statusClass = 'status-rejected';
+            } else {
+                statusClass = 'status-pending';
+            }
+            
+            row.innerHTML = `
+                <td>${request.employeeName || 'Employee'}</td>
+                <td>${dateRequested}</td>
+                <td>${request.type}</td>
+                <td>${startDate}</td>
+                <td>${endDate}</td>
+                <td>${request.reason || 'No reason provided'}</td>
+                <td><span class="request-status ${statusClass}">${request.status}</span></td>
+                <td class="request-actions">
+                    <button class="action-btn view-btn" onclick="viewTimeOffRequest(${request.timeOffId})">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    ${request.status === 'Pending' ? `
+                    <button class="action-btn approve-btn" onclick="approveTimeOffRequest(${request.timeOffId})">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="action-btn reject-btn" onclick="rejectTimeOffRequest(${request.timeOffId})">
+                        <i class="fas fa-times"></i>
+                    </button>` : ''}
+                </td>
+            `;
+            
+            tableBody.appendChild(row);
+        });
+        
+        // Set up status filter change listener
+        document.getElementById('timeoff-status-filter').addEventListener('change', loadPendingTimeOffRequests);
+        
+    } catch (error) {
+        console.error('Error loading time off requests:', error);
+        tableBody.innerHTML = `<tr><td colspan="8" class="error-message">Error loading time off requests: ${error.message}</td></tr>`;
+    }
+}
+
+// Function to approve a time off request directly from the list
+async function approveTimeOffRequest(requestId) {
+    try {
+        const token = getToken();
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const approvedBy = userInfo.userId;
+        
+        // Fetch the time off request details first to get type and dates
+        const detailsResponse = await fetch(`${window.API_BASE_URL}/timeoff/${requestId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!detailsResponse.ok) {
+            throw new Error('Failed to fetch time off request details');
+        }
+        
+        const requestDetails = await detailsResponse.json();
+        
+        // Calculate days used
+        const daysUsed = calculateDaysBetween(requestDetails.startDate, requestDetails.endDate);
+        
+        // Map the request type to our balance type
+        let balanceType;
+        switch(requestDetails.type) {
+            case 'Paid':
+                balanceType = 'Paid';
+                break;
+            case 'Unpaid':
+                balanceType = 'Unpaid';
+                break;
+            case 'Medical':
+                balanceType = 'Medical';
+                break;
+            default:
+                balanceType = 'Paid'; // Default to paid leave if type is unknown
+        }
+        
+        // Check if there are enough days in the balance
+        if (timeOffBalances[balanceType] < daysUsed) {
+            showNotification(`Cannot approve request: Insufficient ${balanceType} Leave balance. Available: ${timeOffBalances[balanceType]} days, Requested: ${daysUsed} days`, 'error');
+            return; // Stop the approval process
+        }
+        
+        // If sufficient balance, update the status to approved
+        const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                status: 'Approved',
+                approvedBy
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to approve time off request');
+        }
+        
+        // Deduct days from balance
+        timeOffBalances[balanceType] -= daysUsed;
+        
+        // Save updated balances to localStorage
+        saveTimeOffBalances();
+        
+        // Update policy display if time off section is visible
+        if (document.querySelector('.time-off-section').style.display === 'block') {
+            updateTimeOffPolicyDisplay();
+        }
+        
+        showNotification(`Time off request approved successfully. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'success');
+        loadPendingTimeOffRequests();
+        
+    } catch (error) {
+        console.error('Error approving time off request:', error);
+        showNotification(`Error: ${error.message}`, 'error');
+    }
+}
+
+// Function to reject a time off request directly from the list
+async function rejectTimeOffRequest(requestId) {
+    try {
+        const token = getToken();
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const approvedBy = userInfo.userId;
+        
+        const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                status: 'Declined',
+                approvedBy
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to reject time off request');
+        }
+        
+        // No deduction from balance when rejecting a request
+        
+        showNotification('Time off request rejected. No days deducted from balance.', 'info');
+        loadPendingTimeOffRequests();
+        
+    } catch (error) {
+        console.error('Error rejecting time off request:', error);
+        showNotification(`Error: ${error.message}`, 'error');
     }
 }
 

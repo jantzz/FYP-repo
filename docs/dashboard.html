@@ -144,6 +144,10 @@
                 <i class="fas fa-clock"></i>
                 <span>Time Off</span>
             </div>
+            <div class="nav-item manager-only" id="approve-timeoff-nav">
+                <i class="fas fa-calendar-check"></i>
+                <span>Approve Time Off</span>
+            </div>
             <div class="nav-item">
                 <i class="fas fa-chart-bar"></i>
                 <span>Reports</span>
@@ -303,6 +307,41 @@
                         </thead>
                         <tbody id="timeOffHistoryBody">
                             <!-- Time off history will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Approve Time Off Section -->
+            <div class="approve-timeoff-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Approve Time Off Requests</h2>
+                    <div class="filter-options">
+                        <select id="timeoff-status-filter">
+                            <option value="all">All Requests</option>
+                            <option value="Pending" selected>Pending</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Declined">Declined</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="pending-requests">
+                    <table class="time-off-table">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Date Requested</th>
+                                <th>Type</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingTimeOffBody">
+                            <!-- Pending time off requests will be populated here -->
                         </tbody>
                     </table>
                 </div>
@@ -1415,9 +1454,9 @@
                     <label for="time-off-policy">Time Off Policy</label>
                     <select id="time-off-policy" required>
                         <option value="">Select Type</option>
-                        <option value="PL">Paid Leave (PL)</option>
-                        <option value="NPL">Non-Paid Leave (NPL)</option>
-                        <option value="MC">Medical Certificate (MC)</option>
+                        <option value="Paid">Paid Leave (PL)</option>
+                        <option value="Unpaid">Non-Paid Leave (NPL)</option>
+                        <option value="Medical">Medical Certificate (MC)</option>
                     </select>
                 </div>
                 <div class="form-row">
@@ -1528,6 +1567,11 @@
                 toggleIcon.classList.remove('fa-chevron-left');
                 toggleIcon.classList.add('fa-chevron-right');
             }
+            
+            // Set up event listeners for sidebar navigation
+            document.querySelector('.nav-item:has(i.fa-clock)').addEventListener('click', showTimeOffSection);
+            // Add event listener for Approve Time Off section
+            document.getElementById('approve-timeoff-nav').addEventListener('click', showApproveTimeOffSection);
             
             // Add event listener for show more button
             const showMoreBtn = document.getElementById('showMoreShifts');
