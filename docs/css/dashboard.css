@@ -2450,4 +2450,37 @@ body.admin-visible .admin-only {
     color: #721c24;
 }
 
-/* Time Off Page */ 
+/* Time Off Page */
+
+/* Time Off Calendar Event Styles */
+.fc-event[data-event-type="timeoff"] {
+    background-color: #FF9800 !important;
+    border-left: 4px solid #FF5722 !important;
+    border-radius: 4px !important;
+    font-style: italic !important;
+}
+
+.fc-event[data-event-type="timeoff"] .fc-event-title {
+    font-weight: bold !important;
+}
+
+.fc-event[data-event-type="timeoff"] .fc-event-subtitle {
+    font-size: 0.8em;
+    opacity: 0.8;
+    margin-top: 2px;
+}
+
+.fc-event[data-event-type="timeoff"] .fc-event-time i {
+    margin-right: 4px;
+}
+
+/* Add extra space for Time Off events */
+.fc-event[data-event-type="timeoff"] {
+    padding: 4px !important;
+}
+
+/* Make sure Time Off events stand out */
+.fc-daygrid-event[data-event-type="timeoff"] {
+    margin-top: 4px !important;
+    margin-bottom: 4px !important;
+} 

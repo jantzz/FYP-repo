@@ -231,7 +231,36 @@ document.addEventListener('DOMContentLoaded', async function() {
             const status = info.event.extendedProps.status || 'pending';
             const employeeId = info.event.extendedProps.employeeId;
             
-            // Apply appropriate color based on type and status
+            // Add data-event-type attribute for CSS targeting
+            info.el.setAttribute('data-event-type', type);
+            
+            // Handle time off events differently
+            if (type === 'timeoff') {
+                // Use orange for time off events
+                info.el.style.backgroundColor = '#FF9800';
+                info.el.style.borderLeft = '4px solid #FF5722';
+                info.el.style.borderRadius = '4px';
+                info.el.style.fontStyle = 'italic';
+                
+                // Add an icon to indicate time off
+                const titleEl = info.el.querySelector('.fc-event-title');
+                if (titleEl) {
+                    titleEl.innerHTML = `<i class="fas fa-clock mr-1"></i> ${titleEl.innerHTML}`;
+                }
+                
+                // Add tooltip with reason if available
+                const reason = info.event.extendedProps.reason;
+                const timeOffType = info.event.extendedProps.timeOffType;
+                if (reason) {
+                    info.el.title = `${timeOffType} Leave: ${reason}`;
+                } else {
+                    info.el.title = `${timeOffType} Leave`;
+                }
+                
+                return; // Exit early as we've handled time off events specifically
+            }
+            
+            // Apply appropriate color based on type and status for regular shifts
             info.el.style.backgroundColor = getStatusColor(status, type);
             
             // Add special styling for pending shifts
@@ -270,6 +299,23 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         },
         eventContent: function(eventInfo) {
+            // Check if it's a time off event
+            const type = eventInfo.event.extendedProps.type || 'regular';
+            
+            if (type === 'timeoff') {
+                const timeOffType = eventInfo.event.extendedProps.timeOffType || 'Leave';
+                const employeeName = eventInfo.event.extendedProps.employeeName || 'Employee';
+                
+                return {
+                    html: `
+                    <div class="fc-event-time"><i class="fas fa-clock"></i> Time Off</div>
+                    <div class="fc-event-title">${employeeName}</div>
+                    <div class="fc-event-subtitle">${timeOffType}</div>
+                    `
+                };
+            }
+            
+            // Handle regular shifts as before
             // Get the shift title
             const shiftTitle = eventInfo.event.title;
             
@@ -331,6 +377,17 @@ document.addEventListener('DOMContentLoaded', async function() {
                 end: arg.event.end,
                 extendedProps: arg.event.extendedProps
             });
+            
+            // Check if this is a time off event
+            if (arg.event.extendedProps.type === 'timeoff') {
+                // Extract the time off ID from the event ID (which has format 'timeoff-{id}')
+                const timeOffId = arg.event.id.replace('timeoff-', '');
+                // Show time off details
+                viewTimeOffRequest(timeOffId);
+                return;
+            }
+            
+            // Regular shift handling
             openEditShiftModal(arg.event);
         }
     });
@@ -1830,6 +1887,23 @@ function initEmployeeCalendar() {
             }
         },
         eventContent: function(eventInfo) {
+            // Check if it's a time off event
+            const type = eventInfo.event.extendedProps.type || 'regular';
+            
+            if (type === 'timeoff') {
+                const timeOffType = eventInfo.event.extendedProps.timeOffType || 'Leave';
+                const employeeName = eventInfo.event.extendedProps.employeeName || 'Employee';
+                
+                return {
+                    html: `
+                    <div class="fc-event-time"><i class="fas fa-clock"></i> Time Off</div>
+                    <div class="fc-event-title">${employeeName}</div>
+                    <div class="fc-event-subtitle">${timeOffType}</div>
+                    `
+                };
+            }
+            
+            // Handle regular shifts as before
             // Get the shift title
             const shiftTitle = eventInfo.event.title;
             
@@ -1846,13 +1920,6 @@ function initEmployeeCalendar() {
                 const start = eventInfo.event.start;
                 const end = eventInfo.event.end;
                 timeDisplay = `${formatTime(start)} - ${formatTime(end)}`;
-            }
-            
-            // For small screens, simplify the content
-            if (isSmallScreen) {
-                return {
-                    html: `<div class="fc-event-title">${shiftTitle}</div>`
-                };
             }
             
             return {
@@ -2366,10 +2433,77 @@ async function fetchShifts() {
             pendingShifts = await fetchPendingShifts();
         }
         
-        // Combine both types of shifts
-        return [...shifts, ...pendingShifts];
+        // Fetch time off requests
+        let timeOffEvents = await fetchTimeOffForCalendar();
+        
+        // Combine shifts, pending shifts, and time off events
+        return [...shifts, ...pendingShifts, ...timeOffEvents];
     } catch (error) {
         console.error('Error fetching shifts:', error);
+        return [];
+    }
+}
+
+// Function to fetch time off requests for calendar display
+async function fetchTimeOffForCalendar() {
+    try {
+        const token = getToken();
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const userId = userInfo.userId;
+        const userRole = userInfo.role?.toLowerCase() || 'employee';
+        
+        // Determine which endpoint to use based on user role
+        let endpoint = `${window.API_BASE_URL}/timeoff/`;
+        if (!(userRole === 'manager' || userRole === 'admin')) {
+            endpoint += `employee/${userId}`;
+        }
+        
+        const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load time off requests for calendar');
+        }
+        
+        const requests = await response.json();
+        
+        // Filter for approved requests only
+        const approvedRequests = requests.filter(req => req.status === 'Approved');
+        
+        // Convert each time off request to a calendar event
+        return approvedRequests.map(req => {
+            const startDate = new Date(req.startDate);
+            const endDate = new Date(req.endDate);
+            
+            // Set end date to end of day
+            endDate.setHours(23, 59, 59);
+            
+            return {
+                id: `timeoff-${req.timeOffId}`,
+                title: `Time Off: ${req.employeeName || 'Employee'} - ${req.type}`,
+                start: startDate,
+                end: endDate,
+                allDay: true,
+                extendedProps: {
+                    status: 'Approved',
+                    type: 'timeoff',
+                    timeOffId: req.timeOffId,
+                    employeeId: req.employeeId,
+                    employeeName: req.employeeName,
+                    timeOffType: req.type,
+                    reason: req.reason
+                },
+                backgroundColor: '#FF9800', // Orange for time off events
+                borderColor: '#FF5722'
+            };
+        });
+    } catch (error) {
+        console.error('Error fetching time off for calendar:', error);
         return [];
     }
 }
