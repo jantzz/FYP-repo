@@ -1489,16 +1489,103 @@ async function submitTimeOffRequest(event) {
             })
         });
         
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to submit time off request');
-        }
-        
         const result = await response.json();
         
+        if (!response.ok) {
+            // Handle enhanced error responses
+            if (result.conflicts) {
+                // Create a visually appealing conflict display
+                const conflictModal = document.createElement('div');
+                conflictModal.className = 'modal';
+                conflictModal.id = 'conflictModal';
+                
+                let conflictHTML = `
+                    <div class="modal-content warning-modal">
+                        <span class="close">&times;</span>
+                        <div class="warning-header">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h2>Schedule Conflict Detected</h2>
+                        </div>
+                        <p>${result.message || result.error}</p>
+                        <div class="time-off-details">
+                            <p><strong>Requested Period:</strong> ${result.requestedPeriod?.start} to ${result.requestedPeriod?.end}</p>
+                        </div>
+                        <h3>Conflicting Shifts:</h3>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                
+                result.conflicts.forEach(conflict => {
+                    conflictHTML += `
+                        <tr>
+                            <td>${conflict.date}</td>
+                            <td>${conflict.title}</td>
+                            <td><span class="status-badge ${conflict.status.toLowerCase()}">${conflict.status}</span></td>
+                        </tr>`;
+                });
+                
+                conflictHTML += `
+                            </tbody>
+                        </table>
+                        
+                        <div class="recommendations">
+                            <h3><i class="fas fa-info-circle"></i> What to do next</h3>
+                            <ul>
+                                <li>Contact your manager to discuss possible shift adjustments</li>
+                                <li>Consider requesting different dates for your time off</li>
+                                <li>You may need to find a replacement for your scheduled shifts</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <p><i class="fas fa-headset"></i> Need help resolving this conflict? Contact your manager for assistance.</p>
+                            <button class="btn-primary" id="closeConflictModal">Close</button>
+                        </div>
+                    </div>`;
+                
+                conflictModal.innerHTML = conflictHTML;
+                document.body.appendChild(conflictModal);
+                
+                // Setup close functionality
+                document.getElementById('closeConflictModal').addEventListener('click', () => {
+                    document.getElementById('conflictModal').style.display = 'none';
+                    setTimeout(() => {
+                        document.getElementById('conflictModal').remove();
+                    }, 500);
+                });
+                
+                document.querySelector('#conflictModal .close').addEventListener('click', () => {
+                    document.getElementById('conflictModal').style.display = 'none';
+                    setTimeout(() => {
+                        document.getElementById('conflictModal').remove();
+                    }, 500);
+                });
+                
+                // Show the modal
+                document.getElementById('conflictModal').style.display = 'block';
+            } else {
+                throw new Error(result.error || 'Failed to submit time off request');
+            }
+            return;
+        }
+        
+        // Success handling
         // Close modal and refresh time off history
         closeRequestTimeOffModal();
-        showNotification('Time off request submitted successfully', 'success');
+        
+        // Show success message with enhanced details
+        if (result.requestDetails) {
+            showNotification(`Time off request successfully submitted for ${result.requestDetails.type} leave from ${result.requestDetails.period}. Status: ${result.requestDetails.status}`, 'success');
+        } else {
+            showNotification('Time off request submitted successfully', 'success');
+        }
+        
         loadTimeOffHistory();
         
     } catch (error) {
@@ -1640,41 +1727,332 @@ async function approveTimeOffRequest(requestId) {
             return; // Stop the approval process
         }
         
-        // If sufficient balance, update the status to approved
-        const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                status: 'Approved',
-                approvedBy
-            })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to approve time off request');
+        // Check for existing shifts during the time-off period
+        try {
+            // Fetch employee shifts for the time period
+            const shiftResponse = await fetch(`${window.API_BASE_URL}/shift/${requestDetails.employeeId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!shiftResponse.ok) {
+                throw new Error('Failed to fetch employee shifts');
+            }
+            
+            const shifts = await shiftResponse.json();
+            
+            // Find shifts that overlap with the requested time off period
+            const startDate = new Date(requestDetails.startDate);
+            const endDate = new Date(requestDetails.endDate);
+            
+            // Filter shifts that overlap with the time off period
+            const conflictingShifts = shifts.filter(shift => {
+                const shiftStart = new Date(shift.startDate);
+                const shiftEnd = new Date(shift.endDate);
+                
+                // Check if shift overlaps with time off period
+                return (
+                    (shiftStart <= endDate && shiftEnd >= startDate) || 
+                    (shiftStart >= startDate && shiftEnd <= endDate) ||
+                    (shiftStart <= startDate && shiftEnd >= startDate) ||
+                    (shiftStart <= endDate && shiftEnd >= endDate)
+                );
+            });
+            
+            // If there are conflicting shifts, show a confirmation modal
+            if (conflictingShifts.length > 0) {
+                return new Promise((resolve) => {
+                    // Create confirmation modal
+                    const confirmModal = document.createElement('div');
+                    confirmModal.className = 'modal';
+                    confirmModal.id = 'shiftConflictModal';
+                    
+                    let modalHTML = `
+                        <div class="modal-content warning-modal">
+                            <span class="close">&times;</span>
+                            <div class="warning-header">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <h2>Shift Conflicts Detected</h2>
+                            </div>
+                            <p>The employee has ${conflictingShifts.length} existing shift(s) scheduled during the requested time off period:</p>
+                            <div class="time-off-details">
+                                <p><strong>Employee:</strong> ${requestDetails.employeeName || 'Employee'}</p>
+                                <p><strong>Time Off Period:</strong> ${formatDateForDisplay(new Date(requestDetails.startDate))} to ${formatDateForDisplay(new Date(requestDetails.endDate))}</p>
+                                <p><strong>Type:</strong> ${requestDetails.type} Leave</p>
+                            </div>
+                            
+                            <h3>Conflicting Shifts:</h3>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                    
+                    conflictingShifts.forEach(shift => {
+                        modalHTML += `
+                            <tr>
+                                <td>${formatDateForDisplay(new Date(shift.startDate))}</td>
+                                <td>${shift.title || shift.department || 'Shift'}</td>
+                                <td><span class="status-badge ${shift.status.toLowerCase()}">${shift.status}</span></td>
+                            </tr>`;
+                    });
+                    
+                    modalHTML += `
+                                </tbody>
+                            </table>
+                            
+                            <div class="recommendations">
+                                <h3><i class="fas fa-info-circle"></i> What to do next</h3>
+                                <ul>
+                                    <li>Consider rescheduling the conflicting shifts</li>
+                                    <li>Assign a replacement for the scheduled shifts</li>
+                                    <li>Discuss alternatives with the employee</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="modal-footer">
+                                <p><i class="fas fa-headset"></i> Do you still want to approve this time off request?</p>
+                                <div style="display: flex; gap: 10px; justify-content: center;">
+                                    <button class="btn-danger" id="cancelApproval">Cancel</button>
+                                    <button class="btn-primary" id="confirmApproval">Approve Anyway</button>
+                                </div>
+                            </div>
+                        </div>`;
+                    
+                    confirmModal.innerHTML = modalHTML;
+                    document.body.appendChild(confirmModal);
+                    
+                    // Show the modal
+                    document.getElementById('shiftConflictModal').style.display = 'block';
+                    
+                    // Add event listeners for buttons
+                    document.getElementById('confirmApproval').addEventListener('click', async () => {
+                        // Close the modal
+                        document.getElementById('shiftConflictModal').style.display = 'none';
+                        
+                        // Continue with approval
+                        try {
+                            await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
+                            resolve();
+                        } catch (error) {
+                            console.error('Error during approval:', error);
+                            showNotification(`Error: ${error.message}`, 'error');
+                            resolve();
+                        } finally {
+                            // Remove the modal
+                            setTimeout(() => {
+                                document.getElementById('shiftConflictModal').remove();
+                            }, 500);
+                        }
+                    });
+                    
+                    document.getElementById('cancelApproval').addEventListener('click', () => {
+                        // Close and remove the modal
+                        document.getElementById('shiftConflictModal').style.display = 'none';
+                        setTimeout(() => {
+                            document.getElementById('shiftConflictModal').remove();
+                        }, 500);
+                        resolve();
+                    });
+                    
+                    // Close button functionality
+                    document.querySelector('#shiftConflictModal .close').addEventListener('click', () => {
+                        document.getElementById('shiftConflictModal').style.display = 'none';
+                        setTimeout(() => {
+                            document.getElementById('shiftConflictModal').remove();
+                        }, 500);
+                        resolve();
+                    });
+                });
+            } else {
+                // No conflicts, proceed with approval
+                await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
+            }
+        } catch (error) {
+            console.error('Error checking for shift conflicts:', error);
+            // Continue with approval despite the error in conflict checking
+            await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
         }
-        
-        // Deduct days from balance
-        timeOffBalances[balanceType] -= daysUsed;
-        
-        // Save updated balances to localStorage
-        saveTimeOffBalances();
-        
-        // Update policy display if time off section is visible
-        if (document.querySelector('.time-off-section').style.display === 'block') {
-            updateTimeOffPolicyDisplay();
-        }
-        
-        showNotification(`Time off request approved successfully. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'success');
-        loadPendingTimeOffRequests();
         
     } catch (error) {
         console.error('Error approving time off request:', error);
         showNotification(`Error: ${error.message}`, 'error');
+    }
+}
+
+// Helper function to process the time off approval
+async function processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed) {
+    const token = getToken();
+    
+    // If sufficient balance, update the status to approved
+    const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            status: 'Approved',
+            approvedBy
+        })
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok && !result.warning) {
+        // If error is not a warning with conflicts
+        throw new Error(result.error || 'Failed to approve time off request');
+    }
+    
+    // Deduct days from balance
+    timeOffBalances[balanceType] -= daysUsed;
+    
+    // Save updated balances to localStorage
+    saveTimeOffBalances();
+    
+    // Update policy display if time off section is visible
+    if (document.querySelector('.time-off-section').style.display === 'block') {
+        updateTimeOffPolicyDisplay();
+    }
+    
+    // Check if the response contains conflict warnings
+    if (result.warning) {
+        // Create a warning modal for conflicts
+        const warningModal = document.createElement('div');
+        warningModal.className = 'modal';
+        warningModal.id = 'warningModal';
+        
+        let conflictHTML = `
+            <div class="modal-content warning-modal">
+                <span class="close">&times;</span>
+                <div class="warning-header">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h2>${result.warning.title || 'Warning'}</h2>
+                </div>
+                <p>${result.warning.message || 'There are conflicts with this time off request.'}</p>
+                <div class="time-off-details">
+                    <p><strong>Employee:</strong> ${result.message.split('for ')[1]?.split(' has')[0] || 'Employee'}</p>
+                    <p><strong>Period:</strong> ${result.timeOffPeriod?.start} to ${result.timeOffPeriod?.end}</p>
+                    <p><strong>Type:</strong> ${result.timeOffPeriod?.type || 'Leave'}</p>
+                </div>`;
+        
+        // Add existing shift conflicts if any
+        if (result.conflicts?.existing && result.conflicts.existing.length > 0) {
+            conflictHTML += `
+                <h3>Existing Shifts During This Period:</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Assignment</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            result.conflicts.existing.forEach(conflict => {
+                conflictHTML += `
+                    <tr>
+                        <td>${conflict.date}</td>
+                        <td>${conflict.title}</td>
+                        <td><span class="status-badge ${conflict.status.toLowerCase()}">${conflict.status}</span></td>
+                    </tr>`;
+            });
+            
+            conflictHTML += `
+                    </tbody>
+                </table>`;
+        }
+        
+        // Add pending shift conflicts if any
+        if (result.conflicts?.pending && result.conflicts.pending.length > 0) {
+            conflictHTML += `
+                <h3>Pending Shifts During This Period:</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Assignment</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            result.conflicts.pending.forEach(conflict => {
+                conflictHTML += `
+                    <tr>
+                        <td>${conflict.date}</td>
+                        <td>${conflict.title}</td>
+                        <td><span class="status-badge pending">Pending</span></td>
+                    </tr>`;
+            });
+            
+            conflictHTML += `
+                    </tbody>
+                </table>`;
+        }
+        
+        // Add recommendations if any
+        if (result.recommendations && result.recommendations.length > 0) {
+            conflictHTML += `
+                <div class="recommendations">
+                    <h3>Recommendations:</h3>
+                    <ul>`;
+            
+            result.recommendations.forEach(recommendation => {
+                conflictHTML += `<li>${recommendation}</li>`;
+            });
+            
+            conflictHTML += `</ul></div>`;
+        }
+        
+        conflictHTML += `
+            <div class="modal-footer">
+                <p>The time off has been approved, but you may want to resolve these conflicts.</p>
+                <button class="btn-primary" id="closeWarningModal">Acknowledge</button>
+            </div>
+        </div>`;
+        
+        warningModal.innerHTML = conflictHTML;
+        document.body.appendChild(warningModal);
+        
+        // Setup close functionality
+        document.getElementById('closeWarningModal').addEventListener('click', () => {
+            document.getElementById('warningModal').style.display = 'none';
+            setTimeout(() => {
+                document.getElementById('warningModal').remove();
+            }, 500);
+        });
+        
+        document.querySelector('#warningModal .close').addEventListener('click', () => {
+            document.getElementById('warningModal').style.display = 'none';
+            setTimeout(() => {
+                document.getElementById('warningModal').remove();
+            }, 500);
+        });
+        
+        // Show the modal
+        document.getElementById('warningModal').style.display = 'block';
+        
+        // Display success notification
+        showNotification(`Time off request approved with warnings. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'warning');
+    } else {
+        // Display regular success message
+        showNotification(`Time off request approved successfully. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'success');
+    }
+    
+    // Refresh the pending time off requests
+    loadPendingTimeOffRequests();
+    // Close the details modal if it was open
+    if (document.getElementById('timeOffDetailsModal').style.display === 'block') {
+        closeTimeOffDetailsModal();
     }
 }
 
@@ -1684,6 +2062,21 @@ async function rejectTimeOffRequest(requestId) {
         const token = getToken();
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const approvedBy = userInfo.userId;
+        
+        // Fetch the time off request details first to get employee name and dates
+        const detailsResponse = await fetch(`${window.API_BASE_URL}/timeoff/${requestId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!detailsResponse.ok) {
+            throw new Error('Failed to fetch time off request details');
+        }
+        
+        const requestDetails = await detailsResponse.json();
         
         const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
             method: 'PUT',
@@ -1704,8 +2097,24 @@ async function rejectTimeOffRequest(requestId) {
         
         // No deduction from balance when rejecting a request
         
-        showNotification('Time off request rejected. No days deducted from balance.', 'info');
-        loadPendingTimeOffRequests();
+        // Create a more friendly notification message
+        const employeeName = requestDetails.employeeName || 'employee';
+        const startDate = new Date(requestDetails.startDate).toLocaleDateString();
+        const endDate = new Date(requestDetails.endDate).toLocaleDateString();
+        
+        showNotification(`Time off request for ${employeeName} (${startDate} to ${endDate}) has been declined.`, 'info');
+        
+        // Refresh the relevant list based on which view the user is in
+        if (document.querySelector('.approve-timeoff-section').style.display === 'block') {
+            loadPendingTimeOffRequests();
+        } else {
+            loadTimeOffHistory();
+        }
+        
+        // Close the details modal if it was open
+        if (document.getElementById('timeOffDetailsModal').style.display === 'block') {
+            closeTimeOffDetailsModal();
+        }
         
     } catch (error) {
         console.error('Error rejecting time off request:', error);
@@ -4771,41 +5180,332 @@ async function approveTimeOffRequest(requestId) {
             return; // Stop the approval process
         }
         
-        // If sufficient balance, update the status to approved
-        const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                status: 'Approved',
-                approvedBy
-            })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to approve time off request');
+        // Check for existing shifts during the time-off period
+        try {
+            // Fetch employee shifts for the time period
+            const shiftResponse = await fetch(`${window.API_BASE_URL}/shift/${requestDetails.employeeId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!shiftResponse.ok) {
+                throw new Error('Failed to fetch employee shifts');
+            }
+            
+            const shifts = await shiftResponse.json();
+            
+            // Find shifts that overlap with the requested time off period
+            const startDate = new Date(requestDetails.startDate);
+            const endDate = new Date(requestDetails.endDate);
+            
+            // Filter shifts that overlap with the time off period
+            const conflictingShifts = shifts.filter(shift => {
+                const shiftStart = new Date(shift.startDate);
+                const shiftEnd = new Date(shift.endDate);
+                
+                // Check if shift overlaps with time off period
+                return (
+                    (shiftStart <= endDate && shiftEnd >= startDate) || 
+                    (shiftStart >= startDate && shiftEnd <= endDate) ||
+                    (shiftStart <= startDate && shiftEnd >= startDate) ||
+                    (shiftStart <= endDate && shiftEnd >= endDate)
+                );
+            });
+            
+            // If there are conflicting shifts, show a confirmation modal
+            if (conflictingShifts.length > 0) {
+                return new Promise((resolve) => {
+                    // Create confirmation modal
+                    const confirmModal = document.createElement('div');
+                    confirmModal.className = 'modal';
+                    confirmModal.id = 'shiftConflictModal';
+                    
+                    let modalHTML = `
+                        <div class="modal-content warning-modal">
+                            <span class="close">&times;</span>
+                            <div class="warning-header">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <h2>Shift Conflicts Detected</h2>
+                            </div>
+                            <p>The employee has ${conflictingShifts.length} existing shift(s) scheduled during the requested time off period:</p>
+                            <div class="time-off-details">
+                                <p><strong>Employee:</strong> ${requestDetails.employeeName || 'Employee'}</p>
+                                <p><strong>Time Off Period:</strong> ${formatDateForDisplay(new Date(requestDetails.startDate))} to ${formatDateForDisplay(new Date(requestDetails.endDate))}</p>
+                                <p><strong>Type:</strong> ${requestDetails.type} Leave</p>
+                            </div>
+                            
+                            <h3>Conflicting Shifts:</h3>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                    
+                    conflictingShifts.forEach(shift => {
+                        modalHTML += `
+                            <tr>
+                                <td>${formatDateForDisplay(new Date(shift.startDate))}</td>
+                                <td>${shift.title || shift.department || 'Shift'}</td>
+                                <td><span class="status-badge ${shift.status.toLowerCase()}">${shift.status}</span></td>
+                            </tr>`;
+                    });
+                    
+                    modalHTML += `
+                                </tbody>
+                            </table>
+                            
+                            <div class="recommendations">
+                                <h3><i class="fas fa-info-circle"></i> What to do next</h3>
+                                <ul>
+                                    <li>Consider rescheduling the conflicting shifts</li>
+                                    <li>Assign a replacement for the scheduled shifts</li>
+                                    <li>Discuss alternatives with the employee</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="modal-footer">
+                                <p><i class="fas fa-headset"></i> Do you still want to approve this time off request?</p>
+                                <div style="display: flex; gap: 10px; justify-content: center;">
+                                    <button class="btn-danger" id="cancelApproval">Cancel</button>
+                                    <button class="btn-primary" id="confirmApproval">Approve Anyway</button>
+                                </div>
+                            </div>
+                        </div>`;
+                    
+                    confirmModal.innerHTML = modalHTML;
+                    document.body.appendChild(confirmModal);
+                    
+                    // Show the modal
+                    document.getElementById('shiftConflictModal').style.display = 'block';
+                    
+                    // Add event listeners for buttons
+                    document.getElementById('confirmApproval').addEventListener('click', async () => {
+                        // Close the modal
+                        document.getElementById('shiftConflictModal').style.display = 'none';
+                        
+                        // Continue with approval
+                        try {
+                            await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
+                            resolve();
+                        } catch (error) {
+                            console.error('Error during approval:', error);
+                            showNotification(`Error: ${error.message}`, 'error');
+                            resolve();
+                        } finally {
+                            // Remove the modal
+                            setTimeout(() => {
+                                document.getElementById('shiftConflictModal').remove();
+                            }, 500);
+                        }
+                    });
+                    
+                    document.getElementById('cancelApproval').addEventListener('click', () => {
+                        // Close and remove the modal
+                        document.getElementById('shiftConflictModal').style.display = 'none';
+                        setTimeout(() => {
+                            document.getElementById('shiftConflictModal').remove();
+                        }, 500);
+                        resolve();
+                    });
+                    
+                    // Close button functionality
+                    document.querySelector('#shiftConflictModal .close').addEventListener('click', () => {
+                        document.getElementById('shiftConflictModal').style.display = 'none';
+                        setTimeout(() => {
+                            document.getElementById('shiftConflictModal').remove();
+                        }, 500);
+                        resolve();
+                    });
+                });
+            } else {
+                // No conflicts, proceed with approval
+                await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
+            }
+        } catch (error) {
+            console.error('Error checking for shift conflicts:', error);
+            // Continue with approval despite the error in conflict checking
+            await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
         }
-        
-        // Deduct days from balance
-        timeOffBalances[balanceType] -= daysUsed;
-        
-        // Save updated balances to localStorage
-        saveTimeOffBalances();
-        
-        // Update policy display if time off section is visible
-        if (document.querySelector('.time-off-section').style.display === 'block') {
-            updateTimeOffPolicyDisplay();
-        }
-        
-        showNotification(`Time off request approved successfully. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'success');
-        loadPendingTimeOffRequests();
         
     } catch (error) {
         console.error('Error approving time off request:', error);
         showNotification(`Error: ${error.message}`, 'error');
+    }
+}
+
+// Helper function to process the time off approval
+async function processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed) {
+    const token = getToken();
+    
+    // If sufficient balance, update the status to approved
+    const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            status: 'Approved',
+            approvedBy
+        })
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok && !result.warning) {
+        // If error is not a warning with conflicts
+        throw new Error(result.error || 'Failed to approve time off request');
+    }
+    
+    // Deduct days from balance
+    timeOffBalances[balanceType] -= daysUsed;
+    
+    // Save updated balances to localStorage
+    saveTimeOffBalances();
+    
+    // Update policy display if time off section is visible
+    if (document.querySelector('.time-off-section').style.display === 'block') {
+        updateTimeOffPolicyDisplay();
+    }
+    
+    // Check if the response contains conflict warnings
+    if (result.warning) {
+        // Create a warning modal for conflicts
+        const warningModal = document.createElement('div');
+        warningModal.className = 'modal';
+        warningModal.id = 'warningModal';
+        
+        let conflictHTML = `
+            <div class="modal-content warning-modal">
+                <span class="close">&times;</span>
+                <div class="warning-header">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h2>${result.warning.title || 'Warning'}</h2>
+                </div>
+                <p>${result.warning.message || 'There are conflicts with this time off request.'}</p>
+                <div class="time-off-details">
+                    <p><strong>Employee:</strong> ${result.message.split('for ')[1]?.split(' has')[0] || 'Employee'}</p>
+                    <p><strong>Period:</strong> ${result.timeOffPeriod?.start} to ${result.timeOffPeriod?.end}</p>
+                    <p><strong>Type:</strong> ${result.timeOffPeriod?.type || 'Leave'}</p>
+                </div>`;
+        
+        // Add existing shift conflicts if any
+        if (result.conflicts?.existing && result.conflicts.existing.length > 0) {
+            conflictHTML += `
+                <h3>Existing Shifts During This Period:</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Assignment</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            result.conflicts.existing.forEach(conflict => {
+                conflictHTML += `
+                    <tr>
+                        <td>${conflict.date}</td>
+                        <td>${conflict.title}</td>
+                        <td><span class="status-badge ${conflict.status.toLowerCase()}">${conflict.status}</span></td>
+                    </tr>`;
+            });
+            
+            conflictHTML += `
+                    </tbody>
+                </table>`;
+        }
+        
+        // Add pending shift conflicts if any
+        if (result.conflicts?.pending && result.conflicts.pending.length > 0) {
+            conflictHTML += `
+                <h3>Pending Shifts During This Period:</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Assignment</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            result.conflicts.pending.forEach(conflict => {
+                conflictHTML += `
+                    <tr>
+                        <td>${conflict.date}</td>
+                        <td>${conflict.title}</td>
+                        <td><span class="status-badge pending">Pending</span></td>
+                    </tr>`;
+            });
+            
+            conflictHTML += `
+                    </tbody>
+                </table>`;
+        }
+        
+        // Add recommendations if any
+        if (result.recommendations && result.recommendations.length > 0) {
+            conflictHTML += `
+                <div class="recommendations">
+                    <h3>Recommendations:</h3>
+                    <ul>`;
+            
+            result.recommendations.forEach(recommendation => {
+                conflictHTML += `<li>${recommendation}</li>`;
+            });
+            
+            conflictHTML += `</ul></div>`;
+        }
+        
+        conflictHTML += `
+            <div class="modal-footer">
+                <p>The time off has been approved, but you may want to resolve these conflicts.</p>
+                <button class="btn-primary" id="closeWarningModal">Acknowledge</button>
+            </div>
+        </div>`;
+        
+        warningModal.innerHTML = conflictHTML;
+        document.body.appendChild(warningModal);
+        
+        // Setup close functionality
+        document.getElementById('closeWarningModal').addEventListener('click', () => {
+            document.getElementById('warningModal').style.display = 'none';
+            setTimeout(() => {
+                document.getElementById('warningModal').remove();
+            }, 500);
+        });
+        
+        document.querySelector('#warningModal .close').addEventListener('click', () => {
+            document.getElementById('warningModal').style.display = 'none';
+            setTimeout(() => {
+                document.getElementById('warningModal').remove();
+            }, 500);
+        });
+        
+        // Show the modal
+        document.getElementById('warningModal').style.display = 'block';
+        
+        // Display success notification
+        showNotification(`Time off request approved with warnings. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'warning');
+    } else {
+        // Display regular success message
+        showNotification(`Time off request approved successfully. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'success');
+    }
+    
+    // Refresh the pending time off requests
+    loadPendingTimeOffRequests();
+    // Close the details modal if it was open
+    if (document.getElementById('timeOffDetailsModal').style.display === 'block') {
+        closeTimeOffDetailsModal();
     }
 }
 
@@ -4815,6 +5515,21 @@ async function rejectTimeOffRequest(requestId) {
         const token = getToken();
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const approvedBy = userInfo.userId;
+        
+        // Fetch the time off request details first to get employee name and dates
+        const detailsResponse = await fetch(`${window.API_BASE_URL}/timeoff/${requestId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!detailsResponse.ok) {
+            throw new Error('Failed to fetch time off request details');
+        }
+        
+        const requestDetails = await detailsResponse.json();
         
         const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
             method: 'PUT',
@@ -4835,8 +5550,24 @@ async function rejectTimeOffRequest(requestId) {
         
         // No deduction from balance when rejecting a request
         
-        showNotification('Time off request rejected. No days deducted from balance.', 'info');
-        loadPendingTimeOffRequests();
+        // Create a more friendly notification message
+        const employeeName = requestDetails.employeeName || 'employee';
+        const startDate = new Date(requestDetails.startDate).toLocaleDateString();
+        const endDate = new Date(requestDetails.endDate).toLocaleDateString();
+        
+        showNotification(`Time off request for ${employeeName} (${startDate} to ${endDate}) has been declined.`, 'info');
+        
+        // Refresh the relevant list based on which view the user is in
+        if (document.querySelector('.approve-timeoff-section').style.display === 'block') {
+            loadPendingTimeOffRequests();
+        } else {
+            loadTimeOffHistory();
+        }
+        
+        // Close the details modal if it was open
+        if (document.getElementById('timeOffDetailsModal').style.display === 'block') {
+            closeTimeOffDetailsModal();
+        }
         
     } catch (error) {
         console.error('Error rejecting time off request:', error);

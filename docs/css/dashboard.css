@@ -2158,14 +2158,12 @@ body.admin-visible .admin-only {
     color: #ff8f00;
 }
 
-.status-badge.approved {
-    background-color: #e8f5e9;
-    color: #2e7d32;
+.status-badge.approved, .status-badge.assigned {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
 }
 
-.status-badge.rejected {
-    background-color: #ffebee;
-    color: #c62828;
+.status-badge.declined {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
 }
 
 /* Availability Form Styles */
@@ -2483,4 +2481,195 @@ body.admin-visible .admin-only {
 .fc-daygrid-event[data-event-type="timeoff"] {
     margin-top: 4px !important;
     margin-bottom: 4px !important;
+}
+
+/* Warning and Conflict Modals */
+.warning-modal {
+    max-width: 600px;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.warning-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(243, 156, 18, 0.3);
+}
+
+.warning-header i {
+    font-size: 28px;
+    margin-right: 15px;
+    color: #f39c12;
+}
+
+.warning-header h2 {
+    margin: 0;
+    color: #f39c12;
+    font-weight: 600;
+    font-size: 1.4em;
+}
+
+.time-off-details {
+    background-color: #f8f9fa;
+    padding: 18px;
+    border-radius: 8px;
+    margin: 18px 0;
+    border-left: 4px solid #3498db;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.time-off-details p {
+    margin: 8px 0;
+    font-size: 15px;
+}
+
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: white;
+    letter-spacing: 0.5px;
+    display: inline-block;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.status-badge.pending {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+}
+
+.status-badge.approved, .status-badge.assigned {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+}
+
+.status-badge.declined {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.recommendations {
+    background-color: #e8f4fc;
+    padding: 18px;
+    border-radius: 8px;
+    margin: 18px 0;
+    border-left: 4px solid #2980b9;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.recommendations h3 {
+    color: #2980b9;
+    margin-top: 0;
+    font-size: 1.1em;
+}
+
+.recommendations ul {
+    margin: 12px 0;
+    padding-left: 25px;
+}
+
+.recommendations li {
+    margin-bottom: 8px;
+    position: relative;
+    padding-left: 5px;
+}
+
+.recommendations li::before {
+    content: "•";
+    color: #2980b9;
+    font-weight: bold;
+    position: absolute;
+    left: -15px;
+}
+
+.modal-footer {
+    margin-top: 25px;
+    text-align: center;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.modal-footer p {
+    margin-bottom: 15px;
+    color: #666;
+    font-style: italic;
+}
+
+.modal-footer .btn-primary {
+    transition: all 0.2s ease;
+    padding: 10px 24px;
+    font-weight: 600;
+}
+
+.modal-footer .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Data tables in modals */
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 15px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.data-table th, 
+.data-table td {
+    padding: 12px 15px;
+    text-align: left;
+}
+
+.data-table th {
+    background: linear-gradient(to bottom, #f9f9f9, #f3f3f3);
+    font-weight: 600;
+    color: #444;
+    border-bottom: 2px solid #e0e0e0;
+    position: relative;
+}
+
+.data-table th:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 25%;
+    height: 50%;
+    width: 1px;
+    background-color: #e0e0e0;
+}
+
+.data-table td {
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.data-table tr:last-child td {
+    border-bottom: none;
+}
+
+.data-table tr:hover {
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+/* Improve modal closing button */
+.modal .close {
+    font-size: 28px;
+    color: #999;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+}
+
+.modal .close:hover {
+    color: #444;
+    opacity: 1;
+    transform: scale(1.1);
 } 
