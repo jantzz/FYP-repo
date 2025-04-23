@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const timeOffController = require('../controllers/timeOffController');
 
+// gets leave balances
+router.get('/balances', timeOffController.getLeaveBalances);
 // Get all time off requests (for admins/managers)
 router.get('/', timeOffController.getAllTimeOff);
 
