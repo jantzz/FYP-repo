@@ -11,3 +11,16 @@ CREATE TABLE timeoff (
     FOREIGN KEY (employeeId) REFERENCES user(userId) ON DELETE CASCADE,
     FOREIGN KEY (approvedBy) REFERENCES user(userId) ON DELETE SET NULL
 );
+
+CREATE TABLE leave_balance (
+    employeeId INT UNSIGNED ZEROFILL PRIMARY KEY,
+    Paid INT UNSIGNED DEFAULT 0,
+    Unpaid INT UNSIGNED DEFAULT 0,
+    Medical INT UNSIGNED DEFAULT 0,
+    FOREIGN KEY (employeeId) REFERENCES user(userId)
+        ON UPDATE CASCADE ON DELETE CASCADE
+);
+-- adds 10 paid leaves, 5 unpaid leaves and 14 medical leaves for each user
+INSERT INTO leave_balance (employeeId, Paid, Unpaid, Medical)
+SELECT userId, 10, 5, 14 FROM user
+WHERE userId NOT IN (SELECT employeeId FROM leave_balance);

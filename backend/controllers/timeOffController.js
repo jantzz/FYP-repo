@@ -244,6 +244,33 @@ const updateTimeOffStatus = async (req, res) => {
         await connection.execute(updateQuery, [status, approvedBy, timeOffId]);
 
         if (status === 'Approved') {
+            //checks leave balance first
+            const [[leaveBalance]] = await connection.execute(
+            `SELECT ${type} FROM leave_balance WHERE employeeId = ?`,
+            [employeeId]
+        );
+
+        //calculate number of days between start and end dates (inclusive)
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const timeDiff = Math.abs(end.getTime() - start.getTime());
+        const numberOfDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+
+        if (leaveBalance[type] < numberOfDays) {
+            return res.status(400).json({
+                error: `Insufficient ${type.toLowerCase()} leave balance. Only ${leaveBalance[type]} day(s) available.`,
+                requestedDays: numberOfDays
+            });
+        }
+
+        //deduct leave days from balance
+        await connection.execute(
+            `UPDATE leave_balance
+             SET ${type} = GREATEST(${type} - ?, 0)
+             WHERE employeeId = ?`,
+            [numberOfDays, employeeId]
+        );
+
             //adds the timeoff period into shift table
             const shiftQuery = `INSERT INTO shift (employeeId, startDate, endDate, title, status)
                                 VALUES (?, ?, ?, ?, ?)`;
@@ -658,11 +685,58 @@ const deleteTimeOff = async (req, res) => {
     }
 };
 
+const getLeaveBalances = async (req, res) => {
+    const { employeeId } = req.query;
+
+    let connection;
+    try {
+        connection = await db.getConnection();
+
+        let query = `
+            SELECT 
+                lb.employeeId,
+                u.name AS employeeName,
+                u.department,
+                lb.Paid,
+                lb.Unpaid,
+                lb.Medical
+            FROM leave_balance lb
+            JOIN user u ON lb.employeeId = u.userId
+        `;
+        const params = [];
+
+        if (employeeId) {
+            query += ` WHERE lb.employeeId = ?`;
+            params.push(employeeId);
+        }
+
+        const [results] = await connection.execute(query, params);
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: "No leave balance data found" });
+        }
+
+        res.status(200).json({
+            message: employeeId
+                ? `Leave balance for employee ID ${employeeId}`
+                : "Leave balances for all employees",
+            count: results.length,
+            data: results
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error" });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 module.exports = {
     requestTimeOff,
     updateTimeOffStatus,
     getAllTimeOff,
     getEmployeeTimeOff,
     getTimeOffById,
-    deleteTimeOff
+    deleteTimeOff,
+    getLeaveBalances
 };
