@@ -2673,3 +2673,102 @@ body.admin-visible .admin-only {
     opacity: 1;
     transform: scale(1.1);
 } 
+
+/* Time Off Details Modal Styles */
+.detail-section {
+    margin-top: 20px;
+    border-top: 1px solid #e0e0e0;
+    padding-top: 15px;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+    color: #333;
+}
+
+.section-title i {
+    margin-right: 8px;
+    color: #f39c12;
+}
+
+.schedule-conflicts .warning-message {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    border-left: 4px solid #f39c12;
+}
+
+.schedule-conflicts h4 {
+    margin: 12px 0 8px;
+    font-size: 1rem;
+    color: #495057;
+}
+
+.replacement-suggestion {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border-left: 4px solid #3498db;
+}
+
+.replacement-suggestion h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    color: #3498db;
+}
+
+.recommendations {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #e8f4fd;
+    border-radius: 6px;
+}
+
+.recommendations h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    color: #2980b9;
+}
+
+.recommendations ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.recommendations li {
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.conflict-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 6px;
+    color: #f39c12;
+    animation: pulse 2s infinite;
+}
+
+.conflict-indicator i {
+    font-size: 0.9rem;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.7;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.7;
+    }
+} 

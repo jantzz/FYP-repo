@@ -26,57 +26,41 @@ const requestTimeOff = async (req, res) => {
             [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
         );
 
-        if (existingShifts.length > 0) {
-            // Format the conflict information for better readability
-            const conflictDetails = existingShifts.map(shift => {
-                return {
-                    date: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
-                    title: shift.title || 'Assigned Shift',
-                    status: shift.status
-                };
-            });
-            
-            return res.status(400).json({ 
-                error: "Unable to request time off due to schedule conflicts",
-                message: "You have existing shifts scheduled during this period. Please contact your manager to discuss alternative arrangements.",
-                conflicts: conflictDetails,
-                requestedPeriod: {
-                    start: new Date(startDate).toLocaleDateString(),
-                    end: new Date(endDate).toLocaleDateString()
-                }
-            });
-        }
-
-        // Also check for pending shifts
+        // Check for pending shifts
         const [pendingShifts] = await connection.execute(
-            `SELECT *, DATE_FORMAT(startDate, '%Y-%m-%d') as formattedStartDate, 
-                     DATE_FORMAT(endDate, '%Y-%m-%d') as formattedEndDate 
-             FROM pendingShift 
-             WHERE employeeId = ? 
-             AND ((startDate <= ? AND endDate >= ?) OR 
-                  (startDate <= ? AND endDate >= ?) OR
-                  (startDate >= ? AND endDate <= ?))`,
+            `SELECT ps.*, u.name as employeeName,
+                     DATE_FORMAT(ps.startDate, '%Y-%m-%d') as formattedStartDate, 
+                     DATE_FORMAT(ps.endDate, '%Y-%m-%d') as formattedEndDate
+             FROM pendingShift ps
+             JOIN user u ON ps.employeeId = u.userId
+             WHERE ps.employeeId = ? 
+             AND ((ps.startDate <= ? AND ps.endDate >= ?) OR 
+                  (ps.startDate <= ? AND ps.endDate >= ?) OR
+                  (ps.startDate >= ? AND ps.endDate <= ?))`,
             [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
         );
 
+        // Format conflicts for notification purposes
+        let hasConflicts = existingShifts.length > 0 || pendingShifts.length > 0;
+        let conflictDetails = [];
+        
+        if (existingShifts.length > 0) {
+            existingShifts.forEach(shift => {
+                conflictDetails.push({
+                    date: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
+                    title: shift.title || 'Assigned Shift',
+                    status: shift.status
+            });
+            });
+        }
+
         if (pendingShifts.length > 0) {
-            // Format the conflict information for better readability
-            const conflictDetails = pendingShifts.map(shift => {
-                return {
+            pendingShifts.forEach(shift => {
+                conflictDetails.push({
                     date: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
                     title: shift.title || 'Pending Assignment',
                     status: 'Pending'
-                };
             });
-            
-            return res.status(400).json({ 
-                error: "Unable to request time off due to pending assignments",
-                message: "You have pending shift assignments during this period. Please contact your manager to discuss your availability.",
-                conflicts: conflictDetails,
-                requestedPeriod: {
-                    start: new Date(startDate).toLocaleDateString(),
-                    end: new Date(endDate).toLocaleDateString()
-                }
             });
         }
 
@@ -86,7 +70,7 @@ const requestTimeOff = async (req, res) => {
 
         const [result] = await connection.execute(q, data);
 
-        return res.status(201).json({
+        let response = {
             message: "Your time off request has been successfully submitted",
             requestId: result.insertId,
             requestDetails: {
@@ -94,7 +78,15 @@ const requestTimeOff = async (req, res) => {
                 period: `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`,
                 status: "Pending approval"
             }
-        });
+        };
+
+        // Add conflict information if there are any
+        if (hasConflicts) {
+            response.note = "Your request has been submitted, but you have scheduled shifts during this period. Your manager will be notified about these conflicts.";
+            response.conflicts = conflictDetails;
+        }
+
+        return res.status(201).json(response);
 
     } catch (err) {
         console.error(err);
@@ -120,7 +112,7 @@ const updateTimeOffStatus = async (req, res) => {
 
         // Get time off details first
         const [[timeOff]] = await connection.execute(
-            `SELECT t.*, u.name as employeeName
+            `SELECT t.*, u.name as employeeName, u.department
              FROM timeoff t
              LEFT JOIN user u ON t.employeeId = u.userId
              WHERE t.timeOffId = ?`,
@@ -131,10 +123,8 @@ const updateTimeOffStatus = async (req, res) => {
             return res.status(404).json({ error: "Time off request not found" });
         }
 
-        const { employeeId, startDate, endDate, type, employeeName } = timeOff;
+        const { employeeId, startDate, endDate, type, employeeName, department } = timeOff;
 
-        // If approving, check for existing shifts during the time-off period
-        if (status === 'Approved') {
             // Check for existing shifts
             const [existingShifts] = await connection.execute(
                 `SELECT s.*, u.name as employeeName,
@@ -167,9 +157,11 @@ const updateTimeOffStatus = async (req, res) => {
             const formatShiftConflicts = (shifts, type) => {
                 return shifts.map(shift => {
                     return {
+                    id: type === 'Existing' ? shift.shiftId : shift.pendingShiftId,
                         date: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
                         title: shift.title || `${type} Shift`,
-                        status: shift.status
+                    status: shift.status,
+                    shiftType: type
                     };
                 });
             };
@@ -180,39 +172,69 @@ const updateTimeOffStatus = async (req, res) => {
             // Combine both types of conflicts
             const hasConflicts = existingShifts.length > 0 || pendingShifts.length > 0;
             
-            // If shifts exist, return them with a warning but don't block the approval
+        // Find available staff for each shift if there are conflicts
+        let availableStaffSuggestions = [];
+        
             if (hasConflicts) {
-                // Update the status anyway
-                const updateQuery = `UPDATE timeoff SET status = ?, approvedBy = ? WHERE timeOffId = ?`;
-                await connection.execute(updateQuery, [status, approvedBy, timeOffId]);
-
-                // Add the time off to shift table
-                const shiftQuery = `INSERT INTO shift (employeeId, startDate, endDate, title, status)
-                                    VALUES (?, ?, ?, ?, ?)`;
-                const shiftData = [employeeId, startDate, endDate, `${type} Leave`, `${type} Leave`];
-                await connection.execute(shiftQuery, shiftData);
-
-                // Return success with detailed warning about existing shifts
-                return res.status(200).json({ 
-                    message: `Time off request for ${employeeName} has been approved`,
-                    warning: {
-                        title: "Schedule Conflicts Detected",
-                        message: "This employee has existing or pending shifts during the approved time-off period. You may want to resolve these conflicts."
-                    },
-                    timeOffPeriod: {
-                        start: new Date(startDate).toLocaleDateString(),
-                        end: new Date(endDate).toLocaleDateString(),
-                        type
-                    },
-                    conflicts: {
-                        existing: existingShiftConflicts,
-                        pending: pendingShiftConflicts
-                    },
-                    recommendations: [
-                        "Consider rescheduling the conflicting shifts",
-                        "Assign the shifts to another employee",
-                        "Discuss with the employee about their availability"
+            // Get all shift dates to check availability
+            const allConflictingShifts = [...existingShifts, ...pendingShifts];
+            
+            for (const shift of allConflictingShifts) {
+                // Find available staff for this shift period
+                const [availableStaff] = await connection.execute(
+                    `SELECT u.userId, u.name, u.department, u.role
+                     FROM user u
+                     WHERE u.userId != ? 
+                     AND u.department = ?
+                     AND NOT EXISTS (
+                         SELECT 1 FROM shift s
+                         WHERE s.employeeId = u.userId
+                         AND ((s.startDate <= ? AND s.endDate >= ?) OR 
+                              (s.startDate <= ? AND s.endDate >= ?) OR
+                              (s.startDate >= ? AND s.endDate <= ?))
+                     )
+                     AND NOT EXISTS (
+                         SELECT 1 FROM pendingShift ps
+                         WHERE ps.employeeId = u.userId
+                         AND ((ps.startDate <= ? AND ps.endDate >= ?) OR 
+                              (ps.startDate <= ? AND ps.endDate >= ?) OR
+                              (ps.startDate >= ? AND ps.endDate <= ?))
+                     )
+                     AND NOT EXISTS (
+                         SELECT 1 FROM timeoff t
+                         WHERE t.employeeId = u.userId
+                         AND t.status = 'Approved'
+                         AND ((t.startDate <= ? AND t.endDate >= ?) OR 
+                              (t.startDate <= ? AND t.endDate >= ?) OR
+                              (t.startDate >= ? AND t.endDate <= ?))
+                     )`,
+                    [
+                        employeeId, department,
+                        shift.startDate, shift.startDate,
+                        shift.endDate, shift.endDate,
+                        shift.startDate, shift.endDate,
+                        shift.startDate, shift.startDate,
+                        shift.endDate, shift.endDate,
+                        shift.startDate, shift.endDate,
+                        shift.startDate, shift.startDate,
+                        shift.endDate, shift.endDate,
+                        shift.startDate, shift.endDate
                     ]
+                );
+                
+                const shiftId = shift.shiftId || shift.pendingShiftId;
+                const shiftType = shift.shiftId ? 'Existing' : 'Pending';
+                
+                availableStaffSuggestions.push({
+                    shiftId,
+                    shiftType,
+                    shiftPeriod: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
+                    availableStaff: availableStaff.map(staff => ({
+                        id: staff.userId,
+                        name: staff.name,
+                        department: staff.department,
+                        role: staff.role
+                    }))
                 });
             }
         }
@@ -228,6 +250,32 @@ const updateTimeOffStatus = async (req, res) => {
             const shiftData = [employeeId, startDate, endDate, `${type} Leave`, `${type} Leave`];
 
             await connection.execute(shiftQuery, shiftData);
+            
+            // If shifts exist, return them with a warning but don't block the approval
+            if (hasConflicts) {
+                return res.status(200).json({ 
+                    message: `Time off request for ${employeeName} has been approved`,
+                    warning: {
+                        title: "Schedule Conflicts Detected",
+                        message: "This employee has existing or pending shifts during the approved time-off period."
+                    },
+                    timeOffPeriod: {
+                        start: new Date(startDate).toLocaleDateString(),
+                        end: new Date(endDate).toLocaleDateString(),
+                        type
+                    },
+                    conflicts: {
+                        existing: existingShiftConflicts,
+                        pending: pendingShiftConflicts
+                    },
+                    availableStaffSuggestions,
+                    recommendations: [
+                        "Reassign the shifts to one of the suggested available staff members",
+                        "Consider canceling or rescheduling the conflicting shifts",
+                        "If no available staff, consider creating an open shift for others to claim"
+                    ]
+                });
+            }
             
             return res.status(200).json({ 
                 message: `Time off request for ${employeeName || 'employee'} has been approved`,
@@ -247,7 +295,6 @@ const updateTimeOffStatus = async (req, res) => {
                 }
             });
         }
-
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Internal Server Error" });
@@ -263,7 +310,7 @@ const getAllTimeOff = async (req, res) => {
         connection = await db.getConnection();
         
         const query = `
-            SELECT t.*, u.name as employeeName,
+            SELECT t.*, u.name as employeeName, u.department,
                    a.name as approverName
             FROM timeoff t
             LEFT JOIN user u ON t.employeeId = u.userId
@@ -273,7 +320,45 @@ const getAllTimeOff = async (req, res) => {
         
         const [timeOffRequests] = await connection.execute(query);
         
-        return res.status(200).json(timeOffRequests);
+        // Check for shift conflicts for each time off request
+        const enrichedRequests = await Promise.all(timeOffRequests.map(async (request) => {
+            const { employeeId, startDate, endDate } = request;
+            
+            // Check for existing shifts
+            const [existingShifts] = await connection.execute(
+                `SELECT COUNT(*) as count
+                 FROM shift
+                 WHERE employeeId = ? 
+                 AND ((startDate <= ? AND endDate >= ?) OR 
+                      (startDate <= ? AND endDate >= ?) OR
+                      (startDate >= ? AND endDate <= ?))`,
+                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+            );
+            
+            // Check for pending shifts
+            const [pendingShifts] = await connection.execute(
+                `SELECT COUNT(*) as count
+                 FROM pendingShift
+                 WHERE employeeId = ? 
+                 AND ((startDate <= ? AND endDate >= ?) OR 
+                      (startDate <= ? AND endDate >= ?) OR
+                      (startDate >= ? AND endDate <= ?))`,
+                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+            );
+            
+            const hasConflicts = existingShifts[0].count > 0 || pendingShifts[0].count > 0;
+            
+            return {
+                ...request,
+                hasScheduleConflicts: hasConflicts,
+                timeOffPeriod: {
+                    start: new Date(startDate).toLocaleDateString(),
+                    end: new Date(endDate).toLocaleDateString()
+                }
+            };
+        }));
+        
+        return res.status(200).json(enrichedRequests);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Internal Server Error" });
@@ -295,7 +380,7 @@ const getEmployeeTimeOff = async (req, res) => {
         connection = await db.getConnection();
         
         const query = `
-            SELECT t.*, u.name as employeeName,
+            SELECT t.*, u.name as employeeName, u.department,
                    a.name as approverName
             FROM timeoff t
             LEFT JOIN user u ON t.employeeId = u.userId
@@ -306,7 +391,45 @@ const getEmployeeTimeOff = async (req, res) => {
         
         const [timeOffRequests] = await connection.execute(query, [employeeId]);
         
-        return res.status(200).json(timeOffRequests);
+        // Check for shift conflicts for each time off request
+        const enrichedRequests = await Promise.all(timeOffRequests.map(async (request) => {
+            const { startDate, endDate } = request;
+            
+            // Check for existing shifts
+            const [existingShifts] = await connection.execute(
+                `SELECT COUNT(*) as count
+                 FROM shift
+                 WHERE employeeId = ? 
+                 AND ((startDate <= ? AND endDate >= ?) OR 
+                      (startDate <= ? AND endDate >= ?) OR
+                      (startDate >= ? AND endDate <= ?))`,
+                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+            );
+            
+            // Check for pending shifts
+            const [pendingShifts] = await connection.execute(
+                `SELECT COUNT(*) as count
+                 FROM pendingShift
+                 WHERE employeeId = ? 
+                 AND ((startDate <= ? AND endDate >= ?) OR 
+                      (startDate <= ? AND endDate >= ?) OR
+                      (startDate >= ? AND endDate <= ?))`,
+                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+            );
+            
+            const hasConflicts = existingShifts[0].count > 0 || pendingShifts[0].count > 0;
+            
+            return {
+                ...request,
+                hasScheduleConflicts: hasConflicts,
+                timeOffPeriod: {
+                    start: new Date(startDate).toLocaleDateString(),
+                    end: new Date(endDate).toLocaleDateString()
+                }
+            };
+        }));
+        
+        return res.status(200).json(enrichedRequests);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Internal Server Error" });
@@ -328,7 +451,7 @@ const getTimeOffById = async (req, res) => {
         connection = await db.getConnection();
         
         const query = `
-            SELECT t.*, u.name as employeeName,
+            SELECT t.*, u.name as employeeName, u.department,
                    a.name as approverName
             FROM timeoff t
             LEFT JOIN user u ON t.employeeId = u.userId
@@ -342,7 +465,147 @@ const getTimeOffById = async (req, res) => {
             return res.status(404).json({ error: "Time off request not found" });
         }
         
-        return res.status(200).json(timeOffRequests[0]);
+        const timeOff = timeOffRequests[0];
+        const { employeeId, startDate, endDate, department } = timeOff;
+        
+        // Check for existing shifts during the time off period
+        const [existingShifts] = await connection.execute(
+            `SELECT s.*, u.name as employeeName,
+                     DATE_FORMAT(s.startDate, '%Y-%m-%d') as formattedStartDate, 
+                     DATE_FORMAT(s.endDate, '%Y-%m-%d') as formattedEndDate
+             FROM shift s
+             JOIN user u ON s.employeeId = u.userId
+             WHERE s.employeeId = ? 
+             AND ((s.startDate <= ? AND s.endDate >= ?) OR 
+                  (s.startDate <= ? AND s.endDate >= ?) OR
+                  (s.startDate >= ? AND s.endDate <= ?))`,
+            [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+        );
+
+        // Check for pending shifts
+        const [pendingShifts] = await connection.execute(
+            `SELECT ps.*, u.name as employeeName,
+                     DATE_FORMAT(ps.startDate, '%Y-%m-%d') as formattedStartDate, 
+                     DATE_FORMAT(ps.endDate, '%Y-%m-%d') as formattedEndDate
+             FROM pendingShift ps
+             JOIN user u ON ps.employeeId = u.userId
+             WHERE ps.employeeId = ? 
+             AND ((ps.startDate <= ? AND ps.endDate >= ?) OR 
+                  (ps.startDate <= ? AND ps.endDate >= ?) OR
+                  (ps.startDate >= ? AND ps.endDate <= ?))`,
+            [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+        );
+
+        // Format conflicts for better readability
+        const formatShiftConflicts = (shifts, type) => {
+            return shifts.map(shift => {
+                return {
+                    id: type === 'Existing' ? shift.shiftId : shift.pendingShiftId,
+                    date: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
+                    title: shift.title || `${type} Shift`,
+                    status: shift.status,
+                    shiftType: type
+                };
+            });
+        };
+
+        const existingShiftConflicts = formatShiftConflicts(existingShifts, 'Existing');
+        const pendingShiftConflicts = formatShiftConflicts(pendingShifts, 'Pending');
+
+        // Combine both types of conflicts
+        const hasConflicts = existingShifts.length > 0 || pendingShifts.length > 0;
+        
+        // Find available staff for each shift if there are conflicts
+        let availableStaffSuggestions = [];
+        
+        if (hasConflicts) {
+            // Get all shift dates to check availability
+            const allConflictingShifts = [...existingShifts, ...pendingShifts];
+            
+            for (const shift of allConflictingShifts) {
+                // Find available staff for this shift period
+                const [availableStaff] = await connection.execute(
+                    `SELECT u.userId, u.name, u.department, u.role
+                     FROM user u
+                     WHERE u.userId != ? 
+                     AND u.department = ?
+                     AND NOT EXISTS (
+                         SELECT 1 FROM shift s
+                         WHERE s.employeeId = u.userId
+                         AND ((s.startDate <= ? AND s.endDate >= ?) OR 
+                              (s.startDate <= ? AND s.endDate >= ?) OR
+                              (s.startDate >= ? AND s.endDate <= ?))
+                     )
+                     AND NOT EXISTS (
+                         SELECT 1 FROM pendingShift ps
+                         WHERE ps.employeeId = u.userId
+                         AND ((ps.startDate <= ? AND ps.endDate >= ?) OR 
+                              (ps.startDate <= ? AND ps.endDate >= ?) OR
+                              (ps.startDate >= ? AND ps.endDate <= ?))
+                     )
+                     AND NOT EXISTS (
+                         SELECT 1 FROM timeoff t
+                         WHERE t.employeeId = u.userId
+                         AND t.status = 'Approved'
+                         AND ((t.startDate <= ? AND t.endDate >= ?) OR 
+                              (t.startDate <= ? AND t.endDate >= ?) OR
+                              (t.startDate >= ? AND t.endDate <= ?))
+                     )`,
+                    [
+                        employeeId, department,
+                        shift.startDate, shift.startDate,
+                        shift.endDate, shift.endDate,
+                        shift.startDate, shift.endDate,
+                        shift.startDate, shift.startDate,
+                        shift.endDate, shift.endDate,
+                        shift.startDate, shift.endDate,
+                        shift.startDate, shift.startDate,
+                        shift.endDate, shift.endDate,
+                        shift.startDate, shift.endDate
+                    ]
+                );
+                
+                const shiftId = shift.shiftId || shift.pendingShiftId;
+                const shiftType = shift.shiftId ? 'Existing' : 'Pending';
+                
+                availableStaffSuggestions.push({
+                    shiftId,
+                    shiftType,
+                    shiftPeriod: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
+                    availableStaff: availableStaff.map(staff => ({
+                        id: staff.userId,
+                        name: staff.name,
+                        department: staff.department,
+                        role: staff.role
+                    }))
+                });
+            }
+        }
+        
+        // Add conflict information to the response if conflicts exist
+        const response = {
+            ...timeOff,
+            timeOffPeriod: {
+                start: new Date(startDate).toLocaleDateString(),
+                end: new Date(endDate).toLocaleDateString()
+            }
+        };
+        
+        if (hasConflicts) {
+            response.hasScheduleConflicts = true;
+            response.conflicts = {
+                existing: existingShiftConflicts,
+                pending: pendingShiftConflicts
+            };
+            response.availableStaffSuggestions = availableStaffSuggestions;
+            response.recommendations = [
+                "Reassign the shifts to one of the suggested available staff members",
+                "Consider canceling or rescheduling the conflicting shifts",
+                "If no available staff, consider creating an open shift for others to claim"
+            ];
+        }
+        
+        return res.status(200).json(response);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Internal Server Error" });

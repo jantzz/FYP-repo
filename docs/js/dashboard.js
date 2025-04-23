@@ -1614,6 +1614,10 @@ async function viewTimeOffRequest(requestId) {
         const request = await response.json();
     currentTimeOffRequest = request;
     
+        // Get user info to check role
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const isAdminOrManager = userInfo.role === 'admin' || userInfo.role === 'manager';
+    
     // Populate the details modal
         document.getElementById('request-employee-name').textContent = request.employeeName || 'Employee Name';
     
@@ -1653,10 +1657,152 @@ async function viewTimeOffRequest(requestId) {
                 <span class="detail-value">${request.reason || 'No notes provided'}</span>
         </div>
     `;
+
+        // Add schedule conflicts and staff replacement suggestions if they exist
+        // ONLY for admin/manager roles
+        if (isAdminOrManager && request.hasScheduleConflicts) {
+            let conflictHTML = `
+                <div class="detail-section schedule-conflicts">
+                    <h3 class="section-title">
+                        <i class="fas fa-exclamation-triangle"></i> Schedule Conflicts
+                    </h3>
+                    <div class="warning-message">
+                        <p>This employee has shifts scheduled during the requested time off period.</p>
+                    </div>
+            `;
+            
+            // Add existing shift conflicts
+            if (request.conflicts?.existing?.length > 0) {
+                conflictHTML += `
+                    <h4>Existing Shifts:</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                
+                request.conflicts.existing.forEach(shift => {
+                    conflictHTML += `
+                        <tr>
+                            <td>${shift.date}</td>
+                            <td>${shift.title || 'Regular Shift'}</td>
+                            <td>${shift.status}</td>
+                        </tr>
+                    `;
+                });
+                
+                conflictHTML += `
+                        </tbody>
+                    </table>
+                `;
+            }
+            
+            // Add pending shift conflicts
+            if (request.conflicts?.pending?.length > 0) {
+                conflictHTML += `
+                    <h4>Pending Shifts:</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                
+                request.conflicts.pending.forEach(shift => {
+                    conflictHTML += `
+                        <tr>
+                            <td>${shift.date}</td>
+                            <td>${shift.title || 'Regular Shift'}</td>
+                            <td>${shift.status}</td>
+                        </tr>
+                    `;
+                });
+                
+                conflictHTML += `
+                        </tbody>
+                    </table>
+                `;
+            }
+            
+            // Add staff replacement suggestions
+            if (request.availableStaffSuggestions?.length > 0) {
+                conflictHTML += `
+                    <h3 class="section-title">
+                        <i class="fas fa-user-friends"></i> Available Staff Suggestions
+                    </h3>
+                `;
+                
+                request.availableStaffSuggestions.forEach(suggestion => {
+                    conflictHTML += `
+                        <div class="replacement-suggestion">
+                            <h4>Shift Period: ${suggestion.shiftPeriod}</h4>
+                    `;
+                    
+                    if (suggestion.availableStaff.length > 0) {
+                        conflictHTML += `
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Department</th>
+                                        <th>Role</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+                        
+                        suggestion.availableStaff.forEach(staff => {
+                            conflictHTML += `
+                                <tr>
+                                    <td>${staff.name}</td>
+                                    <td>${staff.department}</td>
+                                    <td>${staff.role}</td>
+                                </tr>
+                            `;
+                        });
+                        
+                        conflictHTML += `
+                                </tbody>
+                            </table>
+                        `;
+                    } else {
+                        conflictHTML += `<p>No available staff for this shift period</p>`;
+                    }
+                    
+                    conflictHTML += `</div>`;
+                });
+            }
+            
+            // Add recommendations if any
+            if (request.recommendations?.length > 0) {
+                conflictHTML += `
+                    <div class="recommendations">
+                        <h4>Recommendations:</h4>
+                        <ul>
+                `;
+                
+                request.recommendations.forEach(recommendation => {
+                    conflictHTML += `<li>${recommendation}</li>`;
+                });
+                
+                conflictHTML += `
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            conflictHTML += `</div>`;
+            detailsContainer.innerHTML += conflictHTML;
+        }
     
         // Show or hide manager actions based on user role and request status
-        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        const isAdminOrManager = userInfo.role === 'admin' || userInfo.role === 'manager';
     const managerActions = document.querySelector('.manager-actions');
         
         if (isAdminOrManager && request.status === 'Pending') {
@@ -1727,7 +1873,211 @@ async function approveTimeOffRequest(requestId) {
             return; // Stop the approval process
         }
         
-        // Check for existing shifts during the time-off period
+        // If there are conflicts in the time off request, show them along with replacement suggestions
+        if (requestDetails.hasScheduleConflicts) {
+            return new Promise((resolve) => {
+                // Create confirmation modal
+                const confirmModal = document.createElement('div');
+                confirmModal.className = 'modal';
+                confirmModal.id = 'shiftConflictModal';
+                
+                let modalHTML = `
+                    <div class="modal-content warning-modal">
+                        <span class="close">&times;</span>
+                        <div class="warning-header">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h2>Shift Conflicts Detected</h2>
+                        </div>
+                        <p>The employee has shifts scheduled during the requested time off period:</p>
+                        <div class="time-off-details">
+                            <p><strong>Employee:</strong> ${requestDetails.employeeName || 'Employee'}</p>
+                            <p><strong>Time Off Period:</strong> ${formatDateForDisplay(new Date(requestDetails.startDate))} to ${formatDateForDisplay(new Date(requestDetails.endDate))}</p>
+                            <p><strong>Type:</strong> ${requestDetails.type} Leave</p>
+                        </div>`;
+                
+                // Add existing shift conflicts
+                if (requestDetails.conflicts?.existing?.length > 0) {
+                    modalHTML += `
+                        <h3>Existing Shifts:</h3>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Title</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    
+                    requestDetails.conflicts.existing.forEach(shift => {
+                        modalHTML += `
+                            <tr>
+                                <td>${shift.date}</td>
+                                <td>${shift.title || 'Regular Shift'}</td>
+                                <td>${shift.status}</td>
+                            </tr>`;
+                    });
+                    
+                    modalHTML += `
+                            </tbody>
+                        </table>`;
+                }
+                
+                // Add pending shift conflicts
+                if (requestDetails.conflicts?.pending?.length > 0) {
+                    modalHTML += `
+                        <h3>Pending Shifts:</h3>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Title</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    
+                    requestDetails.conflicts.pending.forEach(shift => {
+                        modalHTML += `
+                            <tr>
+                                <td>${shift.date}</td>
+                                <td>${shift.title || 'Regular Shift'}</td>
+                                <td>${shift.status}</td>
+                            </tr>`;
+                    });
+                    
+                    modalHTML += `
+                            </tbody>
+                        </table>`;
+                }
+                
+                // Add staff replacement suggestions
+                if (requestDetails.availableStaffSuggestions?.length > 0) {
+                    modalHTML += `
+                        <h3 class="section-title">
+                            <i class="fas fa-user-friends"></i> Available Staff Suggestions
+                        </h3>`;
+                    
+                    requestDetails.availableStaffSuggestions.forEach(suggestion => {
+                        modalHTML += `
+                            <div class="replacement-suggestion">
+                                <h4>Shift Period: ${suggestion.shiftPeriod}</h4>`;
+                        
+                        if (suggestion.availableStaff.length > 0) {
+                            modalHTML += `
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Department</th>
+                                            <th>Role</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                            
+                            suggestion.availableStaff.forEach(staff => {
+                                modalHTML += `
+                                    <tr>
+                                        <td>${staff.name}</td>
+                                        <td>${staff.department}</td>
+                                        <td>${staff.role}</td>
+                                    </tr>`;
+                            });
+                            
+                            modalHTML += `
+                                    </tbody>
+                                </table>`;
+                        } else {
+                            modalHTML += `<p>No available staff for this shift period</p>`;
+                        }
+                        
+                        modalHTML += `</div>`;
+                    });
+                }
+                
+                // Add recommendations if any
+                if (requestDetails.recommendations?.length > 0) {
+                    modalHTML += `
+                        <div class="recommendations">
+                            <h4>Recommendations:</h4>
+                            <ul>`;
+                    
+                    requestDetails.recommendations.forEach(recommendation => {
+                        modalHTML += `<li>${recommendation}</li>`;
+                    });
+                    
+                    modalHTML += `
+                            </ul>
+                        </div>`;
+                } else {
+                    modalHTML += `
+                        <div class="recommendations">
+                            <h3><i class="fas fa-info-circle"></i> What to do next</h3>
+                            <ul>
+                                <li>Consider rescheduling the conflicting shifts</li>
+                                <li>Assign a replacement for the scheduled shifts</li>
+                                <li>Discuss alternatives with the employee</li>
+                            </ul>
+                        </div>`;
+                }
+                
+                modalHTML += `
+                    <div class="modal-footer">
+                        <p><i class="fas fa-headset"></i> Do you still want to approve this time off request?</p>
+                        <div style="display: flex; gap: 10px; justify-content: center;">
+                            <button class="btn-danger" id="cancelApproval">Cancel</button>
+                            <button class="btn-primary" id="confirmApproval">Approve Anyway</button>
+                        </div>
+                    </div>
+                </div>`;
+                
+                confirmModal.innerHTML = modalHTML;
+                document.body.appendChild(confirmModal);
+                
+                // Show the modal
+                document.getElementById('shiftConflictModal').style.display = 'block';
+                
+                // Add event listeners for buttons
+                document.getElementById('confirmApproval').addEventListener('click', async () => {
+                    // Close the modal
+                    document.getElementById('shiftConflictModal').style.display = 'none';
+                    
+                    // Continue with approval
+                    try {
+                        await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
+                        resolve();
+                    } catch (error) {
+                        console.error('Error during approval:', error);
+                        showNotification(`Error: ${error.message}`, 'error');
+                        resolve();
+                    } finally {
+                        // Remove the modal
+                        setTimeout(() => {
+                            document.getElementById('shiftConflictModal').remove();
+                        }, 500);
+                    }
+                });
+                
+                document.getElementById('cancelApproval').addEventListener('click', () => {
+                    // Close and remove the modal
+                    document.getElementById('shiftConflictModal').style.display = 'none';
+                    setTimeout(() => {
+                        document.getElementById('shiftConflictModal').remove();
+                    }, 500);
+                    resolve();
+                });
+                
+                // Close button functionality
+                document.querySelector('#shiftConflictModal .close').addEventListener('click', () => {
+                    document.getElementById('shiftConflictModal').style.display = 'none';
+                    setTimeout(() => {
+                        document.getElementById('shiftConflictModal').remove();
+                    }, 500);
+                    resolve();
+                });
+            });
+        } else {
+            // No conflicts found in request, check for shifts manually
         try {
             // Fetch employee shifts for the time period
             const shiftResponse = await fetch(`${window.API_BASE_URL}/shift/${requestDetails.employeeId}`, {
@@ -1880,7 +2230,7 @@ async function approveTimeOffRequest(requestId) {
             // Continue with approval despite the error in conflict checking
             await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
         }
-        
+        }
     } catch (error) {
         console.error('Error approving time off request:', error);
         showNotification(`Error: ${error.message}`, 'error');
@@ -5099,6 +5449,12 @@ async function loadPendingTimeOffRequests() {
                 statusClass = 'status-pending';
             }
             
+            // Add conflict indicator if there are schedule conflicts
+            const conflictIndicator = request.hasScheduleConflicts ? 
+                `<span class="conflict-indicator" title="This request has schedule conflicts">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </span>` : '';
+            
             row.innerHTML = `
                 <td>${request.employeeName || 'Employee'}</td>
                 <td>${dateRequested}</td>
@@ -5106,7 +5462,7 @@ async function loadPendingTimeOffRequests() {
                 <td>${startDate}</td>
                 <td>${endDate}</td>
                 <td>${request.reason || 'No reason provided'}</td>
-                <td><span class="request-status ${statusClass}">${request.status}</span></td>
+                <td><span class="request-status ${statusClass}">${request.status}</span> ${conflictIndicator}</td>
                 <td class="request-actions">
                     <button class="action-btn view-btn" onclick="viewTimeOffRequest(${request.timeOffId})">
                         <i class="fas fa-eye"></i>
@@ -5123,12 +5479,8 @@ async function loadPendingTimeOffRequests() {
             
             tableBody.appendChild(row);
         });
-        
-        // Set up status filter change listener
-        document.getElementById('timeoff-status-filter').addEventListener('change', loadPendingTimeOffRequests);
-        
     } catch (error) {
-        console.error('Error loading time off requests:', error);
+        console.error('Error loading pending time off requests:', error);
         tableBody.innerHTML = `<tr><td colspan="8" class="error-message">Error loading time off requests: ${error.message}</td></tr>`;
     }
 }
@@ -5180,7 +5532,211 @@ async function approveTimeOffRequest(requestId) {
             return; // Stop the approval process
         }
         
-        // Check for existing shifts during the time-off period
+        // If there are conflicts in the time off request, show them along with replacement suggestions
+        if (requestDetails.hasScheduleConflicts) {
+            return new Promise((resolve) => {
+                // Create confirmation modal
+                const confirmModal = document.createElement('div');
+                confirmModal.className = 'modal';
+                confirmModal.id = 'shiftConflictModal';
+                
+                let modalHTML = `
+                    <div class="modal-content warning-modal">
+                        <span class="close">&times;</span>
+                        <div class="warning-header">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h2>Shift Conflicts Detected</h2>
+                        </div>
+                        <p>The employee has shifts scheduled during the requested time off period:</p>
+                        <div class="time-off-details">
+                            <p><strong>Employee:</strong> ${requestDetails.employeeName || 'Employee'}</p>
+                            <p><strong>Time Off Period:</strong> ${formatDateForDisplay(new Date(requestDetails.startDate))} to ${formatDateForDisplay(new Date(requestDetails.endDate))}</p>
+                            <p><strong>Type:</strong> ${requestDetails.type} Leave</p>
+                        </div>`;
+                
+                // Add existing shift conflicts
+                if (requestDetails.conflicts?.existing?.length > 0) {
+                    modalHTML += `
+                        <h3>Existing Shifts:</h3>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Title</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    
+                    requestDetails.conflicts.existing.forEach(shift => {
+                        modalHTML += `
+                            <tr>
+                                <td>${shift.date}</td>
+                                <td>${shift.title || 'Regular Shift'}</td>
+                                <td>${shift.status}</td>
+                            </tr>`;
+                    });
+                    
+                    modalHTML += `
+                            </tbody>
+                        </table>`;
+                }
+                
+                // Add pending shift conflicts
+                if (requestDetails.conflicts?.pending?.length > 0) {
+                    modalHTML += `
+                        <h3>Pending Shifts:</h3>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Title</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    
+                    requestDetails.conflicts.pending.forEach(shift => {
+                        modalHTML += `
+                            <tr>
+                                <td>${shift.date}</td>
+                                <td>${shift.title || 'Regular Shift'}</td>
+                                <td>${shift.status}</td>
+                            </tr>`;
+                    });
+                    
+                    modalHTML += `
+                            </tbody>
+                        </table>`;
+                }
+                
+                // Add staff replacement suggestions
+                if (requestDetails.availableStaffSuggestions?.length > 0) {
+                    modalHTML += `
+                        <h3 class="section-title">
+                            <i class="fas fa-user-friends"></i> Available Staff Suggestions
+                        </h3>`;
+                    
+                    requestDetails.availableStaffSuggestions.forEach(suggestion => {
+                        modalHTML += `
+                            <div class="replacement-suggestion">
+                                <h4>Shift Period: ${suggestion.shiftPeriod}</h4>`;
+                        
+                        if (suggestion.availableStaff.length > 0) {
+                            modalHTML += `
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Department</th>
+                                            <th>Role</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                            
+                            suggestion.availableStaff.forEach(staff => {
+                                modalHTML += `
+                                    <tr>
+                                        <td>${staff.name}</td>
+                                        <td>${staff.department}</td>
+                                        <td>${staff.role}</td>
+                                    </tr>`;
+                            });
+                            
+                            modalHTML += `
+                                    </tbody>
+                                </table>`;
+                        } else {
+                            modalHTML += `<p>No available staff for this shift period</p>`;
+                        }
+                        
+                        modalHTML += `</div>`;
+                    });
+                }
+                
+                // Add recommendations if any
+                if (requestDetails.recommendations?.length > 0) {
+                    modalHTML += `
+                        <div class="recommendations">
+                            <h4>Recommendations:</h4>
+                            <ul>`;
+                    
+                    requestDetails.recommendations.forEach(recommendation => {
+                        modalHTML += `<li>${recommendation}</li>`;
+                    });
+                    
+                    modalHTML += `
+                            </ul>
+                        </div>`;
+                } else {
+                    modalHTML += `
+                        <div class="recommendations">
+                            <h3><i class="fas fa-info-circle"></i> What to do next</h3>
+                            <ul>
+                                <li>Consider rescheduling the conflicting shifts</li>
+                                <li>Assign a replacement for the scheduled shifts</li>
+                                <li>Discuss alternatives with the employee</li>
+                            </ul>
+                        </div>`;
+                }
+                
+                modalHTML += `
+                    <div class="modal-footer">
+                        <p><i class="fas fa-headset"></i> Do you still want to approve this time off request?</p>
+                        <div style="display: flex; gap: 10px; justify-content: center;">
+                            <button class="btn-danger" id="cancelApproval">Cancel</button>
+                            <button class="btn-primary" id="confirmApproval">Approve Anyway</button>
+                        </div>
+                    </div>
+                </div>`;
+                
+                confirmModal.innerHTML = modalHTML;
+                document.body.appendChild(confirmModal);
+                
+                // Show the modal
+                document.getElementById('shiftConflictModal').style.display = 'block';
+                
+                // Add event listeners for buttons
+                document.getElementById('confirmApproval').addEventListener('click', async () => {
+                    // Close the modal
+                    document.getElementById('shiftConflictModal').style.display = 'none';
+                    
+                    // Continue with approval
+                    try {
+                        await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
+                        resolve();
+                    } catch (error) {
+                        console.error('Error during approval:', error);
+                        showNotification(`Error: ${error.message}`, 'error');
+                        resolve();
+                    } finally {
+                        // Remove the modal
+                        setTimeout(() => {
+                            document.getElementById('shiftConflictModal').remove();
+                        }, 500);
+                    }
+                });
+                
+                document.getElementById('cancelApproval').addEventListener('click', () => {
+                    // Close and remove the modal
+                    document.getElementById('shiftConflictModal').style.display = 'none';
+                    setTimeout(() => {
+                        document.getElementById('shiftConflictModal').remove();
+                    }, 500);
+                    resolve();
+                });
+                
+                // Close button functionality
+                document.querySelector('#shiftConflictModal .close').addEventListener('click', () => {
+                    document.getElementById('shiftConflictModal').style.display = 'none';
+                    setTimeout(() => {
+                        document.getElementById('shiftConflictModal').remove();
+                    }, 500);
+                    resolve();
+                });
+            });
+        } else {
+            // No conflicts found in request, check for shifts manually
         try {
             // Fetch employee shifts for the time period
             const shiftResponse = await fetch(`${window.API_BASE_URL}/shift/${requestDetails.employeeId}`, {
@@ -5333,7 +5889,7 @@ async function approveTimeOffRequest(requestId) {
             // Continue with approval despite the error in conflict checking
             await processApproval(requestId, approvedBy, requestDetails, balanceType, daysUsed);
         }
-        
+        }
     } catch (error) {
         console.error('Error approving time off request:', error);
         showNotification(`Error: ${error.message}`, 'error');
