@@ -1219,13 +1219,28 @@ document.getElementById('editShiftForm').addEventListener('submit', function(e) 
 
 // Helper function to format date for display
 function formatDateForDisplay(date) {
+    // Handle null, undefined, or invalid dates
+    if (!date) {
+        return 'N/A';
+    }
+    
+    let dateObj;
+    try {
+        // Convert to Date object if it's not already
+        dateObj = date instanceof Date ? date : new Date(date);
+        
+        // Check if date is valid
+        if (isNaN(dateObj.getTime())) {
+            return 'Invalid Date';
+        }
+        
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    const dateToCheck = new Date(date);
+        const dateToCheck = new Date(dateObj);
     dateToCheck.setHours(0, 0, 0, 0);
     
     if (dateToCheck.getTime() === today.getTime()) {
@@ -1233,7 +1248,11 @@ function formatDateForDisplay(date) {
     } else if (dateToCheck.getTime() === tomorrow.getTime()) {
         return 'Tomorrow';
     } else {
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Date Error';
     }
 }
 
@@ -4335,7 +4354,6 @@ async function handleSwapRequestSubmit(event) {
     
     const myShiftId = document.getElementById('my-shift').value;
     const targetShiftId = document.getElementById('target-shift').value;
-    const reason = document.getElementById('swap-reason').value;
     
     if (!myShiftId || !targetShiftId) {
         showNotification('Please select both shifts', 'error');
@@ -4380,25 +4398,131 @@ async function loadSwapRequests() {
     try {
         window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
         
-        // Create placeholder data for now
-        const placeholderData = [
-            { id: 1, created_at: new Date(), status: 'Pending', original_shift: { start_time: new Date(), end_time: new Date() }, target_shift: { start_time: new Date(), end_time: new Date() }, requester_name: 'Employee 1', target_employee_name: 'Employee 2' }
-        ];
-        
-        renderMySwapRequests(placeholderData);
-        renderIncomingSwapRequests(placeholderData);
-        
-        if (isManager()) {
-            renderAllSwapRequests(placeholderData);
+        // Get the token and user info
+        const token = getToken();
+        if (!token) {
+            throw new Error('Not authenticated');
         }
         
-        // In the future, implement these endpoints:
-        // GET /api/shift/swaps/my - Get my swap requests
-        // GET /api/shift/swaps/incoming - Get incoming swap requests
-        // GET /api/shift/swaps/all - Get all swap requests (manager only)
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const userId = userInfo.userId;
+        
+        if (!userId) {
+            throw new Error('User ID not found');
+        }
+        
+        // Try to get swap data from various possible endpoints
+        let swapData = [];
+        let foundEndpoint = false;
+        
+        // Array of possible endpoints to try
+        const possibleEndpoints = [
+            '/shift/swaps',
+            '/shift/swap/all',
+            '/swap/all',
+            '/swaps',
+            '/shift/get-swaps'
+        ];
+        
+        for (const endpoint of possibleEndpoints) {
+            try {
+                console.log(`Trying to fetch swaps from endpoint: ${endpoint}`);
+                const response = await fetch(`${window.API_BASE_URL}${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    swapData = await response.json();
+                    console.log(`Swap data received from ${endpoint}:`, swapData);
+                    foundEndpoint = true;
+                    break;
+                } else {
+                    console.log(`Endpoint ${endpoint} returned status: ${response.status}`);
+                }
+            } catch (err) {
+                console.log(`Error with endpoint ${endpoint}:`, err.message);
+            }
+        }
+        
+        if (!foundEndpoint) {
+            console.error('None of the swap endpoints worked. Displaying empty tables.');
+            renderMySwapRequests([]);
+            renderIncomingSwapRequests([]);
+        if (isManager()) {
+                renderAllSwapRequests([]);
+            }
+            return;
+        }
+        
+        // If no swaps found
+        if (!swapData || swapData.length === 0) {
+            console.log('No swap requests available');
+            renderMySwapRequests([]);
+            renderIncomingSwapRequests([]);
+            if (isManager()) {
+                renderAllSwapRequests([]);
+            }
+            return;
+        }
+        
+        // Process the data to match the required format for the UI
+        const processedData = swapData.map(swap => {
+            return {
+                id: swap.swapId,
+                created_at: swap.submittedAt,
+                status: swap.status || 'Pending',
+                original_shift: {
+                    id: swap.currentShift,
+                    date: swap.currentShiftDate || swap.currentShift_date || swap.currentShift_startDate,
+                    start_time: swap.currentShiftStart || swap.currentShift_startTime,
+                    end_time: swap.currentShiftEnd || swap.currentShift_endDate || swap.currentShift_endTime
+                },
+                target_shift: {
+                    id: swap.swapWith,
+                    date: swap.swapWithDate || swap.swapWith_date || swap.swapWith_startDate,
+                    start_time: swap.swapWithStart || swap.swapWith_startTime,
+                    end_time: swap.swapWithEnd || swap.swapWith_endDate || swap.swapWith_endTime
+                },
+                requester_name: swap.requesterName,
+                requester_id: swap.currentShift_employeeId,
+                target_employee_name: swap.targetEmployeeName,
+                target_id: swap.swapWith_employeeId
+            };
+        });
+        
+        console.log('Processed data:', processedData);
+        
+        // Filter data for different views
+        const myRequests = processedData.filter(req => req.requester_id === userId);
+        const incomingRequests = processedData.filter(req => req.target_id === userId);
+        const allRequests = isManager() ? processedData : [];
+        
+        console.log('Filtered data:', {
+            myRequests,
+            incomingRequests,
+            allRequests: isManager() ? 'All requests available' : 'Not a manager'
+        });
+        
+        // Render the requests
+        renderMySwapRequests(myRequests);
+        renderIncomingSwapRequests(incomingRequests);
+        
+        if (isManager()) {
+            renderAllSwapRequests(allRequests);
+        }
     } catch (error) {
-        console.error('Error loading swap requests:', error);
-        showNotification('Failed to load swap requests', 'error');
+        console.error('Error loading swap data:', error);
+        showNotification('Failed to load swap data', 'error');
+        
+        // Initialize empty arrays for the tables
+        renderMySwapRequests([]);
+        renderIncomingSwapRequests([]);
+        if (isManager()) {
+            renderAllSwapRequests([]);
+        }
     }
 }
 
@@ -4406,18 +4530,26 @@ function renderMySwapRequests(requests) {
     const tbody = document.getElementById('mySwapRequestsBody');
     tbody.innerHTML = '';
     
+    if (!requests || requests.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-message">No swap requests found</td></tr>';
+        return;
+    }
+    
     requests.forEach(request => {
+        try {
         const tr = document.createElement('tr');
+            const status = request.status || 'Pending';
+            
         tr.innerHTML = `
             <td>${formatDateForDisplay(request.created_at)}</td>
             <td>${formatShiftInfo(request.original_shift)}</td>
             <td>${formatShiftInfo(request.target_shift)}</td>
-            <td>${request.target_employee_name}</td>
-            <td><span class="swap-status ${request.status.toLowerCase()}">${request.status}</span></td>
+            <td>${request.target_employee_name || 'Unknown'}</td>
+            <td><span class="swap-status ${status.toLowerCase()}">${status}</span></td>
             <td>
                 <div class="swap-actions">
-                    ${request.status === 'Pending' ? 
-                        `<button class="cancel-btn" onclick="cancelSwapRequest(${request.id})">
+                        ${status === 'Pending' ? 
+                            `<button class="cancel-btn" onclick="cancelSwapRequest(${request.id || 0})">
                             <i class="fas fa-times"></i> Cancel
                         </button>` : 
                         ''}
@@ -4425,6 +4557,9 @@ function renderMySwapRequests(requests) {
             </td>
         `;
         tbody.appendChild(tr);
+        } catch (error) {
+            console.error('Error rendering my swap request:', error, request);
+        }
     });
 }
 
@@ -4432,21 +4567,29 @@ function renderIncomingSwapRequests(requests) {
     const tbody = document.getElementById('incomingSwapRequestsBody');
     tbody.innerHTML = '';
     
+    if (!requests || requests.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-message">No incoming swap requests found</td></tr>';
+        return;
+    }
+    
     requests.forEach(request => {
+        try {
         const tr = document.createElement('tr');
+            const status = request.status || 'Pending';
+            
         tr.innerHTML = `
             <td>${formatDateForDisplay(request.created_at)}</td>
-            <td>${request.requester_name}</td>
+            <td>${request.requester_name || 'Unknown'}</td>
             <td>${formatShiftInfo(request.original_shift)}</td>
             <td>${formatShiftInfo(request.target_shift)}</td>
-            <td><span class="swap-status ${request.status.toLowerCase()}">${request.status}</span></td>
+            <td><span class="swap-status ${status.toLowerCase()}">${status}</span></td>
             <td>
                 <div class="swap-actions">
-                    ${request.status === 'Pending' ? `
-                        <button class="approve-btn" onclick="respondToSwapRequest(${request.id}, 'approve')">
+                        ${status === 'Pending' ? `
+                            <button class="approve-btn" onclick="respondToSwapRequest(${request.id || 0}, 'approve')">
                             <i class="fas fa-check"></i> Accept
                         </button>
-                        <button class="reject-btn" onclick="respondToSwapRequest(${request.id}, 'reject')">
+                            <button class="reject-btn" onclick="respondToSwapRequest(${request.id || 0}, 'reject')">
                             <i class="fas fa-times"></i> Reject
                         </button>
                     ` : ''}
@@ -4454,6 +4597,9 @@ function renderIncomingSwapRequests(requests) {
             </td>
         `;
         tbody.appendChild(tr);
+        } catch (error) {
+            console.error('Error rendering incoming swap request:', error, request);
+        }
     });
 }
 
@@ -4463,22 +4609,30 @@ function renderAllSwapRequests(requests) {
     
     tbody.innerHTML = '';
     
+    if (!requests || requests.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-message">No swap requests found</td></tr>';
+        return;
+    }
+    
     requests.forEach(request => {
+        try {
         const tr = document.createElement('tr');
+            const status = request.status || 'Pending';
+            
         tr.innerHTML = `
             <td>${formatDateForDisplay(request.created_at)}</td>
-            <td>${request.requester_name}</td>
+            <td>${request.requester_name || 'Unknown'}</td>
             <td>${formatShiftInfo(request.original_shift)}</td>
-            <td>${request.target_employee_name}</td>
+            <td>${request.target_employee_name || 'Unknown'}</td>
             <td>${formatShiftInfo(request.target_shift)}</td>
-            <td><span class="swap-status ${request.status.toLowerCase()}">${request.status}</span></td>
+            <td><span class="swap-status ${status.toLowerCase()}">${status}</span></td>
             <td>
                 <div class="swap-actions">
-                    ${request.status === 'Pending' ? `
-                        <button class="approve-btn" onclick="managerApproveSwap(${request.id})">
+                        ${status === 'Pending' ? `
+                            <button class="approve-btn" onclick="managerApproveSwap(${request.id || 0})">
                             <i class="fas fa-check"></i> Approve
                         </button>
-                        <button class="reject-btn" onclick="managerRejectSwap(${request.id})">
+                            <button class="reject-btn" onclick="managerRejectSwap(${request.id || 0})">
                             <i class="fas fa-times"></i> Reject
                         </button>
                     ` : ''}
@@ -4486,20 +4640,103 @@ function renderAllSwapRequests(requests) {
             </td>
         `;
         tbody.appendChild(tr);
+        } catch (error) {
+            console.error('Error rendering all swap request:', error, request);
+        }
     });
 }
 
 function formatShiftInfo(shift) {
-    return `${formatDateForDisplay(shift.start_time)}<br>
-            <span class="shift-info">
-                <i class="far fa-clock"></i>${formatTime(shift.start_time)} - ${formatTime(shift.end_time)}
-            </span>`;
+    if (!shift) {
+        return 'Shift information unavailable';
+    }
+    
+    // Find the date from various possible property names
+    let shiftDate = shift.date || shift.shiftDate || shift.start_date || shift.startDate;
+    
+    if (!shiftDate) {
+        console.error('Missing date property in shift object:', shift);
+        return 'Shift date unavailable';
+    }
+    
+    // Try to format the date
+    try {
+        // Use the formatDateForDisplay function for date (matches exactly what's in upcoming shifts)
+        const formattedDate = formatDateForDisplay(shiftDate);
+        
+        // Get department/title info from shift
+        const department = shift.department || shift.title || '';
+        
+        // Determine shift time display using the same logic as in upcoming shifts
+        let timeDisplay = '';
+        
+        // Check for standard shift types using case-insensitive check (just like in upcoming shifts)
+        const shiftTitle = (department || '').toLowerCase();
+        if (shiftTitle.includes('morning')) {
+            timeDisplay = '6:00 AM - 2:00 PM';
+        } else if (shiftTitle.includes('afternoon')) {
+            timeDisplay = '2:00 PM - 10:00 PM';
+        } else if (shiftTitle.includes('night')) {
+            timeDisplay = '10:00 PM - 6:00 AM';
+        } else {
+            // Get start and end times from various possible property names
+            const startTime = shift.startTime || shift.start_time || shift.start;
+            const endTime = shift.endTime || shift.end_time || shift.end;
+            
+            // Convert to date objects if needed
+            let startDate, endDate;
+            
+            try {
+                if (startTime instanceof Date) {
+                    startDate = startTime;
+                } else if (typeof startTime === 'string' || typeof startTime === 'number') {
+                    startDate = new Date(startTime);
+                }
+                
+                if (endTime instanceof Date) {
+                    endDate = endTime;
+                } else if (typeof endTime === 'string' || typeof endTime === 'number') {
+                    endDate = new Date(endTime);
+                }
+                
+                if (startDate && !isNaN(startDate.getTime()) && 
+                    endDate && !isNaN(endDate.getTime())) {
+                    const startTimeStr = formatTime(startDate);
+                    const endTimeStr = formatTime(endDate);
+                    timeDisplay = `${startTimeStr} - ${endTimeStr}`;
+                } else {
+                    const startTimeStr = formatTime(startTime);
+                    const endTimeStr = formatTime(endTime);
+                    timeDisplay = `${startTimeStr} - ${endTimeStr}`;
+                }
+            } catch (error) {
+                console.error('Error parsing shift times:', error);
+                timeDisplay = 'Time unavailable';
+            }
+        }
+        
+        // Get status if available
+        const status = shift.status || 'Pending';
+        
+        // Return HTML that exactly matches the upcoming shifts structure
+        return `
+            <div class="shift-date">${formattedDate}</div>
+            <div class="shift-time">${timeDisplay}</div>
+            <div class="shift-details">
+                <span class="shift-department">${department || 'Unassigned'}</span>
+                <span class="shift-status">${status}</span>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error formatting shift info:', error, shift);
+        return `Shift on ${String(shiftDate)}`;
+    }
 }
 
 async function cancelSwapRequest(requestId) {
     try {
-        const response = await fetch(`${window.API_BASE_URL}/shift/updateSwap`, {
-            method: 'PUT',
+        const response = await fetch(`${window.API_BASE_URL}/shift/update-swap/${requestId}`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${getToken()}`
@@ -4526,8 +4763,8 @@ async function respondToSwapRequest(requestId, action) {
     try {
         const status = action === 'approve' ? 'Approved' : 'Declined';
         
-        const response = await fetch(`${window.API_BASE_URL}/shift/updateSwap`, {
-            method: 'PUT',
+        const response = await fetch(`${window.API_BASE_URL}/shift/update-swap/${requestId}`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${getToken()}`
@@ -4552,11 +4789,16 @@ async function respondToSwapRequest(requestId, action) {
 
 async function managerApproveSwap(requestId) {
     try {
-        const response = await fetch(`${window.API_BASE_URL}/swaps/approve/${requestId}`, {
-            method: 'PUT',
+        const response = await fetch(`${window.API_BASE_URL}/shift/update-swap/${requestId}`, {
+            method: 'POST',
             headers: {
+                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${getToken()}`
-            }
+            },
+            body: JSON.stringify({
+                swapId: requestId,
+                status: 'Approved'
+            })
         });
         
         if (!response.ok) {
@@ -4573,11 +4815,16 @@ async function managerApproveSwap(requestId) {
 
 async function managerRejectSwap(requestId) {
     try {
-        const response = await fetch(`${window.API_BASE_URL}/swaps/reject/${requestId}`, {
-            method: 'PUT',
+        const response = await fetch(`${window.API_BASE_URL}/shift/update-swap/${requestId}`, {
+            method: 'POST',
             headers: {
+                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${getToken()}`
-            }
+            },
+            body: JSON.stringify({
+                swapId: requestId,
+                status: 'Declined'
+            })
         });
         
         if (!response.ok) {

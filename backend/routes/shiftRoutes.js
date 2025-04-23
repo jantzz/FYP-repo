@@ -10,7 +10,8 @@ const {
     approvePendingShift,
     approvePendingShifts,
     logAttendance,
-    addPendingShift
+    addPendingShift,
+    getSwaps
 } = require('../controllers/shiftController');
 const router = express.Router();
 
@@ -19,6 +20,12 @@ router.post('/add', addShift);
 
 //get pending shifts
 router.get('/pending', getPendingShifts);
+
+//get all shifts (for managers/admins)
+router.get('/all', getAllShifts);
+
+// Get all swap requests with detailed information
+router.get('/swaps', getSwaps);
 
 // to get shifts of an employee (using employeeId from url)
 router.get('/:employeeId', getShifts);
@@ -36,8 +43,6 @@ router.post('/approve-pending', approvePendingShift);
 router.post('/approve-all-pending', approvePendingShifts);
 //log attendance
 router.post('/log-attendance', logAttendance);
-//get all shifts (for managers/admins)
-router.get('/all', getAllShifts);
 
 //add a pending shift
 router.post('/add-pending', addPendingShift);

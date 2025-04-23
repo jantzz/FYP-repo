@@ -1463,6 +1463,8 @@ body.admin-visible .admin-only {
     padding: 0.8rem;
     text-align: left;
     border-bottom: 1px solid #eee;
+    vertical-align: top;
+    line-height: 1.4;
 }
 
 .swap-requests-table th {
@@ -1535,6 +1537,57 @@ body.admin-visible .admin-only {
 
 .swap-actions button i {
     font-size: 0.9rem;
+}
+
+/* Format shift info inside swap request tables */
+.swap-requests-table td:nth-child(2),
+.swap-requests-table td:nth-child(3),
+.swap-requests-table td:nth-child(4),
+.swap-requests-table td:nth-child(5) {
+    min-width: 150px;
+    white-space: normal;
+    vertical-align: middle;
+    padding: 1rem;
+}
+
+/* Match the styling of shift cards in the swap table cells */
+.swap-requests-table td .shift-date {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0.3rem;
+    color: #333;
+}
+
+.swap-requests-table td .shift-time {
+    font-size: 0.9rem;
+    margin-bottom: 0.3rem;
+    color: #555;
+}
+
+.swap-requests-table td .shift-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+}
+
+.swap-requests-table td .shift-department {
+    color: #666;
+}
+
+.swap-requests-table td .shift-status {
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* Style the first line (date) in the shift info */
+.swap-requests-table td:nth-child(2) > *:first-child,
+.swap-requests-table td:nth-child(3) > *:first-child,
+.swap-requests-table td:nth-child(4) > *:first-child,
+.swap-requests-table td:nth-child(5) > *:first-child {
+    font-weight: 600;
+    color: #333;
 }
 
 /* Swap Request Modal Styles */
