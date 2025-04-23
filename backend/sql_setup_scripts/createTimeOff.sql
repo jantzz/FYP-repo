@@ -1,3 +1,6 @@
+drop table if exists timeoff;
+drop table if exists leave_balance;
+
 CREATE TABLE timeoff (
     timeOffId INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     employeeId INT UNSIGNED NOT NULL,

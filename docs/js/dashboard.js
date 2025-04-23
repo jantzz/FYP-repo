@@ -90,8 +90,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Check authentication when page loads
     checkAuth();
     
-    // Load time off balances from localStorage
-    loadTimeOffBalances();
+    // Fetch initial leave balances
+    fetchLeaveBalances();
     
     // Get user info to check permissions
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
@@ -1259,22 +1259,39 @@ function formatDateForDisplay(date) {
 // Time Off variables
 let currentTimeOffRequest = null;
 // Store time off balances
-let timeOffBalances = {
-    Paid: 10,
-    Unpaid: 5,
-    Medical: 14
-};
+let timeOffBalances = {};
 
-// Function to save time off balances to localStorage
-function saveTimeOffBalances() {
-    localStorage.setItem('timeOffBalances', JSON.stringify(timeOffBalances));
-}
+// Function to fetch leave balances from the backend
+async function fetchLeaveBalances() {
+    try {
+        const token = getToken();
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        
+        const response = await fetch(`${window.API_BASE_URL}/timeoff/balances?employeeId=${userInfo.userId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
 
-// Function to load time off balances from localStorage
-function loadTimeOffBalances() {
-    const savedBalances = localStorage.getItem('timeOffBalances');
-    if (savedBalances) {
-        timeOffBalances = JSON.parse(savedBalances);
+        if (!response.ok) {
+            throw new Error('Failed to fetch leave balances');
+        }
+
+        const result = await response.json();
+        if (result.data && result.data.length > 0) {
+            const balance = result.data[0];
+            timeOffBalances = {
+                Paid: balance.Paid,
+                Unpaid: balance.Unpaid,
+                Medical: balance.Medical
+            };
+            updateTimeOffPolicyDisplay();
+        }
+    } catch (err) {
+        console.error('Error fetching leave balances:', err);
+        showNotification('Failed to fetch leave balances', 'error');
     }
 }
 
@@ -1322,8 +1339,8 @@ function showTimeOffSection() {
     document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
     document.querySelector('.nav-item:has(i.fa-clock)').classList.add('active');
     
-    // Update time off policy display
-    updateTimeOffPolicyDisplay();
+    // Fetch and update time off balances
+    fetchLeaveBalances();
     
     // Load time off history
     loadTimeOffHistory();
@@ -1462,34 +1479,14 @@ async function submitTimeOffRequest(event) {
         return;
     }
     
-    // Calculate the number of days being requested
-    const daysRequested = calculateDaysBetween(startDate, endDate);
-    
-    // Map the UI type value to our balance type
-    let balanceType;
-    switch(type) {
-        case 'Paid':
-            balanceType = 'Paid';
-            break;
-        case 'Unpaid':
-            balanceType = 'Unpaid';
-            break;
-        case 'Medical':
-            balanceType = 'Medical';
-            break;
-        default:
-            balanceType = 'Paid';
-    }
-    
-    // Check if there are enough days in the balance
-    if (timeOffBalances[balanceType] < daysRequested) {
-        showNotification(`Cannot submit request: Insufficient ${balanceType} Leave balance. Available: ${timeOffBalances[balanceType]} days, Requested: ${daysRequested} days`, 'error');
-        return; // Stop the submission process
-    }
-    
     // Get user info for employeeId
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const employeeId = userInfo.userId;
+    
+    if (!employeeId) {
+        showNotification('User information not found', 'error');
+        return;
+    }
     
     try {
         const token = getToken();
@@ -1511,105 +1508,24 @@ async function submitTimeOffRequest(event) {
         const result = await response.json();
         
         if (!response.ok) {
-            // Handle enhanced error responses
-            if (result.conflicts) {
-                // Create a visually appealing conflict display
-                const conflictModal = document.createElement('div');
-                conflictModal.className = 'modal';
-                conflictModal.id = 'conflictModal';
-                
-                let conflictHTML = `
-                    <div class="modal-content warning-modal">
-                        <span class="close">&times;</span>
-                        <div class="warning-header">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <h2>Schedule Conflict Detected</h2>
-                        </div>
-                        <p>${result.message || result.error}</p>
-                        <div class="time-off-details">
-                            <p><strong>Requested Period:</strong> ${result.requestedPeriod?.start} to ${result.requestedPeriod?.end}</p>
-                        </div>
-                        <h3>Conflicting Shifts:</h3>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Type</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
-                
-                result.conflicts.forEach(conflict => {
-                    conflictHTML += `
-                        <tr>
-                            <td>${conflict.date}</td>
-                            <td>${conflict.title}</td>
-                            <td><span class="status-badge ${conflict.status.toLowerCase()}">${conflict.status}</span></td>
-                        </tr>`;
-                });
-                
-                conflictHTML += `
-                            </tbody>
-                        </table>
-                        
-                        <div class="recommendations">
-                            <h3><i class="fas fa-info-circle"></i> What to do next</h3>
-                            <ul>
-                                <li>Contact your manager to discuss possible shift adjustments</li>
-                                <li>Consider requesting different dates for your time off</li>
-                                <li>You may need to find a replacement for your scheduled shifts</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="modal-footer">
-                            <p><i class="fas fa-headset"></i> Need help resolving this conflict? Contact your manager for assistance.</p>
-                            <button class="btn-primary" id="closeConflictModal">Close</button>
-                        </div>
-                    </div>`;
-                
-                conflictModal.innerHTML = conflictHTML;
-                document.body.appendChild(conflictModal);
-                
-                // Setup close functionality
-                document.getElementById('closeConflictModal').addEventListener('click', () => {
-                    document.getElementById('conflictModal').style.display = 'none';
-                    setTimeout(() => {
-                        document.getElementById('conflictModal').remove();
-                    }, 500);
-                });
-                
-                document.querySelector('#conflictModal .close').addEventListener('click', () => {
-                    document.getElementById('conflictModal').style.display = 'none';
-                    setTimeout(() => {
-                        document.getElementById('conflictModal').remove();
-                    }, 500);
-                });
-                
-                // Show the modal
-                document.getElementById('conflictModal').style.display = 'block';
-            } else {
                 throw new Error(result.error || 'Failed to submit time off request');
             }
-            return;
-        }
         
-        // Success handling
-        // Close modal and refresh time off history
+        // Show success message
+            showNotification('Time off request submitted successfully', 'success');
+        
+        // Close the modal
         closeRequestTimeOffModal();
         
-        // Show success message with enhanced details
-        if (result.requestDetails) {
-            showNotification(`Time off request successfully submitted for ${result.requestDetails.type} leave from ${result.requestDetails.period}. Status: ${result.requestDetails.status}`, 'success');
-        } else {
-            showNotification('Time off request submitted successfully', 'success');
-        }
-        
+        // Refresh the time off history
         loadTimeOffHistory();
         
-    } catch (error) {
-        console.error('Error submitting time off request:', error);
-        showNotification(`Error: ${error.message}`, 'error');
+        // Refresh leave balances
+        fetchLeaveBalances();
+        
+    } catch (err) {
+        console.error('Error submitting time off request:', err);
+        showNotification(err.message, 'error');
     }
 }
 
@@ -1884,12 +1800,6 @@ async function approveTimeOffRequest(requestId) {
                 break;
             default:
                 balanceType = 'Paid'; // Default to paid leave if type is unknown
-        }
-        
-        // Check if there are enough days in the balance
-        if (timeOffBalances[balanceType] < daysUsed) {
-            showNotification(`Cannot approve request: Insufficient ${balanceType} Leave balance. Available: ${timeOffBalances[balanceType]} days, Requested: ${daysUsed} days`, 'error');
-            return; // Stop the approval process
         }
         
         // If there are conflicts in the time off request, show them along with replacement suggestions
@@ -2280,16 +2190,8 @@ async function processApproval(requestId, approvedBy, requestDetails, balanceTyp
         throw new Error(result.error || 'Failed to approve time off request');
     }
     
-    // Deduct days from balance
-    timeOffBalances[balanceType] -= daysUsed;
-    
-    // Save updated balances to localStorage
-    saveTimeOffBalances();
-    
-    // Update policy display if time off section is visible
-    if (document.querySelector('.time-off-section').style.display === 'block') {
-        updateTimeOffPolicyDisplay();
-    }
+    // Refresh leave balances from backend
+    fetchLeaveBalances();
     
     // Check if the response contains conflict warnings
     if (result.warning) {
@@ -2411,10 +2313,10 @@ async function processApproval(requestId, approvedBy, requestDetails, balanceTyp
         document.getElementById('warningModal').style.display = 'block';
         
         // Display success notification
-        showNotification(`Time off request approved with warnings. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'warning');
+        showNotification(`Time off request approved with warnings.`, 'warning');
     } else {
         // Display regular success message
-        showNotification(`Time off request approved successfully. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'success');
+        showNotification(`Time off request approved successfully.`, 'success');
     }
     
     // Refresh the pending time off requests
@@ -5773,12 +5675,6 @@ async function approveTimeOffRequest(requestId) {
                 balanceType = 'Paid'; // Default to paid leave if type is unknown
         }
         
-        // Check if there are enough days in the balance
-        if (timeOffBalances[balanceType] < daysUsed) {
-            showNotification(`Cannot approve request: Insufficient ${balanceType} Leave balance. Available: ${timeOffBalances[balanceType]} days, Requested: ${daysUsed} days`, 'error');
-            return; // Stop the approval process
-        }
-        
         // If there are conflicts in the time off request, show them along with replacement suggestions
         if (requestDetails.hasScheduleConflicts) {
             return new Promise((resolve) => {
@@ -6167,16 +6063,8 @@ async function processApproval(requestId, approvedBy, requestDetails, balanceTyp
         throw new Error(result.error || 'Failed to approve time off request');
     }
     
-    // Deduct days from balance
-    timeOffBalances[balanceType] -= daysUsed;
-    
-    // Save updated balances to localStorage
-    saveTimeOffBalances();
-    
-    // Update policy display if time off section is visible
-    if (document.querySelector('.time-off-section').style.display === 'block') {
-        updateTimeOffPolicyDisplay();
-    }
+    // Refresh leave balances from backend
+    fetchLeaveBalances();
     
     // Check if the response contains conflict warnings
     if (result.warning) {
@@ -6298,10 +6186,10 @@ async function processApproval(requestId, approvedBy, requestDetails, balanceTyp
         document.getElementById('warningModal').style.display = 'block';
         
         // Display success notification
-        showNotification(`Time off request approved with warnings. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'warning');
+        showNotification(`Time off request approved with warnings.`, 'warning');
     } else {
         // Display regular success message
-        showNotification(`Time off request approved successfully. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'success');
+        showNotification(`Time off request approved successfully.`, 'success');
     }
     
     // Refresh the pending time off requests
