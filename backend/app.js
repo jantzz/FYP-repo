@@ -13,6 +13,7 @@ const fileRoutes = require('./routes/fileRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const timeOffRoutes = require('./routes/timeOffRoutes');
+const clinicRoutes = require('./routes/clinicRoutes');
 //express app declared within app constant 
 const app = express(); 
 
@@ -42,6 +43,7 @@ app.use('/api/shift', shiftRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/timeoff', timeOffRoutes);
+app.use('/api/clinic', clinicRoutes);
 
 //socket route
 app.post('/api/shift/add', shiftController.addShift);

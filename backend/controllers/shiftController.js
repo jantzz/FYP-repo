@@ -238,15 +238,17 @@ const generateShift = async (req, res) => {
             return res.status(400).json({ error: "No departments are configured for shift generation." });
         }
 
+        const [clinics] = await connection.execute("SELECT clinicId FROM clinics ");
+
         // Get employees with approved availabilities
         const [availabilities] = await connection.execute(
-            "SELECT a.employeeId, a.preferredDates, u.department FROM availability a " +
+            "SELECT a.employeeId, a.preferredDates, u.department, u.clinicId FROM availability a " +
             "JOIN user u ON a.employeeId = u.userId WHERE a.status = 'Approved'"
         );
 
         // Get employees without availabilities
         const [employees] = await connection.execute(
-            "SELECT u.userId, u.department FROM user u " +
+            "SELECT u.userId, u.department, u.clinicId FROM user u " +
             "LEFT JOIN availability a ON u.userId = a.employeeId WHERE a.employeeId IS NULL"
         );
 
@@ -254,13 +256,17 @@ const generateShift = async (req, res) => {
         if (!availabilities.length && !employees.length) {
             return res.status(400).json({ error: "No eligible employees found for shift generation." });
         }
-
-        const preferred = {};
+        
+        if (!clinics.length) {
+            return res.status(400).json({ error: "No clinics found." });
+        }
+    
+        const preferredInClinic = {}; 
         const count = {};
+        const nonPreferredInClinic = {};
 
-        // Process employees with preferred availabilities
-        for (const entry of availabilities) {
-            const { employeeId, preferredDates, department } = entry;
+        for( const entry of availabilities){
+            const { employeeId, preferredDates, department, clinicId } = entry;
             if (!preferredDates) continue; // Skip if no preferred dates
             
             const preferredDays = preferredDates.split(",")
@@ -268,14 +274,20 @@ const generateShift = async (req, res) => {
                 .filter(day => day !== undefined); // Filter out invalid days
                 
             if (preferredDays.length) {
-                preferred[employeeId] = { preferredDays, department };
+                if (!preferredInClinic[clinicId]) {
+                    preferredInClinic[clinicId] = [];
+                }
+                preferredInClinic[clinicId].push({ employeeId, preferredDays, department });
                 count[employeeId] = 0;
             }
         }
 
-        // Initialize counts for employees without availabilities
         for (const employee of employees) {
-            const { userId, department } = employee;
+            const { userId, department, clinicId } = employee;
+            if (!nonPreferredInClinic[clinicId]) {
+                nonPreferredInClinic[clinicId] = [];
+            }
+            nonPreferredInClinic[clinicId].push({ userId, department });
             count[userId] = 0;
         }
 
@@ -284,92 +296,99 @@ const generateShift = async (req, res) => {
         const endDate = new Date(end);
         const currentDate = new Date(startDate.getTime());
 
-        // Generate shifts for each day in the range
-        while (currentDate.getTime() <= endDate.getTime()) {
-            const dayCode = currentDate.getDay();
-            const formattedDate = currentDate.toISOString().split("T")[0];
-            const depCount = {};
-            
-            // Initialize department counts
+        while(currentDate.getTime() <= endDate.getTime()) { //TODO FIX THE COUNTING SO EACH CLINIC HAS DIFF DEP COUNT
+            const dayOfWeek = currentDate.getDay(); // 0 (Sunday) to 6 (Saturday)
+            const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+            const depCount  = {};
+            const assignedToday = new Set(); // prevent double shifts for the same employee in a day
+
             for (const dep of deps) {
-                depCount[dep.departmentName] = 0;
-            }
+                for (const clinic of clinics) {
+                    depCount[dep.departmentName] = 0;
 
-            // First, assign shifts to employees with preferred availability
-            const sortedPreferred = Object.entries(preferred)
-                .sort((a, b) => count[a[0]] - count[b[0]]);
-                
-            for (const [employeeId, { preferredDays, department }] of sortedPreferred) {
-                if (preferredDays.includes(dayCode) && depCount[department] < 2 && count[employeeId] < 6) {
-                    console.log(`Adding preferred shift for employee ${employeeId} on ${formattedDate}`);
-                    shifts.push({ 
-                        employeeId, 
-                        startDate: formattedDate, 
-                        endDate: formattedDate, 
-                        status: "Pending",
-                        title: `Generated shift for ${employeeId}`
-                    });
-                    depCount[department]++;
-                    count[employeeId]++;
+                    const preferred = preferredInClinic[clinic.clinicId] || []; 
+
+                    const sortedPreferred = preferred
+                    .filter(e => e.preferredDays.includes(dayOfWeek))
+                    .sort((a,b) => count[a.employeeId] - count[b.employeeId]);
+                    
+                    for (const person of sortedPreferred) {
+                        const { employeeId, department } = person;
+                        if ( department == dep.departmentName && depCount[department] < 2 && count[employeeId] < 6 && !assignedToday.has(`${employeeId}:${formattedDate}`)) {
+                            console.log(`Adding preferred shift for employee ${employeeId} on ${formattedDate}`);
+                            shifts.push({ 
+                                employeeId, 
+                                startDate: formattedDate, 
+                                endDate: formattedDate, 
+                                status: "Pending",
+                                title: `Generated shift for ${employeeId}`,
+                                clinicId: clinic.clinicId
+                            });
+                            depCount[department]++;
+                            count[employeeId]++;
+                            assignedToday.add(`${employeeId}:${formattedDate}`);
+                        }
+                    }
+
+                    const nonPreferred = nonPreferredInClinic[clinic.clinicId] || [];
+                    const sortedNonPreferred = nonPreferred
+                    .sort((a,b) => count[a.userId] - count[b.userId]);
+
+                    for (const person of sortedNonPreferred) {
+                        const { userId, department } = person;
+                        if ( department == dep.departmentName && depCount[department] < 2 && count[userId] < 6 && !assignedToday.has(`${employeeId}:${formattedDate}`) ) {
+                            console.log(`Adding regular shift for employee ${userId} on ${formattedDate}`);
+                            shifts.push({ 
+                                employeeId: userId, 
+                                startDate: formattedDate, 
+                                endDate: formattedDate, 
+                                status: "Pending",
+                                title: `Generated shift for ${userId}`,
+                                clinicId: clinic.clinicId
+                            });
+                            depCount[department]++;
+                            count[userId]++;
+                            assignedToday.add(`${employeeId}:${formattedDate}`);
+                        }
+                    }
+
+                    if (depCount[dep.departmentName] >= 2) { // no need to continue if we have filled all the slots for this department
+                        break;
+                    }
+                    
+                    if (depCount[dep.departmentName] < 2) { //if there are less than 2 shifts, we try to fill them with staff from other clinics 
+                        const otherClinics = clinics.filter(c => c.clinicId !== clinic.clinicId);
+                        for (const otherClinic of otherClinics) {
+                            const otherPreferred = preferredInClinic[otherClinic.clinicId] || []; 
+                            const sortedOtherPreferred = otherPreferred
+                            .filter(e => e.preferredDays.includes(dayOfWeek))
+                            .sort((a,b) => count[a.employeeId] - count[b.employeeId]);
+
+                            for (const person of sortedOtherPreferred) {
+                                const { employeeId, department } = person;
+                                if ( department == dep.departmentName && depCount[department] < 2 && count[employeeId] < 6 && !assignedToday.has(`${employeeId}:${formattedDate}`)) {
+                                    console.log(`Adding preferred shift for employee ${employeeId} on ${formattedDate}`);
+                                    shifts.push({ 
+                                        employeeId, 
+                                        startDate: formattedDate, 
+                                        endDate: formattedDate, 
+                                        status: "Pending",
+                                        title: `Generated shift for ${employeeId}`,
+                                        clinicId: otherClinic.clinicId
+                                    });
+                                    depCount[department]++;
+                                    count[employeeId]++;
+                                    assignedToday.add(`${employeeId}:${formattedDate}`);
+                                }
+                            }
+
+                        }
+                    }
+
                 }
             }
-
-            // Then fill remaining slots with other employees
-            const sortedEmployees = [...employees]
-                .sort((a, b) => count[a.userId] - count[b.userId]);
-                
-            for (const employee of sortedEmployees) {
-                const { userId, department } = employee;
-                if (depCount[department] < 2 && count[userId] < 6) {
-                    console.log(`Adding regular shift for employee ${userId} on ${formattedDate}`);
-                    shifts.push({ 
-                        employeeId: userId, 
-                        startDate: formattedDate, 
-                        endDate: formattedDate, 
-                        status: "Pending",
-                        title: `Generated shift for ${userId}`
-                    });
-                    depCount[department]++;
-                    count[userId]++;
-                }
-            }
-
-            currentDate.setDate(currentDate.getDate() + 1);
         }
-
-        // If no shifts were generated, return an error
-        if (shifts.length === 0) {
-            return res.status(400).json({ error: "No shifts could be generated for the given date range." });
-        }
-
-        console.log(`Generated ${shifts.length} shifts`);
-
-        // Begin transaction for saving shifts
-        await connection.beginTransaction();
         
-        try {
-            const shiftQuery = "INSERT INTO pendingShift (employeeId, startDate, endDate, status, title) VALUES (?, ?, ?, ?, ?)";
-            
-            for (const shift of shifts) {
-                const { employeeId, startDate, endDate, status, title } = shift;
-                console.log('Inserting shift:', { employeeId, startDate, endDate, status, title });
-                const [result] = await connection.execute(shiftQuery, [employeeId, startDate, endDate, status, title]);
-                console.log('Insert result:', result);
-            }
-            
-            await connection.commit();
-            console.log('Transaction committed');
-            
-            res.status(200).json({ 
-                message: "Pending Shifts generated successfully.",
-                count: shifts.length
-            });
-        } catch (error) {
-            console.error('Error in transaction:', error);
-            await connection.rollback();
-            throw error;
-        }
-
     } catch (err) {
         console.error('Error in generateShift:', err);
         if (connection) {

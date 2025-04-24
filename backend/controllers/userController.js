@@ -85,20 +85,20 @@ const getUser = async (req, res) => {
 }
 
 const createUser = async (req, res) => {
-    const { name, email, password, role, birthday, gender } = req.body;
+    const { name, email, password, role, birthday, gender, clinic } = req.body; //added clinic field to req.body
 
     //for dep and assignedTasks check if there are values, if not set null 
     const department = req.body.department ? req.body.department: null; 
     const assignedTask = req.body.assignedTask ? req.body.assignedTask: null;
 
-    if(!name || ! email || !password || !role || !birthday ) return res.status(400).json({error: "certain fields cannot be left empty"});
+    if(!name || ! email || !password || !role || !birthday || !clinic ) return res.status(400).json({error: "certain fields cannot be left empty"});
 
     let connection;
 
     try{
         connection = await db.getConnection();
     
-        const q = "INSERT INTO user (name, email, password, role, birthday, gender, department, assignedTask) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        const q = "INSERT INTO user (name, email, password, role, birthday, gender, department, clinicId, assignedTask) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         //generate salt and hash password 
         const salt = await bcrypt.genSalt(10);
@@ -106,7 +106,7 @@ const createUser = async (req, res) => {
         const hashed = await bcrypt.hash(password, salt);
 
         const data = [
-            name, email, hashed , role, birthday, gender, department, assignedTask
+            name, email, hashed , role, birthday, gender, department, clinic, assignedTask
         ];
 
         //command .execute is used over .query because we are handling async functions 

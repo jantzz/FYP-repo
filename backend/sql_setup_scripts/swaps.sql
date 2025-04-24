@@ -1,5 +1,5 @@
 -- Create swap table for storing swap requests 
-CREATE TABLE swap (
+CREATE TABLE swaps (
     swapId INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     currentShift INT UNSIGNED NOT NULL,
     swapWith INT UNSIGNED NOT NULL,

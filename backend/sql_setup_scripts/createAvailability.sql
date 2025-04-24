@@ -15,15 +15,15 @@ CREATE TABLE availability (
 
 -- Test availabilities
 INSERT IGNORE INTO availability (employeeId, preferredDates, status, hours, approvedBy) VALUES 
-(1, 'M,W,F', 'Approved', 9.0, 11),
-(2, 'T,TH', 'Approved', 9.0, 11),
-(3, 'S,SN', 'Approved', 9.0, 11),
-(4, 'M,W,F', 'Approved', 9.0, 11),
-(5, 'T,TH', 'Approved', 9.0, 11),
-(6, 'S,SN', 'Approved', 9.0, 11),
-(7, 'M,W,F', 'Approved', 9.0, 11),
-(9, 'T,TH', 'Approved', 9.0, 11),
-(10, 'S,SN', 'Approved', 9.0, 11);
+(4, 'M,W,F', 'Approved', 9.0, 3),
+(5, 'T,TH', 'Approved', 9.0, 3),
+(6, 'S,SN', 'Approved', 9.0, 3),
+(10, 'M,W,F', 'Approved', 9.0, 3),
+(11, 'T,TH', 'Approved', 9.0, 3),
+(12, 'S,SN', 'Approved', 9.0, 3),
+(19, 'M,W,F', 'Approved', 9.0, 3),
+(20, 'T,TH', 'Approved', 9.0, 3),
+(21, 'S,SN', 'Approved', 9.0, 3);
 
 CREATE VIEW employee_availability_view AS
 SELECT 
