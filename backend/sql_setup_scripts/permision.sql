@@ -25,7 +25,7 @@ INSERT IGNORE INTO role (roleName, description) VALUES
 
 -- insert department fields 
 INSERT IGNORE INTO department (departmentName, description, shifting) VALUES
-('Doctor', 'Doctor department', false),
+('Doctor', 'Doctor department', true),
 ('Nurse', 'Nurse department', true),
 ('Receptionist', 'Receptionist department', true);
 

@@ -303,8 +303,9 @@ const generateShift = async (req, res) => {
             const assignedToday = new Set(); // prevent double shifts for the same employee in a day
 
             for (const dep of deps) {
+                const depName = dep.departmentName;
                 for (const clinic of clinics) {
-                    depCount[dep.departmentName] = 0;
+                    depCount[depName] = 0;
 
                     const preferred = preferredInClinic[clinic.clinicId] || []; 
 
@@ -336,7 +337,7 @@ const generateShift = async (req, res) => {
 
                     for (const person of sortedNonPreferred) {
                         const { userId, department } = person;
-                        if ( department == dep.departmentName && depCount[department] < 2 && count[userId] < 6 && !assignedToday.has(`${employeeId}:${formattedDate}`) ) {
+                        if ( department == dep.departmentName && depCount[department] < 2 && count[userId] < 6 && !assignedToday.has(`${userId}:${formattedDate}`) ) {
                             console.log(`Adding regular shift for employee ${userId} on ${formattedDate}`);
                             shifts.push({ 
                                 employeeId: userId, 
@@ -387,8 +388,40 @@ const generateShift = async (req, res) => {
 
                 }
             }
+            currentDate.setDate(currentDate.getDate() + 1);
         }
+
+        if (shifts.length === 0) {
+            return res.status(400).json({ error: "No shifts could be generated for the given date range." });
+        }
+
+        console.log(`Generated ${shifts.length} shifts`);
+
+        // Begin transaction for saving shifts
+        await connection.beginTransaction();
         
+        try {
+            const shiftQuery = "INSERT INTO pendingShift (employeeId, startDate, endDate, status, title) VALUES (?, ?, ?, ?, ?)";
+            
+            for (const shift of shifts) {
+                const { employeeId, startDate, endDate, status, title } = shift;
+                console.log('Inserting shift:', { employeeId, startDate, endDate, status, title });
+                const [result] = await connection.execute(shiftQuery, [employeeId, startDate, endDate, status, title]);
+                console.log('Insert result:', result);
+            }
+            
+            await connection.commit();
+            console.log('Transaction committed');
+            
+            res.status(200).json({ 
+                message: "Pending Shifts generated successfully.",
+                count: shifts.length
+            });
+        } catch (error) {
+            console.error('Error in transaction:', error);
+            await connection.rollback();
+            throw error;
+        }
     } catch (err) {
         console.error('Error in generateShift:', err);
         if (connection) {
