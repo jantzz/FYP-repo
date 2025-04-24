@@ -670,6 +670,7 @@
                                 <th>ID</th>
                                 <th>Employee</th>
                                 <th>Department</th>
+                                <th>Clinic</th>
                                 <th>Date</th>
                                 <th>Start Time</th>
                                 <th>End Time</th>
@@ -765,6 +766,7 @@
         let allPendingShifts = [];
         let employees = [];
         let departments = [];
+        let clinics = []; // Add global clinics variable
         
         function closeConfirmDialog() {
             document.getElementById('confirmDialog').style.display = 'none';
@@ -957,6 +959,18 @@
                         populateEmployeeFilter();
                     }
                     
+                    // Fetch clinics for clinic information
+                    const clinicsResponse = await fetch(`${API_BASE_URL}/clinic/getClinics`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (clinicsResponse.ok) {
+                        clinics = await clinicsResponse.json();
+                        console.log('Clinics loaded:', clinics.length);
+                    }
+                    
                     // Extract unique departments from shifts
                     const deptSet = new Set();
                     allPendingShifts.forEach(shift => {
@@ -1050,6 +1064,21 @@
                     // Get employee initials for avatar
                     const initials = getInitials(shift.employeeName || 'Unknown');
                     
+                    // Get clinic information
+                    let clinicName = 'Unknown';
+                    let clinicId = shift.clinicId;
+                    
+                    // Try to get clinic information from the shift or user
+                    if (shift.clinicName) {
+                        clinicName = shift.clinicName;
+                    } else if (clinicId) {
+                        // Look up clinic in the clinics list if available
+                        const clinic = clinics.find(c => c.clinicId == clinicId);
+                        if (clinic) {
+                            clinicName = clinic.clinicName;
+                        }
+                    }
+                    
                     tr.innerHTML = `
                         <td>${shift.pendingShiftId}</td>
                         <td>
@@ -1060,6 +1089,9 @@
                         </td>
                         <td>
                             <span class="department-badge ${deptClass}">${shift.department || 'Unassigned'}</span>
+                        </td>
+                        <td>
+                            <span class="clinic-badge">${clinicName}</span>
                         </td>
                         <td>
                             <div class="date-display">

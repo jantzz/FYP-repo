@@ -2484,3 +2484,292 @@ body.admin-visible .admin-only {
     margin-top: 4px !important;
     margin-bottom: 4px !important;
 } 
+
+/* Clinic Management Styles - Enhanced Design */
+.clinic-management-section {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    padding: 30px;
+    margin: 20px 0;
+}
+
+.clinic-management-section .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #f5f5f5;
+    padding-bottom: 20px;
+}
+
+.clinic-management-section .section-header h2 {
+    font-size: 24px;
+    color: #333;
+    font-weight: 600;
+    margin: 0;
+}
+
+#add-clinic-btn {
+    background: linear-gradient(45deg, #2196F3, #1976D2);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 30px;
+    color: white;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+    transition: all 0.3s ease;
+}
+
+#add-clinic-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(33, 150, 243, 0.4);
+}
+
+#add-clinic-btn i {
+    font-size: 16px;
+}
+
+.clinics-container {
+    background: #fafafa;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.clinics-container .table-container {
+    width: 100%;
+    overflow-x: auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+#clinics-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#clinics-table th {
+    background: linear-gradient(45deg, #f5f7fa, #e4ecf7);
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    color: #444;
+    border: none;
+    position: relative;
+}
+
+#clinics-table th:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(33, 150, 243, 0.2), transparent);
+}
+
+#clinics-table td {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+    transition: all 0.2s;
+}
+
+#clinics-table tr:last-child td {
+    border-bottom: none;
+}
+
+#clinics-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+#clinics-table tr:hover {
+    background-color: #f0f7ff;
+}
+
+.actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.edit-btn, .delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edit-btn {
+    color: #2196F3;
+    background-color: rgba(33, 150, 243, 0.1);
+}
+
+.edit-btn:hover {
+    background-color: rgba(33, 150, 243, 0.2);
+    transform: translateY(-2px);
+}
+
+.delete-btn {
+    color: #F44336;
+    background-color: rgba(244, 67, 54, 0.1);
+}
+
+.delete-btn:hover {
+    background-color: rgba(244, 67, 54, 0.2);
+    transform: translateY(-2px);
+}
+
+.loading-message, .empty-message, .error-message {
+    text-align: center;
+    padding: 30px;
+    color: #666;
+    font-style: italic;
+}
+
+.error-message {
+    color: #F44336;
+    background-color: rgba(244, 67, 54, 0.05);
+    border-radius: 8px;
+}
+
+.empty-message {
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    padding: 40px;
+    color: #999;
+}
+
+/* Enhanced modal styles for clinic management */
+#add-clinic-modal .modal-content,
+#edit-clinic-modal .modal-content {
+    border-top: 5px solid #2196F3;
+}
+
+#add-clinic-modal h2,
+#edit-clinic-modal h2 {
+    color: #2196F3;
+    margin-bottom: 25px;
+    font-weight: 600;
+    text-align: center;
+}
+
+#add-clinic-form,
+#edit-clinic-form {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+#add-clinic-form .form-group,
+#edit-clinic-form .form-group {
+    margin-bottom: 25px;
+}
+
+#add-clinic-form label,
+#edit-clinic-form label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 500;
+    color: #444;
+    font-size: 14px;
+}
+
+#add-clinic-form input,
+#add-clinic-form textarea,
+#edit-clinic-form input,
+#edit-clinic-form textarea {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.3s;
+    background-color: #f9f9f9;
+}
+
+#add-clinic-form input:focus,
+#add-clinic-form textarea:focus,
+#edit-clinic-form input:focus,
+#edit-clinic-form textarea:focus {
+    border-color: #2196F3;
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+    background-color: #fff;
+    outline: none;
+}
+
+#add-clinic-form button[type="submit"],
+#edit-clinic-form button[type="submit"] {
+    background: linear-gradient(45deg, #2196F3, #1976D2);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+#add-clinic-form button[type="submit"]:hover,
+#edit-clinic-form button[type="submit"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(33, 150, 243, 0.4);
+}
+
+/* Responsive styles for clinic management */
+@media (max-width: 768px) {
+    .clinic-management-section {
+        padding: 20px;
+    }
+    
+    .clinics-container {
+        padding: 15px;
+    }
+    
+    #clinics-table th, 
+    #clinics-table td {
+        padding: 12px 10px;
+    }
+    
+    .clinics-container .table-container {
+        overflow-x: auto;
+    }
+    
+    #clinics-table th:nth-child(5),
+    #clinics-table td:nth-child(5),
+    #clinics-table th:nth-child(6),
+    #clinics-table td:nth-child(6) {
+        display: none;
+    }
+    
+    .actions {
+        gap: 5px;
+    }
+    
+    .edit-btn, .delete-btn {
+        width: 32px;
+        height: 32px;
+    }
+    
+    #add-clinic-btn {
+        padding: 8px 16px;
+    }
+} 

@@ -48,6 +48,31 @@ const createRole = async(req, res) =>{
     }
 }
 
+// Get all departments
+const getDepartments = async (req, res) => {
+    let connection;
+    try {
+        connection = await db.getConnection();
+        
+        // Use both DISTINCT and GROUP BY for maximum duplicate protection
+        const [departments] = await connection.execute(`
+            SELECT departmentName, description, shifting 
+            FROM department 
+            GROUP BY departmentName 
+            ORDER BY departmentName
+        `);
+        
+        return res.status(200).json(departments);
+        
+    } catch (err) {
+        console.error('Error fetching departments:', err);
+        res.status(500).json({error: "Internal Server Error"});
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 module.exports = {
-    createRole
+    createRole,
+    getDepartments
 }

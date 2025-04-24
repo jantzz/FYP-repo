@@ -217,14 +217,23 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         },
         eventDidMount: function(info) {
-            console.log('Event mounted:', {
+            // Enhanced logging to show more details about each event
+            console.log('Event mounted in calendar:', {
                 id: info.event.id,
                 title: info.event.title,
                 start: info.event.start,
                 end: info.event.end,
                 type: info.event.extendedProps.type,
-                status: info.event.extendedProps.status
+                status: info.event.extendedProps.status,
+                originalStatus: info.event.extendedProps.originalStatus,
+                allExtendedProps: info.event.extendedProps,
+                element: info.el
             });
+            
+            // Log when the event is not visible to help debug display issues
+            if (info.el.style.display === 'none') {
+                console.warn('Event is not visible:', info.event.title);
+            }
             
             // Get the event type and status for color determination
             const type = info.event.extendedProps.type || 'regular';
@@ -233,6 +242,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             // Add data-event-type attribute for CSS targeting
             info.el.setAttribute('data-event-type', type);
+            
+            // Also add data-status attribute for CSS targeting
+            info.el.setAttribute('data-status', status);
             
             // Handle time off events differently
             if (type === 'timeoff') {
@@ -686,6 +698,68 @@ function showCreateEmployeeModal() {
     document.querySelector('#createEmployeeModal .close').onclick = function() {
         document.getElementById('createEmployeeModal').style.display = 'none';
     };
+
+    // Load clinics for dropdown
+    loadClinicsForDropdown();
+}
+
+// Function to load clinics for dropdown
+async function loadClinicsForDropdown() {
+    try {
+        const clinicDropdown = document.getElementById('clinic');
+        if (!clinicDropdown) return;
+        
+        // Clear existing options except the first one
+        while (clinicDropdown.options.length > 1) {
+            clinicDropdown.remove(1);
+        }
+        
+        // Add loading option
+        const loadingOption = document.createElement('option');
+        loadingOption.text = 'Loading clinics...';
+        loadingOption.disabled = true;
+        clinicDropdown.add(loadingOption);
+        
+        // Fetch clinics
+        const response = await fetch(`${window.API_BASE_URL}/clinic/getClinics`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to fetch clinics');
+        }
+        
+        const clinics = await response.json();
+        
+        // Remove loading option
+        clinicDropdown.remove(clinicDropdown.options.length - 1);
+        
+        // Add clinic options
+        clinics.forEach(clinic => {
+            const option = document.createElement('option');
+            option.value = clinic.clinicId;
+            option.text = clinic.clinicName;
+            clinicDropdown.add(option);
+        });
+    } catch (error) {
+        console.error('Error loading clinics:', error);
+        // Handle error in dropdown
+        const clinicDropdown = document.getElementById('clinic');
+        if (clinicDropdown) {
+            // Remove loading option if it exists
+            if (clinicDropdown.options.length > 1) {
+                clinicDropdown.remove(clinicDropdown.options.length - 1);
+            }
+            
+            // Add error option
+            const errorOption = document.createElement('option');
+            errorOption.text = 'Error loading clinics';
+            errorOption.disabled = true;
+            clinicDropdown.add(errorOption);
+        }
+    }
 }
 
 // Handle employee creation
@@ -699,7 +773,8 @@ document.getElementById('createEmployeeForm').addEventListener('submit', async f
         birthday: document.getElementById('birthday').value,
         gender: document.getElementById('gender').value,
         role: document.getElementById('role').value,
-        department: document.getElementById('department').value
+        department: document.getElementById('department').value,
+        clinicId: document.getElementById('clinic').value || null
     };
 
     try {
@@ -759,79 +834,86 @@ async function loadEmployees() {
     try {
         // Show loading indicator
         const tableBody = document.getElementById('employeeTableBody');
-        tableBody.innerHTML = '<tr><td colspan="5">Loading employees...</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="6">Loading employees...</td></tr>';
         
         // Get current user info for role check
         const currentUserInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const currentUserRole = (currentUserInfo.role || '').toLowerCase();
         
-        // Only allow managers and admins to manage employees
         const canManageEmployees = ['manager', 'admin'].includes(currentUserRole);
         
         const response = await fetch(`${window.API_BASE_URL}/user/getUsers`, {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to fetch employees: ${response.status} ${response.statusText}`);
+            throw new Error('Failed to fetch employees');
         }
         
-        // Parse response JSON
         const employees = await response.json();
+        
+        // Fetch clinics to get clinic names
+        let clinics = [];
+        try {
+            const clinicsResponse = await fetch(`${window.API_BASE_URL}/clinic/getClinics`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            
+            if (clinicsResponse.ok) {
+                clinics = await clinicsResponse.json();
+            }
+        } catch (error) {
+            console.warn('Failed to fetch clinics:', error);
+        }
         
         // Clear loading indicator
         tableBody.innerHTML = '';
         
-        if (employees.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="5">No employees found</td></tr>';
-            return;
-        }
-        
+        // Populate table with employee data
         employees.forEach(employee => {
             const row = document.createElement('tr');
             
-            // Format employee data, ensure properties exist with default values
-            const name = employee.name || 'N/A';
-            const email = employee.email || 'N/A';
-            const role = employee.role || 'N/A';
-            const department = employee.department || 'N/A';
-            
-            // Determine if current user can edit/delete this employee based on roles
-            const isAdmin = currentUserRole === 'admin';
-            const isManager = currentUserRole === 'manager';
-            const targetIsAdmin = (employee.role || '').toLowerCase() === 'admin';
-            
-            // Managers cannot edit/delete admins, but admins can edit/delete anyone
-            const canEditThisEmployee = (isAdmin) || (isManager && !targetIsAdmin);
+            // Find clinic name if clinicId exists
+            let clinicName = '-';
+            if (employee.clinicId && clinics.length) {
+                const clinic = clinics.find(c => c.clinicId == employee.clinicId);
+                if (clinic) {
+                    clinicName = clinic.clinicName;
+                }
+            }
             
             row.innerHTML = `
-                <td>${name}</td>
-                <td>${email}</td>
-                <td><span class="role-badge ${role.toLowerCase()}">${role}</span></td>
-                <td>${department}</td>
-                <td class="action-buttons">
-                    ${canManageEmployees && canEditThisEmployee ? 
-                        `<button class="edit-btn" onclick="editEmployee(${employee.userId})">
+                <td>${employee.name || '-'}</td>
+                <td>${employee.email || '-'}</td>
+                <td>${employee.role || '-'}</td>
+                <td>${employee.department || '-'}</td>
+                <td>${clinicName}</td>
+                <td>
+                    ${canManageEmployees ? `
+                        <button onclick="editEmployee(${employee.userId})" class="edit-btn">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="delete-btn" onclick="deleteEmployee(${employee.userId})">
+                        <button onclick="deleteEmployee(${employee.userId})" class="delete-btn">
                             <i class="fas fa-trash"></i>
-                        </button>` 
-                    : ''}
+                        </button>
+                    ` : ''}
                         </td>
                 `;
             
             tableBody.appendChild(row);
             });
-        
     } catch (error) {
         console.error('Error loading employees:', error);
-        const tableBody = document.getElementById('employeeTableBody');
-        tableBody.innerHTML = `<tr><td colspan="5">Error loading employees: ${error.message}</td></tr>`;
+        document.getElementById('employeeTableBody').innerHTML = `
+            <tr>
+                <td colspan="6" class="error-message">Error loading employees: ${error.message}</td>
+            </tr>
+        `;
     }
 }
 
@@ -916,6 +998,7 @@ async function loadUserProfile() {
         const birthday = userInfo.birthday ? new Date(userInfo.birthday) : null;
         document.getElementById('profile-birthday').textContent = birthday ? 
             `${birthday.getDate()}/${birthday.getMonth() + 1}/${birthday.getFullYear()}` : '-';
+        
         
         document.getElementById('profile-gender').textContent = userInfo.gender || '-';
     } catch (error) {
@@ -1951,7 +2034,6 @@ function initEmployeeCalendar() {
     
     employeeCalendar.render();
 }
-
 // Helper function to debounce resize events
 function debounce(func, wait) {
     let timeout;
@@ -2347,7 +2429,7 @@ async function fetchShifts() {
             console.log('User is manager/admin - fetching all shifts');
             try {
                 const allShiftsResponse = await fetch(`${window.API_BASE_URL}/shift/all`, {
-            headers: {
+                    headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
@@ -2364,18 +2446,47 @@ async function fetchShifts() {
                             title = `${shift.employeeName} - ${title}`;
                         }
                         
+                        // Ensure valid dates
+                        const startDate = new Date(shift.startDate);
+                        let endDate;
+                        
+                        // Check if endDate is valid, if not create a default
+                        if (shift.endDate && !isNaN(new Date(shift.endDate).getTime())) {
+                            endDate = new Date(shift.endDate);
+                            // If startDate and endDate are the same, add 1 hour to endDate
+                            if (startDate.getTime() === endDate.getTime()) {
+                                endDate = new Date(startDate);
+                                endDate.setHours(endDate.getHours() + 1);
+                            }
+                        } else {
+                            // Default: end time is start time + 1 hour
+                            endDate = new Date(startDate);
+                            endDate.setHours(endDate.getHours() + 1);
+                            console.warn('Invalid or missing end date for shift ID:', shift.shiftId);
+                        }
+                        
+                        // Convert "Scheduled" status to "Approved" for consistency
+                        let status = shift.status || 'Pending';
+                        if (status === 'Scheduled') {
+                            status = 'Approved';
+                            console.log(`Normalized shift ${shift.shiftId} status from "Scheduled" to "Approved"`);
+                        }
+                        
+                        console.log(`Shift ID ${shift.shiftId} has status: ${status} (original: ${shift.status})`);
+                        
                         return {
                             id: shift.shiftId,
                             title: title,
-                            start: new Date(shift.startDate),
-                            end: new Date(shift.endDate),
+                            start: startDate,
+                            end: endDate,
                             extendedProps: {
-                                status: shift.status || 'Pending',
+                                status: status,
                                 type: 'regular',
                                 shiftId: shift.shiftId,
                                 employeeId: shift.employeeId,
                                 employeeName: shift.employeeName,
-                                department: shift.department // Make sure department is included
+                                department: shift.department,
+                                clinicId: shift.clinicId
                             }
                         };
                     });
@@ -2408,20 +2519,47 @@ async function fetchShifts() {
             // Map to calendar format
             shifts = regularShifts.map(shift => {
                 let title = shift.title || `${shift.department || 'Unknown'} Shift`;
+                // Convert "Scheduled" status to "Approved" for consistency
                 let status = shift.status || 'Pending';
+                if (status === 'Scheduled') {
+                    status = 'Approved';
+                    console.log(`Normalized user shift ${shift.shiftId} status from "Scheduled" to "Approved"`);
+                }
+                
+                console.log(`User shift ID ${shift.shiftId} has status: ${status} (original: ${shift.status})`);
+                
+                // Ensure valid dates
+                const startDate = new Date(shift.startDate);
+                let endDate;
+                
+                // Check if endDate is valid, if not create a default
+                if (shift.endDate && !isNaN(new Date(shift.endDate).getTime())) {
+                    endDate = new Date(shift.endDate);
+                    // If startDate and endDate are the same, add 1 hour to endDate
+                    if (startDate.getTime() === endDate.getTime()) {
+                        endDate = new Date(startDate);
+                        endDate.setHours(endDate.getHours() + 1);
+                    }
+                } else {
+                    // Default: end time is start time + 1 hour
+                    endDate = new Date(startDate);
+                    endDate.setHours(endDate.getHours() + 1);
+                    console.warn('Invalid or missing end date for shift ID:', shift.shiftId);
+                }
                 
                 return {
-                id: shift.shiftId,
+                    id: shift.shiftId,
                     title: title,
-                    start: new Date(shift.startDate),
-                    end: new Date(shift.endDate),
-                extendedProps: {
+                    start: startDate,
+                    end: endDate,
+                    extendedProps: {
                         status: status,
                         type: 'regular',
                         shiftId: shift.shiftId,
-                    employeeId: shift.employeeId,
+                        employeeId: shift.employeeId,
                         employeeName: shift.employeeName,
-                        department: shift.department // Include department info
+                        department: shift.department,
+                        clinicId: shift.clinicId
                     }
                 };
             });
@@ -2437,7 +2575,18 @@ async function fetchShifts() {
         let timeOffEvents = await fetchTimeOffForCalendar();
         
         // Combine shifts, pending shifts, and time off events
-        return [...shifts, ...pendingShifts, ...timeOffEvents];
+        const combinedShifts = [...shifts, ...pendingShifts, ...timeOffEvents];
+        
+        // Print a summary of the shifts by status
+        const statusCounts = combinedShifts.reduce((counts, shift) => {
+            const status = shift.extendedProps?.status || 'Unknown';
+            counts[status] = (counts[status] || 0) + 1;
+            return counts;
+        }, {});
+        
+        console.log("Shifts summary by status:", statusCounts);
+        
+        return combinedShifts;
     } catch (error) {
         console.error('Error fetching shifts:', error);
         return [];
@@ -2515,7 +2664,13 @@ function getStatusColor(status, type = 'regular') {
         return '#9c27b0'; // Purple for pending generated shifts
     }
 
-    switch (status.toLowerCase()) {
+    // Normalize status to lowercase for case-insensitive comparison
+    const normalizedStatus = status.toLowerCase();
+    
+    // Log for debugging
+    console.log(`Getting color for shift status: "${status}" (normalized: "${normalizedStatus}")`);
+
+    switch (normalizedStatus) {
         case 'confirmed':
             return '#4CAF50'; // Green
         case 'cancelled':
@@ -2524,6 +2679,8 @@ function getStatusColor(status, type = 'regular') {
             return '#607D8B'; // Gray/Blue
         case 'approved':
             return '#4CAF50'; // Green
+        case 'scheduled': // Add handling for "Scheduled" status
+            return '#4CAF50'; // Green (same as approved)
         case 'rejected':
             return '#F44336'; // Red
         case 'pending':
@@ -2621,6 +2778,21 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
             status,
             hide
         });
+        
+        // Normalize status - treat "Scheduled" as "Approved"
+        let normalizedStatus = status;
+        if (status === 'Scheduled') {
+            normalizedStatus = 'Approved';
+            console.log('Normalized status from "Scheduled" to "Approved"');
+        }
+        
+        // Normalize status to lowercase for case-insensitive comparison
+        if (typeof normalizedStatus === 'string') {
+            normalizedStatus = normalizedStatus.toLowerCase();
+        }
+        
+        // Format to display status with proper capitalization
+        const displayStatus = normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
         
         // Create date objects and validate them
         let startDate, endDate;
@@ -2818,9 +2990,13 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
             timeDisplay
         });
         
-        // Create shift card
+        // Create shift card with status-specific class
         const shiftCard = document.createElement('div');
         shiftCard.className = 'shift-card';
+        
+        // Add status-specific class for styling
+        shiftCard.classList.add(`shift-status-${normalizedStatus}`);
+        
         if (hide) {
             shiftCard.classList.add('future-shift');
             shiftCard.style.display = 'none';
@@ -2831,7 +3007,7 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
             <div class="shift-time">${timeDisplay}</div>
             <div class="shift-details">
                 <span class="shift-department">${title || 'Unassigned'}</span>
-                <span class="shift-status">${status}</span>
+                <span class="shift-status ${normalizedStatus}">${displayStatus}</span>
             </div>
         `;
         
@@ -2843,7 +3019,7 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
                 start: startDate,
                 end: endDate,
                 extendedProps: {
-                    status: status
+                    status: normalizedStatus
                 }
             };
             openEditShiftModal(this, eventObj);
@@ -2851,6 +3027,9 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
         
         // Add to container
         shiftsContainer.appendChild(shiftCard);
+        
+        // Log successful addition
+        console.log(`Successfully added ${normalizedStatus} shift to upcoming section`);
     } catch (error) {
         console.error('Error adding shift to upcoming section:', error);
     }
@@ -3080,49 +3259,33 @@ async function deleteEmployee(userId) {
 // Edit employee function 
 async function editEmployee(userId) {
     try {
-        // Get current user info for role check
-        const currentUserInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        const currentUserRole = (currentUserInfo.role || '').toLowerCase();
-        
-        // Only allow managers and admins to edit employees
-        if (!['manager', 'admin'].includes(currentUserRole)) {
-            alert('Only managers and admins can edit employees');
-            return;
-        }
-        
-        // Get API base URL from localStorage or use default
-        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
-        
-        // Fetch all users and find the one we want to edit
-        const response = await fetch(`${window.API_BASE_URL}/user/getUsers`, {
-            method: 'GET',
+        // Fetch all users and find the specific user by ID
+        const userResponse = await fetch(
+            `${window.API_BASE_URL}/user/getUsers`,
+            {
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
-        });
+            }
+        );
         
-        if (!response.ok) {
-            throw new Error(`Failed to fetch employees: ${response.status} ${response.statusText}`);
+        if (!userResponse.ok) {
+            throw new Error('Failed to fetch users');
         }
         
-        const employees = await response.json();
-        const employee = employees.find(emp => emp.userId === userId);
+        const allUsers = await userResponse.json();
+        const employee = allUsers.find(user => user.userId === userId);
         
         if (!employee) {
             throw new Error(`Employee with ID ${userId} not found`);
         }
         
-        const employeeRole = (employee.role || '').toLowerCase();
+        // Get current user info for permissions checking
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const currentUserRole = (userInfo.role || '').toLowerCase();
         
-        // Managers cannot edit admins
-        if (currentUserRole === 'manager' && employeeRole === 'admin') {
-            alert('Managers cannot edit admin users');
-            return;
-        }
+        let roleOptions;
         
-        // Generate role options based on current user's role
-        let roleOptions = '';
         if (currentUserRole === 'admin') {
             // Admins can assign any role
             roleOptions = `
@@ -3177,6 +3340,13 @@ async function editEmployee(userId) {
                         <input type="text" id="edit-department" name="department" value="${employee.department || ''}">
                     </div>
                     <div class="form-group">
+                        <label for="edit-clinic">Clinic</label>
+                        <select id="edit-clinic" name="clinicId">
+                            <option value="">Select Clinic</option>
+                            <!-- Will be populated dynamically -->
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label for="edit-birthday">Birthday</label>
                         <input type="date" id="edit-birthday" name="birthday" value="${formatDateForInput(employee.birthday)}" required>
                     </div>
@@ -3197,6 +3367,9 @@ async function editEmployee(userId) {
         `;
         
         document.body.appendChild(editModal);
+        
+        // Load clinics for the dropdown and set selected value
+        populateClinicDropdown(document.getElementById('edit-clinic'), employee.clinicId);
         
         // Handle form submission
         const form = document.getElementById('editEmployeeForm');
@@ -3240,47 +3413,101 @@ async function editEmployee(userId) {
                 name: formValues.name,
                 role: formValues.role,
                 department: formValues.department,
+                clinicId: formValues.clinicId || null,
                 birthday: formValues.birthday,
                 gender: genderValue || formValues.gender // Use manually extracted gender value as fallback
             };
             
             try {
-                const updateResponse = await fetch(`${window.API_BASE_URL}/user/updateUser`, {
-                    method: 'POST',
+                // Send the update request
+                const updateResponse = await fetch(
+                    `${window.API_BASE_URL}/user/updateUser`,
+                    {
+                        method: 'PUT',
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
                     },
                     body: JSON.stringify(updatedEmployee)
-                });
+                    }
+                );
                 
-                let responseBody;
-                try {
-                    responseBody = await updateResponse.json();
-                } catch (e) {
-                    console.error('Failed to parse response JSON:', e);
-                }
-                
-                if (!updateResponse.ok) {
-                    const errorMsg = responseBody && responseBody.error
-                        ? responseBody.error
-                        : `Failed to update employee: ${updateResponse.status} ${updateResponse.statusText}`;
-                    throw new Error(errorMsg);
-                }
-                
+                if (updateResponse.ok) {
                 alert('Employee updated successfully');
                 editModal.remove();
                 loadEmployees();
-                
+                } else {
+                    const errorData = await updateResponse.json();
+                    alert(errorData.error || 'Failed to update employee');
+                }
             } catch (error) {
                 console.error('Error updating employee:', error);
-                alert(`Error updating employee: ${error.message}`);
+                alert('An error occurred while updating the employee');
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching employee details:', error);
+        alert('Failed to load employee details. Please try again.');
+    }
+}
+
+// Function to populate clinic dropdown and set selected clinic
+async function populateClinicDropdown(dropdownElement, selectedClinicId) {
+    try {
+        if (!dropdownElement) return;
+        
+        // Clear existing options except the first one
+        while (dropdownElement.options.length > 1) {
+            dropdownElement.remove(1);
+        }
+        
+        // Add loading option
+        const loadingOption = document.createElement('option');
+        loadingOption.text = 'Loading clinics...';
+        loadingOption.disabled = true;
+        dropdownElement.add(loadingOption);
+        
+        // Fetch clinics
+        const response = await fetch(`${window.API_BASE_URL}/clinic/getClinics`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
         });
         
+        if (!response.ok) {
+            throw new Error('Failed to fetch clinics');
+        }
+        
+        const clinics = await response.json();
+        
+        // Remove loading option
+        dropdownElement.remove(dropdownElement.options.length - 1);
+        
+        // Add clinic options
+        clinics.forEach(clinic => {
+            const option = document.createElement('option');
+            option.value = clinic.clinicId;
+            option.text = clinic.clinicName;
+            if (selectedClinicId && clinic.clinicId == selectedClinicId) {
+                option.selected = true;
+            }
+            dropdownElement.add(option);
+        });
     } catch (error) {
-        console.error('Error setting up employee edit:', error);
-        alert(`Error: ${error.message}`);
+        console.error('Error loading clinics:', error);
+        // Handle error in dropdown
+        if (dropdownElement) {
+            // Remove loading option if it exists
+            if (dropdownElement.options.length > 1) {
+                dropdownElement.remove(dropdownElement.options.length - 1);
+            }
+            
+            // Add error option
+            const errorOption = document.createElement('option');
+            errorOption.text = 'Error loading clinics';
+            errorOption.disabled = true;
+            dropdownElement.add(errorOption);
+        }
     }
 }
 
@@ -3615,1232 +3842,5 @@ function isManager() {
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const role = userInfo.role ? userInfo.role.toLowerCase() : '';
     return role === 'manager' || role === 'admin';
-}
-
-async function loadSwapRequests() {
-    try {
-        window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
-        
-        // Create placeholder data for now
-        const placeholderData = [
-            { id: 1, created_at: new Date(), status: 'Pending', original_shift: { start_time: new Date(), end_time: new Date() }, target_shift: { start_time: new Date(), end_time: new Date() }, requester_name: 'Employee 1', target_employee_name: 'Employee 2' }
-        ];
-        
-        renderMySwapRequests(placeholderData);
-        renderIncomingSwapRequests(placeholderData);
-        
-        if (isManager()) {
-            renderAllSwapRequests(placeholderData);
-        }
-        
-        // In the future, implement these endpoints:
-        // GET /api/shift/swaps/my - Get my swap requests
-        // GET /api/shift/swaps/incoming - Get incoming swap requests
-        // GET /api/shift/swaps/all - Get all swap requests (manager only)
-    } catch (error) {
-        console.error('Error loading swap requests:', error);
-        showNotification('Failed to load swap requests', 'error');
-    }
-}
-
-function renderMySwapRequests(requests) {
-    const tbody = document.getElementById('mySwapRequestsBody');
-    tbody.innerHTML = '';
-    
-    requests.forEach(request => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${formatDateForDisplay(request.created_at)}</td>
-            <td>${formatShiftInfo(request.original_shift)}</td>
-            <td>${formatShiftInfo(request.target_shift)}</td>
-            <td>${request.target_employee_name}</td>
-            <td><span class="swap-status ${request.status.toLowerCase()}">${request.status}</span></td>
-            <td>
-                <div class="swap-actions">
-                    ${request.status === 'Pending' ? 
-                        `<button class="cancel-btn" onclick="cancelSwapRequest(${request.id})">
-                            <i class="fas fa-times"></i> Cancel
-                        </button>` : 
-                        ''}
-                </div>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-function renderIncomingSwapRequests(requests) {
-    const tbody = document.getElementById('incomingSwapRequestsBody');
-    tbody.innerHTML = '';
-    
-    requests.forEach(request => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${formatDateForDisplay(request.created_at)}</td>
-            <td>${request.requester_name}</td>
-            <td>${formatShiftInfo(request.original_shift)}</td>
-            <td>${formatShiftInfo(request.target_shift)}</td>
-            <td><span class="swap-status ${request.status.toLowerCase()}">${request.status}</span></td>
-            <td>
-                <div class="swap-actions">
-                    ${request.status === 'Pending' ? `
-                        <button class="approve-btn" onclick="respondToSwapRequest(${request.id}, 'approve')">
-                            <i class="fas fa-check"></i> Accept
-                        </button>
-                        <button class="reject-btn" onclick="respondToSwapRequest(${request.id}, 'reject')">
-                            <i class="fas fa-times"></i> Reject
-                        </button>
-                    ` : ''}
-                </div>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-function renderAllSwapRequests(requests) {
-    const tbody = document.getElementById('allSwapRequestsBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    requests.forEach(request => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${formatDateForDisplay(request.created_at)}</td>
-            <td>${request.requester_name}</td>
-            <td>${formatShiftInfo(request.original_shift)}</td>
-            <td>${request.target_employee_name}</td>
-            <td>${formatShiftInfo(request.target_shift)}</td>
-            <td><span class="swap-status ${request.status.toLowerCase()}">${request.status}</span></td>
-            <td>
-                <div class="swap-actions">
-                    ${request.status === 'Pending' ? `
-                        <button class="approve-btn" onclick="managerApproveSwap(${request.id})">
-                            <i class="fas fa-check"></i> Approve
-                        </button>
-                        <button class="reject-btn" onclick="managerRejectSwap(${request.id})">
-                            <i class="fas fa-times"></i> Reject
-                        </button>
-                    ` : ''}
-                </div>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-function formatShiftInfo(shift) {
-    return `${formatDateForDisplay(shift.start_time)}<br>
-            <span class="shift-info">
-                <i class="far fa-clock"></i>${formatTime(shift.start_time)} - ${formatTime(shift.end_time)}
-            </span>`;
-}
-
-async function cancelSwapRequest(requestId) {
-    try {
-        const response = await fetch(`${window.API_BASE_URL}/shift/updateSwap`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getToken()}`
-            },
-            body: JSON.stringify({
-                swapId: requestId,
-                status: 'Declined'
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to cancel swap request');
-        }
-        
-        showNotification('Swap request cancelled successfully', 'success');
-        loadSwapRequests(); // Refresh the lists
-    } catch (error) {
-        console.error('Error cancelling swap request:', error);
-        showNotification('Failed to cancel swap request', 'error');
-    }
-}
-
-async function respondToSwapRequest(requestId, action) {
-    try {
-        const status = action === 'approve' ? 'Approved' : 'Declined';
-        
-        const response = await fetch(`${window.API_BASE_URL}/shift/updateSwap`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getToken()}`
-            },
-            body: JSON.stringify({
-                swapId: requestId,
-                status: status
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Failed to ${action} swap request`);
-        }
-        
-        showNotification(`Swap request ${action}ed successfully`, 'success');
-        loadSwapRequests(); // Refresh the lists
-    } catch (error) {
-        console.error(`Error ${action}ing swap request:`, error);
-        showNotification(`Failed to ${action} swap request`, 'error');
-    }
-}
-
-async function managerApproveSwap(requestId) {
-    try {
-        const response = await fetch(`${window.API_BASE_URL}/swaps/approve/${requestId}`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${getToken()}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to approve swap request');
-        }
-        
-        showNotification('Swap request approved successfully', 'success');
-        loadSwapRequests(); // Refresh the lists
-    } catch (error) {
-        console.error('Error approving swap request:', error);
-        showNotification('Failed to approve swap request', 'error');
-    }
-}
-
-async function managerRejectSwap(requestId) {
-    try {
-        const response = await fetch(`${window.API_BASE_URL}/swaps/reject/${requestId}`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${getToken()}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to reject swap request');
-        }
-        
-        showNotification('Swap request rejected successfully', 'success');
-        loadSwapRequests(); // Refresh the lists
-    } catch (error) {
-        console.error('Error rejecting swap request:', error);
-        showNotification('Failed to reject swap request', 'error');
-    }
-}
-
-// Add event listener to load swap requests when the replacement tab is clicked
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.schedule-tabs .tab[data-tab="replacement"]').forEach(tab => {
-        tab.addEventListener('click', function() {
-            loadSwapRequests();
-        });
-    });
-    
-    // If the URL has a hash for replacement tab, load the data
-    if (window.location.hash === '#replacement') {
-        loadSwapRequests();
-    }
-    
-    // Add filter change handlers
-    document.getElementById('swap-status-filter')?.addEventListener('change', loadSwapRequests);
-    document.getElementById('swap-date-filter')?.addEventListener('change', loadSwapRequests);
-});
-
-// Handle form submission for generating shifts
-document.getElementById('generateShiftsForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    // Show loading indicator
-    const submitBtn = this.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-    submitBtn.disabled = true;
-    
-    const startDate = document.getElementById('startDate').value;
-    const endDate = document.getElementById('endDate').value;
-
-    try {
-        // Generate shifts
-        const response = await fetch(`${window.API_BASE_URL}/shift/generate`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-                start: startDate,
-                end: endDate
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to generate shifts');
-        }
-
-        const data = await response.json();
-        
-        // Show success message
-        showNotification('Shifts generated successfully', 'success');
-        
-        // Add success message to the page
-        const cardBody = this.closest('.card-body');
-        if (cardBody) {
-            // Remove any existing success message
-            const existingMessage = cardBody.querySelector('.success-message');
-            if (existingMessage) {
-                existingMessage.remove();
-            }
-            
-            // Create success message
-            const successMessage = document.createElement('div');
-            successMessage.className = 'success-message';
-            successMessage.innerHTML = `
-                <div class="success-icon">✓</div>
-                <div class="success-content">
-                    <h4>Shifts Generated Successfully!</h4>
-                    <p>Shifts have been generated from ${formatDate(startDate)} to ${formatDate(endDate)}.</p>
-                    <p>You can view these pending shifts in the calendar. They will appear with a purple background.</p>
-                </div>
-            `;
-            
-            // Insert after the form
-            cardBody.appendChild(successMessage);
-        }
-
-        try {
-            // Refresh both calendars
-            if (window.calendar) {
-                await window.calendar.refetchEvents();
-            }
-            if (window.employeeCalendar) {
-                await window.employeeCalendar.refetchEvents();
-            }
-
-            // Clear existing shift cards
-            const shiftsContainer = document.querySelector('.shifts-container');
-            if (shiftsContainer) {
-                shiftsContainer.innerHTML = '';
-            }
-
-            // Fetch both regular and pending shifts
-            const [regularShifts, pendingShifts] = await Promise.all([
-                fetchShifts(),
-                fetchPendingShifts()
-            ]);
-
-            // Combine all shifts
-            const allShifts = [...(regularShifts || []), ...(pendingShifts || [])];
-            
-            // Track future shifts
-            let hasFutureShifts = false;
-            
-            // Add all shifts to the upcoming shifts section
-            allShifts.forEach(shift => {
-                const isNearFuture = isShiftInNearFuture(new Date(shift.start));
-                
-                addShiftToUpcomingSection(
-                    shift.title,
-                    new Date(shift.start),
-                    new Date(shift.end),
-                    shift.extendedProps.status,
-                    !isNearFuture // Hide if not today/tomorrow
-                );
-                
-                if (!isNearFuture) {
-                    hasFutureShifts = true;
-                }
-            });
-            
-            // Show "Show More" button if we have future shifts
-            const showMoreButton = document.querySelector('.show-more-shifts');
-            if (showMoreButton) {
-                showMoreButton.style.display = hasFutureShifts ? 'block' : 'none';
-            }
-        } catch (refreshError) {
-            console.error('Error refreshing display:', refreshError);
-            showNotification('Shifts were generated but there was an error refreshing the display. Please refresh the page.', 'warning');
-        }
-    } catch (error) {
-        console.error('Error generating shifts:', error);
-        showNotification('Failed to generate shifts. Please try again.', 'error');
-    } finally {
-        // Restore button state
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-    }
-});
-
-// Helper function to format date for display
-function formatDate(dateString) {
-    const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString('en-US', options);
-}
-
-// Helper function to show notifications
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    // Remove notification after 3 seconds
-    setTimeout(() => {
-        notification.remove();
-    }, 3000);
-}
-
-// Function to fetch pending shifts
-async function fetchPendingShifts() {
-    try {
-        const response = await fetch(`${window.API_BASE_URL}/shift/pending`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to fetch pending shifts');
-        }
-
-        const pendingShifts = await response.json();
-        console.log('Pending shifts loaded:', pendingShifts.length);
-        
-        // Format for calendar
-        return pendingShifts.map(shift => {
-            // Create a title that includes employee name and department
-            let title = shift.department || 'Unassigned Department';
-            if (shift.employeeName) {
-                title = `${shift.employeeName} - ${title}`;
-            }
-            
-            // Create a formatted shift object
-            return {
-                id: `pending-${shift.pendingShiftId}`,
-                title: title,
-                start: new Date(shift.startDate),
-                end: new Date(shift.endDate),
-                extendedProps: {
-                    status: shift.status || 'Pending',
-                    type: 'pending',
-                    shiftId: shift.pendingShiftId,
-                    employeeId: shift.employeeId,
-                    employeeName: shift.employeeName,
-                    department: shift.department
-                }
-            };
-        });
-    } catch (error) {
-        console.error('Error fetching pending shifts:', error);
-        showNotification('Error loading pending shifts', 'error');
-        return [];
-    }
-}
-
-// Set up sidebar navigation
-document.addEventListener('DOMContentLoaded', function() {
-    // Set up sidebar navigation
-    const navItems = document.querySelectorAll('.nav-item');
-    const mainContentSections = {
-        'Dashboard': document.querySelector('.main-content > :not(.employee-section):not(.time-off-section):not(.schedule-section):not(.report-section):not(.attendance-section):not(.payroll-section):not(.generate-shifts-section):not(.availability-section)'),
-        'Employee Management': document.querySelector('.employee-section'),
-        'Schedule': document.querySelector('.schedule-section'),
-        'Time Off': document.querySelector('.time-off-section'),
-        'Reports': document.querySelector('.report-section'),
-        'Attendance Rate': document.querySelector('.attendance-section'),
-        'Payroll': document.querySelector('.payroll-section'),
-        'Generate Shifts': document.querySelector('.generate-shifts-section'),
-        'Availability': document.querySelector('.availability-section')
-    };
-    
-    // Setup click handlers for all nav items
-    navItems.forEach(item => {
-        item.addEventListener('click', function() {
-            // Get the section name from the clicked item
-            const sectionName = this.textContent.trim();
-            
-            // Hide all sections first
-            Object.values(mainContentSections).forEach(section => {
-                if (section) section.style.display = 'none';
-            });
-            
-            // Show the selected section
-            if (mainContentSections[sectionName]) {
-                mainContentSections[sectionName].style.display = 'block';
-                
-                // Initialize specific section if needed
-                if (sectionName === 'Generate Shifts') {
-                    setupGenerateShiftsSection();
-                }
-            }
-            
-            // Update active state
-            navItems.forEach(nav => nav.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-});
-
-// Function to setup generate shifts section
-function setupGenerateShiftsSection() {
-    // Set minimum date as today for both inputs and set default values
-    const today = new Date();
-    const twoWeeksLater = new Date();
-    twoWeeksLater.setDate(today.getDate() + 14); // Default to two weeks range
-    
-    const todayFormatted = today.toISOString().split('T')[0];
-    const twoWeeksFormatted = twoWeeksLater.toISOString().split('T')[0];
-    
-    const startDateInput = document.getElementById('startDate');
-    const endDateInput = document.getElementById('endDate');
-    
-    if (startDateInput && endDateInput) {
-        // Set minimums
-        startDateInput.min = todayFormatted;
-        endDateInput.min = todayFormatted;
-        
-        // Set default values if not already set
-        if (!startDateInput.value) {
-            startDateInput.value = todayFormatted;
-        }
-        if (!endDateInput.value) {
-            endDateInput.value = twoWeeksFormatted;
-        }
-        
-        // Make sure end date is always at least equal to start date
-        const updateEndDateMin = () => {
-            endDateInput.min = startDateInput.value;
-            if (endDateInput.value < startDateInput.value) {
-                endDateInput.value = startDateInput.value;
-            }
-        };
-        
-        // Set initial values
-        updateEndDateMin();
-        
-        // Update end date min when start date changes
-        startDateInput.addEventListener('change', updateEndDateMin);
-    }
-}
-
-// Function to populate employee filter
-async function populateEmployeeFilter() {
-    const userRole = JSON.parse(localStorage.getItem('userInfo') || '{}').role?.toLowerCase();
-    
-    // Only for managers and admins
-    if (userRole !== 'manager' && userRole !== 'admin') return;
-    
-    try {
-        // Fetch all employees - use the correct endpoint
-        const response = await fetch(`${window.API_BASE_URL}/user/getUsers`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to fetch employees');
-        }
-        
-        const employees = await response.json();
-        console.log('Employees loaded for filter:', employees.length);
-        
-        // Get the select element
-        const employeeFilter = document.getElementById('employee-filter');
-        if (!employeeFilter) return;
-        
-        // Clear existing options except the first one (All Employees)
-        while (employeeFilter.options.length > 1) {
-            employeeFilter.remove(1);
-        }
-        
-        // Add employee options
-        employees.forEach(employee => {
-            const option = document.createElement('option');
-            option.value = employee.userId;
-            option.textContent = employee.name;
-            employeeFilter.appendChild(option);
-        });
-        
-        // Set up event listener
-        employeeFilter.addEventListener('change', filterCalendarEvents);
-        
-        // Also populate department filter
-        populateDepartmentFilter(employees);
-    } catch (error) {
-        console.error('Error populating employee filter:', error);
-    }
-}
-
-// Function to populate department filter
-function populateDepartmentFilter(employees) {
-    // Get unique departments
-    const departments = [...new Set(employees.map(emp => emp.department).filter(Boolean))];
-    console.log('Departments loaded for filter:', departments);
-    
-    // Get the select element
-    const departmentFilter = document.getElementById('department-filter');
-    if (!departmentFilter) return;
-    
-    // Clear existing options except the first one (All Departments)
-    while (departmentFilter.options.length > 1) {
-        departmentFilter.remove(1);
-    }
-    
-    // Add department options
-    departments.forEach(department => {
-        const option = document.createElement('option');
-        option.value = department;
-        option.textContent = department;
-        departmentFilter.appendChild(option);
-    });
-    
-    // Set up event listener
-    departmentFilter.addEventListener('change', filterCalendarEvents);
-}
-
-// Function to filter calendar events
-function filterCalendarEvents() {
-    const employeeFilter = document.getElementById('employee-filter');
-    const departmentFilter = document.getElementById('department-filter');
-    
-    if (!employeeFilter || !departmentFilter || !window.calendar) return;
-    
-    const selectedEmployee = employeeFilter.value;
-    const selectedDepartment = departmentFilter.value;
-    
-    console.log(`Filtering events: Employee=${selectedEmployee}, Department=${selectedDepartment}`);
-    
-    // If no selection, show all events
-    if (selectedEmployee === 'all' && selectedDepartment === 'all') {
-        window.calendar.refetchEvents();
-        return;
-    }
-    
-    // Apply filters to calendar events
-    const events = window.calendar.getEvents();
-    
-    events.forEach(event => {
-        const eventProps = event.extendedProps || {};
-        let showEvent = true;
-        
-        // Filter by employee if selected
-        if (selectedEmployee !== 'all') {
-            const employeeId = eventProps.employeeId;
-            if (!employeeId || employeeId.toString() !== selectedEmployee) {
-                showEvent = false;
-            }
-        }
-        
-        // Filter by department if selected
-        if (showEvent && selectedDepartment !== 'all') {
-            const department = eventProps.department;
-            if (!department || department !== selectedDepartment) {
-                showEvent = false;
-            }
-        }
-        
-        // Apply filter visually
-        event.setProp('display', showEvent ? 'auto' : 'none');
-    });
-    
-    // Refresh the calendar to apply changes
-    window.calendar.render();
-}
-
-// Function to check user role and set up permissions
-async function checkUserRole() {
-    try {
-        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        const userRole = (userInfo.role || '').toLowerCase();
-        const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
-
-        // Add admin-visible class to body if user is admin/manager
-        if (isAdminOrManager) {
-            document.body.classList.add('admin-visible');
-            document.body.classList.add('manager-visible');
-        } else {
-            document.body.classList.remove('admin-visible');
-            document.body.classList.remove('manager-visible');
-        }
-
-        // Show/hide Employee Management based on role
-        const employeeManagementItem = document.getElementById('employee-management');
-        if (employeeManagementItem) {
-            employeeManagementItem.style.display = isAdminOrManager ? 'flex' : 'none';
-        }
-
-        // Show/hide Generate Shifts based on role
-        const generateShiftsNav = document.getElementById('generate-shifts-nav');
-        if (generateShiftsNav) {
-            generateShiftsNav.style.display = isAdminOrManager ? 'flex' : 'none';
-        }
-
-        return userRole;
-    } catch (error) {
-        console.error('Error checking user role:', error);
-        return 'employee'; // Default to employee role if check fails
-    }
-}
-
-// Initialize the dashboard
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        // Check authentication first
-        const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = 'index.html';
-            return;
-        }
-
-        // Check user role and set up permissions
-        const userRole = await checkUserRole();
-        console.log('User role:', userRole);
-
-        // Initialize components that exist
-        const initPromises = [];
-
-        // Only load shifts if the function exists
-        if (typeof loadShifts === 'function') {
-            initPromises.push(loadShifts());
-        }
-
-        // Only load upcoming shifts if the function exists
-        if (typeof loadUpcomingShifts === 'function') {
-            initPromises.push(loadUpcomingShifts());
-        }
-
-        // Only load swap requests if the function exists
-        if (typeof loadSwapRequests === 'function') {
-            initPromises.push(loadSwapRequests());
-        }
-
-        // Wait for all initialization promises to complete
-        await Promise.all(initPromises.filter(Boolean));
-
-        // Initialize calendar if the function exists
-        if (typeof initializeCalendar === 'function') {
-            initializeCalendar();
-        }
-
-        // Set up event listeners if the function exists
-        if (typeof setupEventListeners === 'function') {
-            setupEventListeners();
-        }
-
-        console.log('Dashboard initialized successfully');
-    } catch (error) {
-        console.error('Error initializing dashboard:', error);
-        showNotification('Error initializing dashboard. Please try again.', 'error');
-    }
-});
-
-// Modify the generate shifts function to consider availability preferences
-document.getElementById('generateShiftsForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const submitBtn = this.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-    submitBtn.disabled = true;
-    
-    const startDate = document.getElementById('startDate').value;
-    const endDate = document.getElementById('endDate').value;
-
-    try {
-        // Generate shifts with availability preferences
-        const response = await fetch(`${window.API_BASE_URL}/shift/generate`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-                start: startDate,
-                end: endDate,
-                considerAvailability: true // New flag to consider availability preferences
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to generate shifts');
-        }
-
-        const data = await response.json();
-        showNotification('Shifts generated successfully', 'success');
-        
-        // Rest of the existing code for handling success...
-        await refreshCalendar();
-        
-    } catch (error) {
-        console.error('Error generating shifts:', error);
-        showNotification('Failed to generate shifts. Please try again.', 'error');
-    } finally {
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-    }
-});
-
-// Add availability section to the navigation handler
-document.addEventListener('DOMContentLoaded', function() {
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => {
-        item.addEventListener('click', function() {
-            const sectionName = this.textContent.trim();
-            
-            // Update for availability section
-            if (sectionName === 'Availability') {
-                document.querySelectorAll('.main-content > div[class$="-section"]').forEach(section => {
-                    section.style.display = 'none';
-                });
-                document.querySelector('.availability-section').style.display = 'block';
-                loadAvailabilityPreferences();
-            }
-        });
-    });
-});
-
-// Availability Modal Functions
-function showAvailabilityPreferenceModal() {
-    const modal = document.getElementById('availabilityPreferenceModal');
-    if (!modal) {
-        console.error('Availability preference modal not found');
-        return;
-    }
-
-    // Show the modal first
-    modal.style.display = 'block';
-
-    // Reset form if it exists
-    const form = document.getElementById('availabilityPreferenceForm');
-    if (form) {
-        form.reset();
-    }
-}
-
-function closeAvailabilityPreferenceModal() {
-    const modal = document.getElementById('availabilityPreferenceModal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-}
-
-// Function to load availability preferences
-async function loadAvailabilityPreferences() {
-    try {
-        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        const tableBody = document.getElementById('availabilityTableBody');
-        
-        if (!tableBody) {
-            console.error('Availability table body not found');
-            return;
-        }
-        
-        // Show loading indicator
-        tableBody.innerHTML = '<tr><td colspan="3">Loading availability preferences...</td></tr>';
-        
-        const response = await fetch(`${window.API_BASE_URL}/availability/employee/${userInfo.userId}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch availability preferences: ${response.status}`);
-        }
-
-        const data = await response.json();
-        tableBody.innerHTML = '';
-
-        // Check if data is an array, if not, handle accordingly
-        const availabilityArray = Array.isArray(data) ? data : (data.availability || []);
-
-        if (availabilityArray.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="3">No availability preferences found</td></tr>';
-            return;
-        }
-
-        availabilityArray.forEach(pref => {
-            const row = document.createElement('tr');
-            const preferredDates = pref.preferredDates ? formatPreferredDates(pref.preferredDates) : 'Not specified';
-
-            row.innerHTML = `
-                <td>${preferredDates}</td>
-                <td><span class="status-badge approved">Approved</span></td>
-                <td>
-                    <button class="action-btn delete-btn" onclick="deleteAvailabilityPreference(${pref.availabilityId})">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            `;
-
-            tableBody.appendChild(row);
-        });
-    } catch (error) {
-        console.error('Error loading availability preferences:', error);
-        const tableBody = document.getElementById('availabilityTableBody');
-        if (tableBody) {
-            tableBody.innerHTML = '<tr><td colspan="3">Error loading availability preferences</td></tr>';
-        }
-        showNotification('Failed to load availability preferences', 'error');
-    }
-}
-
-// Helper function to format preferred dates from code to readable text
-function formatPreferredDates(preferredDates) {
-    if (!preferredDates) return 'Not specified';
-    
-    const daysMap = {
-        'M': 'Monday',
-        'T': 'Tuesday', 
-        'W': 'Wednesday',
-        'TH': 'Thursday',
-        'F': 'Friday',
-        'S': 'Saturday',
-        'SN': 'Sunday'
-    };
-    
-    const dateArray = preferredDates.split(',');
-    return dateArray.map(code => daysMap[code] || code).join(', ');
-}
-
-// Helper function to convert shift code to readable name
-function getShiftName(shiftCode) {
-    const shiftMap = {
-        'MORNING': 'Morning Shift (6:00 AM - 2:00 PM)',
-        'AFTERNOON': 'Afternoon Shift (2:00 PM - 10:00 PM)',
-        'NIGHT': 'Night Shift (10:00 PM - 6:00 AM)'
-    };
-    
-    return shiftMap[shiftCode] || shiftCode;
-}
-
-// Handle availability preference form submission
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('availabilityPreferenceForm');
-    if (form) {
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            // Get selected days
-            const selectedDays = Array.from(document.querySelectorAll('input[name="preferredDays"]:checked'))
-                .map(checkbox => checkbox.value)
-                .join(',');
-
-            if (!selectedDays) {
-                showNotification('Please select at least one preferred day', 'error');
-                return;
-            }
-
-            try {
-                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-                const response = await fetch(`${window.API_BASE_URL}/availability/submit`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify({
-                        employeeId: userInfo.userId,
-                        preferredDates: selectedDays,
-                        hours: 8 // Default to 8 hours per day
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to submit availability preference');
-                }
-
-                showNotification('Availability preference submitted successfully', 'success');
-                closeAvailabilityPreferenceModal();
-                loadAvailabilityPreferences();
-            } catch (error) {
-                console.error('Error submitting availability preference:', error);
-                showNotification(error.message || 'Failed to submit availability preference', 'error');
-            }
-        });
-    }
-});
-
-//function to delete an availability preference
-async function deleteAvailabilityPreference(id) {
-    if (!confirm('Are you sure you want to delete this availability preference?')) {
-        return;
-    }
-
-    try {
-        //retrieves user info from localStorage
-        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        //get userId from localStorage
-        const userId = userInfo.userId || 'unknown'; 
-        //get token from localStorage
-        const token = localStorage.getItem('token'); 
-
-        if (!token) {
-            throw new Error('Token is missing');
-        }
-
-        const response = await fetch(`${window.API_BASE_URL}/availability/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'User-Id': userId
-            }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Failed to delete availability preference');
-        }
-       
-        showNotification('Availability preference deleted successfully', 'success');
-        loadAvailabilityPreferences();
-        
-    } catch (error) {
-        console.error('Error deleting availability preference:', error);
-        showNotification(error.message || 'Failed to delete availability preference', 'error');
-    }
-}
-
-// Function to show the Approve Time Off section
-function showApproveTimeOffSection() {
-    // Hide all sections first
-    document.querySelector('.upcoming-shifts-section').style.display = 'none';
-    document.querySelector('.calendar-section').style.display = 'none';
-    document.querySelector('.employee-section').style.display = 'none';
-    document.querySelector('.report-section').style.display = 'none';
-    document.querySelector('.time-off-section').style.display = 'none';
-    document.querySelector('.availability-section').style.display = 'none';
-    document.querySelector('.schedule-section').style.display = 'none';
-    document.querySelector('.generate-shifts-section').style.display = 'none';
-    // document.querySelector('.approve-timeoff-section').style.display = 'none';
-    
-    // Show Approve Time Off section
-    document.querySelector('.approve-timeoff-section').style.display = 'block';
-    
-    // Update active state in nav
-    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-    document.querySelector('#approve-timeoff-nav').classList.add('active');
-    
-    // Load pending time off requests
-    loadPendingTimeOffRequests();
-}
-
-// Function to load pending time off requests
-async function loadPendingTimeOffRequests() {
-    const tableBody = document.getElementById('pendingTimeOffBody');
-    tableBody.innerHTML = '<tr><td colspan="8" class="loading-message">Loading time off requests...</td></tr>';
-    
-    try {
-        const token = getToken();
-        const statusFilter = document.getElementById('timeoff-status-filter').value;
-        
-        // Get all time off requests (managers/admins can see all)
-        const response = await fetch(`${window.API_BASE_URL}/timeoff/`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to load time off requests');
-        }
-        
-        const requests = await response.json();
-        tableBody.innerHTML = '';
-        
-        // Filter requests based on status if needed
-        const filteredRequests = statusFilter === 'all' 
-            ? requests 
-            : requests.filter(req => req.status === statusFilter);
-        
-        if (filteredRequests.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="8" class="empty-message">No time off requests found</td></tr>';
-            return;
-        }
-        
-        filteredRequests.forEach(request => {
-            const row = document.createElement('tr');
-            
-            // Format dates for display
-            const dateRequested = new Date(request.requestedAt).toLocaleDateString();
-            const startDate = new Date(request.startDate).toLocaleDateString();
-            const endDate = new Date(request.endDate).toLocaleDateString();
-            
-            // Determine status class
-            let statusClass = '';
-            if (request.status === 'Approved') {
-                statusClass = 'status-approved';
-            } else if (request.status === 'Declined') {
-                statusClass = 'status-rejected';
-            } else {
-                statusClass = 'status-pending';
-            }
-            
-            row.innerHTML = `
-                <td>${request.employeeName || 'Employee'}</td>
-                <td>${dateRequested}</td>
-                <td>${request.type}</td>
-                <td>${startDate}</td>
-                <td>${endDate}</td>
-                <td>${request.reason || 'No reason provided'}</td>
-                <td><span class="request-status ${statusClass}">${request.status}</span></td>
-                <td class="request-actions">
-                    <button class="action-btn view-btn" onclick="viewTimeOffRequest(${request.timeOffId})">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    ${request.status === 'Pending' ? `
-                    <button class="action-btn approve-btn" onclick="approveTimeOffRequest(${request.timeOffId})">
-                        <i class="fas fa-check"></i>
-                    </button>
-                    <button class="action-btn reject-btn" onclick="rejectTimeOffRequest(${request.timeOffId})">
-                        <i class="fas fa-times"></i>
-                    </button>` : ''}
-                </td>
-            `;
-            
-            tableBody.appendChild(row);
-        });
-        
-        // Set up status filter change listener
-        document.getElementById('timeoff-status-filter').addEventListener('change', loadPendingTimeOffRequests);
-        
-    } catch (error) {
-        console.error('Error loading time off requests:', error);
-        tableBody.innerHTML = `<tr><td colspan="8" class="error-message">Error loading time off requests: ${error.message}</td></tr>`;
-    }
-}
-
-// Function to approve a time off request directly from the list
-async function approveTimeOffRequest(requestId) {
-    try {
-        const token = getToken();
-        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        const approvedBy = userInfo.userId;
-        
-        // Fetch the time off request details first to get type and dates
-        const detailsResponse = await fetch(`${window.API_BASE_URL}/timeoff/${requestId}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (!detailsResponse.ok) {
-            throw new Error('Failed to fetch time off request details');
-        }
-        
-        const requestDetails = await detailsResponse.json();
-        
-        // Calculate days used
-        const daysUsed = calculateDaysBetween(requestDetails.startDate, requestDetails.endDate);
-        
-        // Map the request type to our balance type
-        let balanceType;
-        switch(requestDetails.type) {
-            case 'Paid':
-                balanceType = 'Paid';
-                break;
-            case 'Unpaid':
-                balanceType = 'Unpaid';
-                break;
-            case 'Medical':
-                balanceType = 'Medical';
-                break;
-            default:
-                balanceType = 'Paid'; // Default to paid leave if type is unknown
-        }
-        
-        // Check if there are enough days in the balance
-        if (timeOffBalances[balanceType] < daysUsed) {
-            showNotification(`Cannot approve request: Insufficient ${balanceType} Leave balance. Available: ${timeOffBalances[balanceType]} days, Requested: ${daysUsed} days`, 'error');
-            return; // Stop the approval process
-        }
-        
-        // If sufficient balance, update the status to approved
-        const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                status: 'Approved',
-                approvedBy
-            })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to approve time off request');
-        }
-        
-        // Deduct days from balance
-        timeOffBalances[balanceType] -= daysUsed;
-        
-        // Save updated balances to localStorage
-        saveTimeOffBalances();
-        
-        // Update policy display if time off section is visible
-        if (document.querySelector('.time-off-section').style.display === 'block') {
-            updateTimeOffPolicyDisplay();
-        }
-        
-        showNotification(`Time off request approved successfully. ${daysUsed} day(s) deducted from ${balanceType} Leave balance.`, 'success');
-        loadPendingTimeOffRequests();
-        
-    } catch (error) {
-        console.error('Error approving time off request:', error);
-        showNotification(`Error: ${error.message}`, 'error');
-    }
-}
-
-// Function to reject a time off request directly from the list
-async function rejectTimeOffRequest(requestId) {
-    try {
-        const token = getToken();
-        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        const approvedBy = userInfo.userId;
-        
-        const response = await fetch(`${window.API_BASE_URL}/timeoff/update/${requestId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                status: 'Declined',
-                approvedBy
-            })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to reject time off request');
-        }
-        
-        // No deduction from balance when rejecting a request
-        
-        showNotification('Time off request rejected. No days deducted from balance.', 'info');
-        loadPendingTimeOffRequests();
-        
-    } catch (error) {
-        console.error('Error rejecting time off request:', error);
-        showNotification(`Error: ${error.message}`, 'error');
-    }
 }
 

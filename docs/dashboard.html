@@ -21,6 +21,7 @@
     <script src="js/reports.js" defer></script>
     <script src="js/attendance.js" defer></script>
     <script src="js/payroll.js" defer></script>
+    <script src="js/clinic.js" defer></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/notifications.js"></script>
     <style>
@@ -120,6 +121,10 @@
                 <i class="fas fa-users-cog"></i>
                 <span>Employee Management</span>
             </div>
+            <div class="nav-item admin-only" id="clinic-management-nav">
+                <i class="fas fa-hospital"></i>
+                <span>Clinic Management</span>
+            </div>
             <div class="nav-item">
                 <i class="fas fa-calendar-alt"></i>
                 <span>Schedule</span>
@@ -213,7 +218,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h3>Create Automatic Shift Schedule</h3>
-                            <p>Generate shifts based on employee availability and workload distribution.</p>
+                            <p>Generate shifts based on employee availability and workload distribution across clinics.</p>
                         </div>
                         <div class="card-body">
                             <form id="generateShiftsForm">
@@ -224,6 +229,20 @@
                                 <div class="form-group">
                                     <label for="endDate">End Date:</label>
                                     <input type="date" id="endDate" name="endDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clinicSelector">Clinic:</label>
+                                    <select id="clinicSelector" name="clinicSelector">
+                                        <option value="all">All Clinics</option>
+                                        <!-- Will be populated dynamically -->
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="departmentSelector">Department:</label>
+                                    <select id="departmentSelector" name="departmentSelector">
+                                        <option value="all">All Departments</option>
+                                        <!-- Will be populated dynamically -->
+                                    </select>
                                 </div>
                                 <div class="form-actions">
                                     <button type="submit" class="btn-primary">
@@ -251,6 +270,7 @@
                                 <th>Email</th>
                                 <th>Role</th>
                                 <th>Department</th>
+                                <th>Clinic</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -1223,6 +1243,103 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Clinic Management Section -->
+            <div class="clinic-management-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Clinic Management</h2>
+                    <button class="btn-primary" id="add-clinic-btn">
+                        <i class="fas fa-plus"></i> Add New Clinic
+                    </button>
+                </div>
+                
+                <div class="clinics-container">
+                    <div class="table-container">
+                        <table id="clinics-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Clinic Name</th>
+                                    <th>Location</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Description</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clinics-table-body">
+                                <!-- Will be populated via JavaScript -->
+                                <tr>
+                                    <td colspan="7" class="loading-message">Loading clinics data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Clinic Modal -->
+            <div id="add-clinic-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h2>Add New Clinic</h2>
+                    <form id="add-clinic-form">
+                        <div class="form-group">
+                            <label for="clinic-name">Clinic Name*</label>
+                            <input type="text" id="clinic-name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="clinic-location">Location*</label>
+                            <input type="text" id="clinic-location" name="address" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="clinic-phone">Phone*</label>
+                            <input type="tel" id="clinic-phone" name="phone" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="clinic-email">Email*</label>
+                            <input type="email" id="clinic-email" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="clinic-description">Description</label>
+                            <textarea id="clinic-description" name="description" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary">Add Clinic</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Edit Clinic Modal -->
+            <div id="edit-clinic-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h2>Edit Clinic</h2>
+                    <form id="edit-clinic-form">
+                        <input type="hidden" id="edit-clinic-id" name="clinicId">
+                        <div class="form-group">
+                            <label for="edit-clinic-name">Clinic Name*</label>
+                            <input type="text" id="edit-clinic-name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-clinic-location">Location*</label>
+                            <input type="text" id="edit-clinic-location" name="address" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-clinic-phone">Phone*</label>
+                            <input type="tel" id="edit-clinic-phone" name="phone" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-clinic-email">Email*</label>
+                            <input type="email" id="edit-clinic-email" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-clinic-description">Description</label>
+                            <textarea id="edit-clinic-description" name="description" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary">Update Clinic</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1268,6 +1385,13 @@
                 <div class="form-group">
                     <label for="department">Department</label>
                     <input type="text" id="department">
+                </div>
+                <div class="form-group">
+                    <label for="clinic">Clinic</label>
+                    <select id="clinic">
+                        <option value="">Select Clinic</option>
+                        <!-- Will be populated dynamically -->
+                    </select>
                 </div>
                 <button type="submit" class="btn-primary">Create Employee</button>
             </form>

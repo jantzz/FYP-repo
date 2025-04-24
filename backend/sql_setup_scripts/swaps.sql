@@ -1,10 +1,11 @@
 -- Create swap table for storing swap requests 
 CREATE TABLE swaps (
-    swapId INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    swapId INT UNSIGNED AUTO_INCREMENT,
     currentShift INT UNSIGNED NOT NULL,
     swapWith INT UNSIGNED NOT NULL,
-    status ENUM('Pending', 'Approved', 'Declined') DEFAULT 'Pending',
+    status ENUM('Pending', 'Approved', 'Rejected') NOT NULL DEFAULT 'pending',
     submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (swapId),
     FOREIGN KEY (currentShift) REFERENCES shift(shiftId) ON DELETE CASCADE,
     FOREIGN KEY (swapWith) REFERENCES shift(shiftId) ON DELETE CASCADE
 );

@@ -54,9 +54,13 @@ CREATE TABLE shift
     endDate DATE NOT NULL, 
     title VARCHAR(255),
     status VARCHAR(50) NOT NULL, 
+    clinicId INT UNSIGNED ZEROFILL,
     CONSTRAINT shiftFK1 FOREIGN KEY (employeeId)
         REFERENCES user(userId)
-        ON UPDATE CASCADE ON DELETE CASCADE
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT shiftFK2 FOREIGN KEY (clinicId)
+        REFERENCES clinics(clinicId)
+        ON UPDATE CASCADE ON DELETE SET NULL
 ) AUTO_INCREMENT = 1; 
 
 CREATE TABLE pendingShift
@@ -67,9 +71,13 @@ CREATE TABLE pendingShift
     endDate DATE NOT NULL, 
     title VARCHAR(255),
     status VARCHAR(50) NOT NULL, 
+    clinicId INT UNSIGNED ZEROFILL,
     CONSTRAINT pendingShiftFK1 FOREIGN KEY (employeeId)
         REFERENCES `user`(userId)
         ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT pendingShiftFK2 FOREIGN KEY (clinicId)
+        REFERENCES clinics(clinicId)
+        ON UPDATE CASCADE ON DELETE SET NULL,
     INDEX idx_status (status)
 ) AUTO_INCREMENT = 1;
 
