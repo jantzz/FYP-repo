@@ -217,14 +217,23 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         },
         eventDidMount: function(info) {
-            console.log('Event mounted:', {
+                // Enhanced logging to show more details about each event
+                console.log('Event mounted in calendar:', {
                 id: info.event.id,
                 title: info.event.title,
                 start: info.event.start,
                 end: info.event.end,
                 type: info.event.extendedProps.type,
-                status: info.event.extendedProps.status
+                status: info.event.extendedProps.status,
+                originalStatus: info.event.extendedProps.originalStatus,
+                allExtendedProps: info.event.extendedProps,
+                element: info.el
             });
+
+            // Log when the event is not visible to help debug display issues
+            if (info.el.style.display === 'none') {
+                console.warn('Event is not visible:', info.event.title);
+            }
             
             // Get the event type and status for color determination
             const type = info.event.extendedProps.type || 'regular';
@@ -233,6 +242,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             // Add data-event-type attribute for CSS targeting
             info.el.setAttribute('data-event-type', type);
+
+            // Also add data-status attribute for CSS targeting
+            info.el.setAttribute('data-status', status);
             
             // Handle time off events differently
             if (type === 'timeoff') {
@@ -686,6 +698,68 @@ function showCreateEmployeeModal() {
     document.querySelector('#createEmployeeModal .close').onclick = function() {
         document.getElementById('createEmployeeModal').style.display = 'none';
     };
+
+     // Load clinics for dropdown
+     loadClinicsForDropdown();
+ }
+ 
+ // Function to load clinics for dropdown
+ async function loadClinicsForDropdown() {
+     try {
+         const clinicDropdown = document.getElementById('clinic');
+         if (!clinicDropdown) return;
+         
+         // Clear existing options except the first one
+         while (clinicDropdown.options.length > 1) {
+             clinicDropdown.remove(1);
+         }
+         
+         // Add loading option
+         const loadingOption = document.createElement('option');
+         loadingOption.text = 'Loading clinics...';
+         loadingOption.disabled = true;
+         clinicDropdown.add(loadingOption);
+         
+         // Fetch clinics
+         const response = await fetch(`${window.API_BASE_URL}/clinic/getClinics`, {
+             headers: {
+                 'Authorization': `Bearer ${localStorage.getItem('token')}`
+             }
+         });
+         
+         if (!response.ok) {
+             throw new Error('Failed to fetch clinics');
+         }
+         
+         const clinics = await response.json();
+         
+         // Remove loading option
+         clinicDropdown.remove(clinicDropdown.options.length - 1);
+         
+         // Add clinic options
+         clinics.forEach(clinic => {
+             const option = document.createElement('option');
+             option.value = clinic.clinicId;
+             option.text = clinic.clinicName;
+             clinicDropdown.add(option);
+         });
+     } catch (error) {
+         console.error('Error loading clinics:', error);
+         // Handle error in dropdown
+         const clinicDropdown = document.getElementById('clinic');
+         if (clinicDropdown) {
+             // Remove loading option if it exists
+             if (clinicDropdown.options.length > 1) {
+                 clinicDropdown.remove(clinicDropdown.options.length - 1);
+             }
+             
+             // Add error option
+             const errorOption = document.createElement('option');
+             errorOption.text = 'Error loading clinics';
+             errorOption.disabled = true;
+             clinicDropdown.add(errorOption);
+         }
+     }
 }
 
 // Handle employee creation
@@ -699,7 +773,8 @@ document.getElementById('createEmployeeForm').addEventListener('submit', async f
         birthday: document.getElementById('birthday').value,
         gender: document.getElementById('gender').value,
         role: document.getElementById('role').value,
-        department: document.getElementById('department').value
+        department: document.getElementById('department').value,
+        clinicId: document.getElementById('clinic').value || null
     };
 
     try {
@@ -759,70 +834,73 @@ async function loadEmployees() {
     try {
         // Show loading indicator
         const tableBody = document.getElementById('employeeTableBody');
-        tableBody.innerHTML = '<tr><td colspan="5">Loading employees...</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="6">Loading employees...</td></tr>';
         
         // Get current user info for role check
         const currentUserInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const currentUserRole = (currentUserInfo.role || '').toLowerCase();
         
-        // Only allow managers and admins to manage employees
         const canManageEmployees = ['manager', 'admin'].includes(currentUserRole);
         
         const response = await fetch(`${window.API_BASE_URL}/user/getUsers`, {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to fetch employees: ${response.status} ${response.statusText}`);
+            throw new Error('Failed to fetch employees');
         }
         
-        // Parse response JSON
         const employees = await response.json();
         
+        // Fetch clinics to get clinic names
+        let clinics = [];
+        try {
+            const clinicsResponse = await fetch(`${window.API_BASE_URL}/clinic/getClinics`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            
+            if (clinicsResponse.ok) {
+                clinics = await clinicsResponse.json();
+            }
+        } catch (error) {
+            console.warn('Failed to fetch clinics:', error);
+        }
+
         // Clear loading indicator
         tableBody.innerHTML = '';
-        
-        if (employees.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="5">No employees found</td></tr>';
-            return;
-        }
-        
+        // Populate table with employee data
         employees.forEach(employee => {
             const row = document.createElement('tr');
             
-            // Format employee data, ensure properties exist with default values
-            const name = employee.name || 'N/A';
-            const email = employee.email || 'N/A';
-            const role = employee.role || 'N/A';
-            const department = employee.department || 'N/A';
-            
-            // Determine if current user can edit/delete this employee based on roles
-            const isAdmin = currentUserRole === 'admin';
-            const isManager = currentUserRole === 'manager';
-            const targetIsAdmin = (employee.role || '').toLowerCase() === 'admin';
-            
-            // Managers cannot edit/delete admins, but admins can edit/delete anyone
-            const canEditThisEmployee = (isAdmin) || (isManager && !targetIsAdmin);
+            // Find clinic name if clinicId exists
+            let clinicName = '-';
+            if (employee.clinicId && clinics.length) {
+                const clinic = clinics.find(c => c.clinicId == employee.clinicId);
+                if (clinic) {
+                    clinicName = clinic.clinicName;
+                }
+            }
             
             row.innerHTML = `
-                <td>${name}</td>
-                <td>${email}</td>
-                <td><span class="role-badge ${role.toLowerCase()}">${role}</span></td>
-                <td>${department}</td>
-                <td class="action-buttons">
-                    ${canManageEmployees && canEditThisEmployee ? 
-                        `<button class="edit-btn" onclick="editEmployee(${employee.userId})">
+                <td>${employee.name || '-'}</td>
+                <td>${employee.email || '-'}</td>
+                <td>${employee.role || '-'}</td>
+                <td>${employee.department || '-'}</td>
+                <td>${clinicName}</td>
+                <td>
+                    ${canManageEmployees ? `
+                            <button onclick="editEmployee(${employee.userId})" class="edit-btn">
                             <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="delete-btn" onclick="deleteEmployee(${employee.userId})">
+                            <button onclick="deleteEmployee(${employee.userId})" class="delete-btn">
                             <i class="fas fa-trash"></i>
                         </button>` 
                     : ''}
-                        </td>
+                    </td>
                 `;
             
             tableBody.appendChild(row);
@@ -830,8 +908,11 @@ async function loadEmployees() {
         
     } catch (error) {
         console.error('Error loading employees:', error);
-        const tableBody = document.getElementById('employeeTableBody');
-        tableBody.innerHTML = `<tr><td colspan="5">Error loading employees: ${error.message}</td></tr>`;
+        document.getElementById('employeeTableBody').innerHTML = `
+             <tr>
+                 <td colspan="6" class="error-message">Error loading employees: ${error.message}</td>
+             </tr>
+         `;
     }
 }
 
@@ -3501,6 +3582,10 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
         // Create shift card
         const shiftCard = document.createElement('div');
         shiftCard.className = 'shift-card';
+
+        // Add status-specific class for styling
+        shiftCard.classList.add(`shift-status-${normalizedStatus}`);
+
         if (hide) {
             shiftCard.classList.add('future-shift');
             shiftCard.style.display = 'none';
@@ -3760,49 +3845,32 @@ async function deleteEmployee(userId) {
 // Edit employee function 
 async function editEmployee(userId) {
     try {
-        // Get current user info for role check
-        const currentUserInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        const currentUserRole = (currentUserInfo.role || '').toLowerCase();
-        
-        // Only allow managers and admins to edit employees
-        if (!['manager', 'admin'].includes(currentUserRole)) {
-            alert('Only managers and admins can edit employees');
-            return;
-        }
-        
-        // Get API base URL from localStorage or use default
-        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
-        
-        // Fetch all users and find the one we want to edit
-        const response = await fetch(`${window.API_BASE_URL}/user/getUsers`, {
-            method: 'GET',
+                // Fetch all users and find the specific user by ID
+                const userResponse = await fetch(
+                    `${window.API_BASE_URL}/user/getUsers`,
+                    {
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
         });
         
-        if (!response.ok) {
-            throw new Error(`Failed to fetch employees: ${response.status} ${response.statusText}`);
+        if (!userResponse.ok) {
+            throw new Error('Failed to fetch users');
         }
         
-        const employees = await response.json();
-        const employee = employees.find(emp => emp.userId === userId);
+        const allUsers = await userResponse.json();
+        const employee = allUsers.find(user => user.userId === userId);
         
         if (!employee) {
             throw new Error(`Employee with ID ${userId} not found`);
         }
         
-        const employeeRole = (employee.role || '').toLowerCase();
+        // Get current user info for permissions checking
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const currentUserRole = (userInfo.role || '').toLowerCase();
         
-        // Managers cannot edit admins
-        if (currentUserRole === 'manager' && employeeRole === 'admin') {
-            alert('Managers cannot edit admin users');
-            return;
-        }
-        
+        let roleOptions;
         // Generate role options based on current user's role
-        let roleOptions = '';
         if (currentUserRole === 'admin') {
             // Admins can assign any role
             roleOptions = `
@@ -3857,6 +3925,13 @@ async function editEmployee(userId) {
                         <input type="text" id="edit-department" name="department" value="${employee.department || ''}">
                     </div>
                     <div class="form-group">
+                         <label for="edit-clinic">Clinic</label>
+                         <select id="edit-clinic" name="clinicId">
+                             <option value="">Select Clinic</option>
+                             <!-- Will be populated dynamically -->
+                         </select>
+                     </div>
+                    <div class="form-group">
                         <label for="edit-birthday">Birthday</label>
                         <input type="date" id="edit-birthday" name="birthday" value="${formatDateForInput(employee.birthday)}" required>
                     </div>
@@ -3877,6 +3952,10 @@ async function editEmployee(userId) {
         `;
         
         document.body.appendChild(editModal);
+
+
+         // Load clinics for the dropdown and set selected value
+         populateClinicDropdown(document.getElementById('edit-clinic'), employee.clinicId);
         
         // Handle form submission
         const form = document.getElementById('editEmployeeForm');
@@ -3920,47 +3999,103 @@ async function editEmployee(userId) {
                 name: formValues.name,
                 role: formValues.role,
                 department: formValues.department,
+                clinicId: formValues.clinicId || null,
                 birthday: formValues.birthday,
                 gender: genderValue || formValues.gender // Use manually extracted gender value as fallback
             };
             
             try {
-                const updateResponse = await fetch(`${window.API_BASE_URL}/user/updateUser`, {
-                    method: 'POST',
+            // Send the update request
+            const updateResponse = await fetch(
+                `${window.API_BASE_URL}/user/updateUser`,
+                {
+                    method: 'PUT',
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
                     },
                     body: JSON.stringify(updatedEmployee)
-                });
-                
-                let responseBody;
-                try {
-                    responseBody = await updateResponse.json();
-                } catch (e) {
-                    console.error('Failed to parse response JSON:', e);
                 }
-                
-                if (!updateResponse.ok) {
-                    const errorMsg = responseBody && responseBody.error
-                        ? responseBody.error
-                        : `Failed to update employee: ${updateResponse.status} ${updateResponse.statusText}`;
-                    throw new Error(errorMsg);
-                }
-                
+            );
+
+            if (updateResponse.ok) {
                 alert('Employee updated successfully');
                 editModal.remove();
                 loadEmployees();
+
+            } else {
+                const errorData = await updateResponse.json();
+                alert(errorData.error || 'Failed to update employee');
+            }
                 
             } catch (error) {
                 console.error('Error updating employee:', error);
-                alert(`Error updating employee: ${error.message}`);
+                alert('An error occurred while updating the employee');
+             }
+         });
+     } catch (error) {
+         console.error('Error fetching employee details:', error);
+         alert('Failed to load employee details. Please try again.');
+     }
+ }
+ 
+ // Function to populate clinic dropdown and set selected clinic
+ async function populateClinicDropdown(dropdownElement, selectedClinicId) {
+     try {
+         if (!dropdownElement) return;
+         
+         // Clear existing options except the first one
+         while (dropdownElement.options.length > 1) {
+             dropdownElement.remove(1);
+         }
+         
+         // Add loading option
+         const loadingOption = document.createElement('option');
+         loadingOption.text = 'Loading clinics...';
+         loadingOption.disabled = true;
+         dropdownElement.add(loadingOption);
+         
+         // Fetch clinics
+         const response = await fetch(`${window.API_BASE_URL}/clinic/getClinics`, {
+             headers: {
+                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
+        });
+        if (!response.ok) {
+            throw new Error('Failed to fetch clinics');
+        }
+        
+        const clinics = await response.json();
+        
+        // Remove loading option
+        dropdownElement.remove(dropdownElement.options.length - 1);
+        
+        // Add clinic options
+        clinics.forEach(clinic => {
+            const option = document.createElement('option');
+            option.value = clinic.clinicId;
+            option.text = clinic.clinicName;
+            if (selectedClinicId && clinic.clinicId == selectedClinicId) {
+                option.selected = true;
+            }
+            dropdownElement.add(option);
         });
         
     } catch (error) {
-        console.error('Error setting up employee edit:', error);
-        alert(`Error: ${error.message}`);
+        console.error('Error loading clinics:', error);
+         // Handle error in dropdown
+         if (dropdownElement) {
+             // Remove loading option if it exists
+             if (dropdownElement.options.length > 1) {
+                 dropdownElement.remove(dropdownElement.options.length - 1);
+             }
+             
+             // Add error option
+             const errorOption = document.createElement('option');
+             errorOption.text = 'Error loading clinics';
+             errorOption.disabled = true;
+             dropdownElement.add(errorOption);
+         }
     }
 }
 
