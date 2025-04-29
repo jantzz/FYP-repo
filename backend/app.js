@@ -14,6 +14,7 @@ const availabilityRoutes = require('./routes/availabilityRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const timeOffRoutes = require('./routes/timeOffRoutes');
 const payrollRoutes = require('./routes/payrollRoutes');
+const clinicRoutes = require('./routes/clinicRoutes');
 //express app declared within app constant 
 const app = express(); 
 
@@ -44,6 +45,7 @@ app.use('/api/availability', availabilityRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/timeoff', timeOffRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/clinic', clinicRoutes);
 
 //socket route
 app.post('/api/shift/add', shiftController.addShift);

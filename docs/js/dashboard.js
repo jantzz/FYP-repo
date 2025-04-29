@@ -3583,6 +3583,9 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
         const shiftCard = document.createElement('div');
         shiftCard.className = 'shift-card';
 
+        // Normalize status for CSS class naming
+        const normalizedStatus = status ? status.toLowerCase().replace(/\s+/g, '-') : 'pending';
+
         // Add status-specific class for styling
         shiftCard.classList.add(`shift-status-${normalizedStatus}`);
 
@@ -4448,51 +4451,22 @@ async function loadSwapRequests() {
             throw new Error('User ID not found');
         }
         
-        // Try to get swap data from various possible endpoints
-        let swapData = [];
-        let foundEndpoint = false;
-        
-        // Array of possible endpoints to try
-        const possibleEndpoints = [
-            '/shift/swaps',
-            '/shift/swap/all',
-            '/swap/all',
-            '/swaps',
-            '/shift/get-swaps'
-        ];
-        
-        for (const endpoint of possibleEndpoints) {
-            try {
-                console.log(`Trying to fetch swaps from endpoint: ${endpoint}`);
-                const response = await fetch(`${window.API_BASE_URL}${endpoint}`, {
+        console.log('Fetching swap requests from /shift/swaps endpoint');
+        const response = await fetch(`${window.API_BASE_URL}/shift/swaps`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
                 });
                 
-                if (response.ok) {
-                    swapData = await response.json();
-                    console.log(`Swap data received from ${endpoint}:`, swapData);
-                    foundEndpoint = true;
-                    break;
-                } else {
-                    console.log(`Endpoint ${endpoint} returned status: ${response.status}`);
-                }
-            } catch (err) {
-                console.log(`Error with endpoint ${endpoint}:`, err.message);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Swap endpoint error (${response.status}):`, errorText);
+            throw new Error(`Server error: ${response.status} - ${errorText || response.statusText}`);
             }
-        }
-        
-        if (!foundEndpoint) {
-            console.error('None of the swap endpoints worked. Displaying empty tables.');
-            renderMySwapRequests([]);
-            renderIncomingSwapRequests([]);
-        if (isManager()) {
-                renderAllSwapRequests([]);
-            }
-            return;
-        }
+            
+        const swapData = await response.json();
+        console.log('Swap data received:', swapData);
         
         // If no swaps found
         if (!swapData || swapData.length === 0) {
@@ -4513,15 +4487,15 @@ async function loadSwapRequests() {
                 status: swap.status || 'Pending',
                 original_shift: {
                     id: swap.currentShift,
-                    date: swap.currentShiftDate || swap.currentShift_date || swap.currentShift_startDate,
-                    start_time: swap.currentShiftStart || swap.currentShift_startTime,
-                    end_time: swap.currentShiftEnd || swap.currentShift_endDate || swap.currentShift_endTime
+                    date: swap.currentShift_startDate || swap.currentShift_date,
+                    start_time: swap.currentShift_startDate || swap.currentShift_startTime,
+                    end_time: swap.currentShift_endDate || swap.currentShift_endTime
                 },
                 target_shift: {
                     id: swap.swapWith,
-                    date: swap.swapWithDate || swap.swapWith_date || swap.swapWith_startDate,
-                    start_time: swap.swapWithStart || swap.swapWith_startTime,
-                    end_time: swap.swapWithEnd || swap.swapWith_endDate || swap.swapWith_endTime
+                    date: swap.swapWith_startDate || swap.swapWith_date,
+                    start_time: swap.swapWith_startDate || swap.swapWith_startTime,
+                    end_time: swap.swapWith_endDate || swap.swapWith_endTime
                 },
                 requester_name: swap.requesterName,
                 requester_id: swap.currentShift_employeeId,
@@ -4552,7 +4526,7 @@ async function loadSwapRequests() {
         }
     } catch (error) {
         console.error('Error loading swap data:', error);
-        showNotification('Failed to load swap data', 'error');
+        showNotification('Failed to load swap data: ' + error.message, 'error');
         
         // Initialize empty arrays for the tables
         renderMySwapRequests([]);
@@ -5306,6 +5280,7 @@ async function checkUserRole() {
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const userRole = (userInfo.role || '').toLowerCase();
         const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+        const isAdmin = userRole === 'admin';
 
         // Add admin-visible class to body if user is admin/manager
         if (isAdminOrManager) {
@@ -5320,6 +5295,12 @@ async function checkUserRole() {
         const employeeManagementItem = document.getElementById('employee-management');
         if (employeeManagementItem) {
             employeeManagementItem.style.display = isAdminOrManager ? 'flex' : 'none';
+        }
+
+        // Show/hide Clinic Management based on role (admin only)
+        const clinicManagementNav = document.getElementById('clinic-management-nav');
+        if (clinicManagementNav) {
+            clinicManagementNav.style.display = isAdmin ? 'flex' : 'none';
         }
 
         // Show/hide Generate Shifts based on role
@@ -6400,4 +6381,17 @@ async function rejectTimeOffRequest(requestId) {
         showNotification(`Error: ${error.message}`, 'error');
     }
 }
+
+// Add event listeners for navigation items
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click handler for clinic management
+    const clinicManagementNav = document.getElementById('clinic-management-nav');
+    if (clinicManagementNav) {
+        console.log('Adding click handler to clinic management nav');
+        clinicManagementNav.addEventListener('click', function() {
+            // We'll let clinic.js handle this functionality
+            console.log('Clinic management nav clicked, delegating to clinic.js');
+        });
+    }
+});
 

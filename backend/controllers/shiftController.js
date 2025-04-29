@@ -658,70 +658,80 @@ const getSwaps = async (req, res) => {
         console.log('getSwaps endpoint called');
         connection = await db.getConnection();
         
-        // Check if the swap table exists and has entries
+        // First check if the swap table exists
+        try {
         const [tableCheck] = await connection.execute(`SHOW TABLES LIKE 'swap'`);
-        console.log('Swap table exists:', tableCheck.length > 0);
-        
-        if (tableCheck.length > 0) {
-            // Count the entries in the swap table
+            
+            if (tableCheck.length === 0) {
+                // Table doesn't exist, return empty array instead of error
+                console.log('Swap table does not exist');
+                return res.status(200).json([]);
+            }
+            
+            // Check if the swap table has records
             const [countResult] = await connection.execute('SELECT COUNT(*) as count FROM swap');
             console.log('Number of swap records:', countResult[0].count);
             
-            // First, check if there are any swap records without fetching the joins
-            if (countResult[0].count > 0) {
+            if (countResult[0].count === 0) {
+                // No swap records, return empty array
+                console.log('No swap records found');
+                return res.status(200).json([]);
+            }
+            
                 // Get basic swap data without joins to diagnose possible issues
                 const [basicSwapData] = await connection.execute('SELECT * FROM swap');
-                console.log('Basic swap data:', JSON.stringify(basicSwapData, null, 2));
+            console.log('Basic swap data found:', basicSwapData.length);
                 
-                // Check if the shifts exist in the shift table
-                for (const swap of basicSwapData) {
-                    const [currentShiftCheck] = await connection.execute(
-                        'SELECT * FROM shift WHERE shiftId = ?', 
+            // Use a simpler query first to avoid join issues
+            const query = `
+                SELECT s.swapId, s.currentShift, s.swapWith, s.status, s.submittedAt
+                FROM swap s
+                ORDER BY s.submittedAt DESC
+            `;
+            
+            const [swaps] = await connection.execute(query);
+            
+            // Enhance data with additional information where available
+            const enhancedSwaps = [];
+            for (const swap of swaps) {
+                const enhancedSwap = { ...swap };
+                
+                try {
+                    // Get current shift info
+                    const [currentShiftData] = await connection.execute(
+                        'SELECT s.*, u.name as employeeName FROM shift s LEFT JOIN user u ON s.employeeId = u.userId WHERE s.shiftId = ?', 
                         [swap.currentShift]
                     );
                     
-                    const [swapWithCheck] = await connection.execute(
-                        'SELECT * FROM shift WHERE shiftId = ?', 
+                    if (currentShiftData.length > 0) {
+                        enhancedSwap.currentShift_startDate = currentShiftData[0].startDate;
+                        enhancedSwap.currentShift_endDate = currentShiftData[0].endDate;
+                        enhancedSwap.currentShift_employeeId = currentShiftData[0].employeeId;
+                        enhancedSwap.requesterName = currentShiftData[0].employeeName;
+                    }
+                    
+                    // Get swap with info
+                    const [swapWithData] = await connection.execute(
+                        'SELECT s.*, u.name as employeeName FROM shift s LEFT JOIN user u ON s.employeeId = u.userId WHERE s.shiftId = ?', 
                         [swap.swapWith]
                     );
                     
-                    console.log(
-                        `Swap ID ${swap.swapId}: currentShift ${swap.currentShift} exists: ${currentShiftCheck.length > 0}, ` +
-                        `swapWith ${swap.swapWith} exists: ${swapWithCheck.length > 0}`
-                    );
-                    
-                    // If shifts don't exist, you may want to delete the invalid swap record
-                    if (currentShiftCheck.length === 0 || swapWithCheck.length === 0) {
-                        console.warn(`Invalid swap record found (ID: ${swap.swapId}) with missing shift references. Consider cleaning up.`);
+                    if (swapWithData.length > 0) {
+                        enhancedSwap.swapWith_startDate = swapWithData[0].startDate;
+                        enhancedSwap.swapWith_endDate = swapWithData[0].endDate;
+                        enhancedSwap.swapWith_employeeId = swapWithData[0].employeeId;
+                        enhancedSwap.targetEmployeeName = swapWithData[0].employeeName;
                     }
+                } catch (error) {
+                    console.error(`Error enhancing swap data for swap ID ${swap.swapId}:`, error);
+                    // Continue with next swap without additional data
                 }
+                
+                enhancedSwaps.push(enhancedSwap);
             }
-        }
-        
-        // Query to get all swaps with additional information about the shifts and employees
-        // Use LEFT JOINs instead of INNER JOINs to see all swap records even if related data is missing
-        const query = `
-            SELECT 
-                s.swapId, s.currentShift, s.swapWith, s.status, s.submittedAt,
-                s1.startDate AS currentShift_startDate, s1.endDate AS currentShift_endDate, 
-                s2.startDate AS swapWith_startDate, s2.endDate AS swapWith_endDate,
-                s1.employeeId AS currentShift_employeeId, s2.employeeId AS swapWith_employeeId,
-                u1.name AS requesterName, u2.name AS targetEmployeeName
-            FROM swap s
-            LEFT JOIN shift s1 ON s.currentShift = s1.shiftId
-            LEFT JOIN shift s2 ON s.swapWith = s2.shiftId
-            LEFT JOIN user u1 ON s1.employeeId = u1.userId
-            LEFT JOIN user u2 ON s2.employeeId = u2.userId
-            ORDER BY s.submittedAt DESC
-        `;
-        
-        console.log('Executing query:', query);
-        const [swaps] = await connection.execute(query);
-        console.log('Query result count:', swaps.length);
-        console.log('Raw swap data:', JSON.stringify(swaps, null, 2));
         
         // Format dates for consistency
-        const formattedSwaps = swaps.map(swap => ({
+            const formattedSwaps = enhancedSwaps.map(swap => ({
             ...swap,
             submittedAt: swap.submittedAt ? new Date(swap.submittedAt).toISOString() : null,
             currentShift_startDate: swap.currentShift_startDate ? new Date(swap.currentShift_startDate).toISOString() : null,
@@ -730,11 +740,17 @@ const getSwaps = async (req, res) => {
             swapWith_endDate: swap.swapWith_endDate ? new Date(swap.swapWith_endDate).toISOString() : null
         }));
         
-        connection.release();
         return res.status(200).json(formattedSwaps);
+            
+        } catch (error) {
+            console.error('Error checking or querying swap table:', error);
+            // Return empty array instead of error
+            return res.status(200).json([]);
+        }
     } catch (err) {
         console.error('Error getting swaps:', err);
-        res.status(500).json({error: "Internal Server Error", details: err.message});
+        // Return empty array instead of error status
+        return res.status(200).json([]);
     } finally {
         if (connection) connection.release();
     }
