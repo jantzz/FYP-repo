@@ -179,9 +179,9 @@ const calculateMonthlyPayroll = async (req, res) => {
         //calculate final salary
         const actualSalary = baseSalary - totalDeductions;
         
-        //calculate CPF contributions based on original base salary
-        const employeeCPF = baseSalary * EMPLOYEE_CPF_RATE;
-        const employerCPF = baseSalary * EMPLOYER_CPF_RATE;
+        //calculate CPF contributions based on actual salary
+        const employeeCPF = actualSalary * EMPLOYEE_CPF_RATE;
+        const employerCPF = actualSalary * EMPLOYER_CPF_RATE;
         const netSalary = actualSalary - employeeCPF;
 
         //check if payroll already exists for this month
@@ -487,9 +487,9 @@ const recalculateMonthlyPayroll = async (req, res) => {
         //calculate final salary
         const actualSalary = baseSalary - totalDeductions;
         
-        //calculate CPF contributions based on original base salary
-        const employeeCPF = baseSalary * EMPLOYEE_CPF_RATE;
-        const employerCPF = baseSalary * EMPLOYER_CPF_RATE;
+        //calculate CPF contributions based on actual salary
+        const employeeCPF = actualSalary * EMPLOYEE_CPF_RATE;
+        const employerCPF = actualSalary * EMPLOYER_CPF_RATE;
         const netSalary = actualSalary - employeeCPF;
 
         //update existing payroll record
