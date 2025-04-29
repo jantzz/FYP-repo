@@ -399,8 +399,143 @@ const getPayrollStats = async (req, res) => {
     }
 };
 
+//recalculate monthly payroll for an employee
+const recalculateMonthlyPayroll = async (req, res) => {
+    const { employeeId, month, year } = req.body;
+
+    if (!employeeId || !month || !year) {
+        return res.status(400).json({ error: "Employee ID, month, and year are required." });
+    }
+
+    let connection;
+    try {
+        connection = await db.getConnection();
+
+        //get existing payroll record
+        const [existingPayroll] = await connection.execute(
+            "SELECT * FROM payroll WHERE employeeId = ? AND month = ? AND year = ?",
+            [employeeId, month, year]
+        );
+
+        if (existingPayroll.length === 0) {
+            return res.status(404).json({ error: "No existing payroll record found to recalculate." });
+        }
+
+        const payrollId = existingPayroll[0].payrollId;
+
+        //get employee details
+        const [employees] = await connection.execute(
+            "SELECT u.*, d.departmentName FROM user u JOIN department d ON u.department = d.departmentName WHERE u.userId = ?",
+            [employeeId]
+        );
+
+        if (employees.length === 0) {
+            return res.status(404).json({ error: "Employee not found." });
+        }
+
+        const employee = employees[0];
+        const baseSalary = BASE_SALARIES[employee.departmentName] || 0;
+
+        if (baseSalary === 0) {
+            return res.status(400).json({ error: "Invalid department for salary calculation." });
+        }
+
+        //recalculate hours worked
+        const hoursWorked = await calculateHoursWorked(connection, employeeId, month, year);
+        
+        //recalculate leave impact
+        const { paidLeaveDays, unpaidLeaveDays, medicalLeaveDays } = await calculateLeaves(connection, employeeId, month, year);
+        
+        //recalculate rates
+        const workingDaysInMonth = calculateWorkingDaysInMonth(month, year);
+        const dailyRate = baseSalary / workingDaysInMonth;
+        const hoursPerDay = MINIMUM_HOURS / workingDaysInMonth;
+        
+        //recalculate total paid days (including paid and medical leaves)
+        const totalPaidDays = paidLeaveDays + medicalLeaveDays;
+        const paidHours = totalPaidDays * hoursPerDay;
+        
+        //adjust minimum hours by adding paid leave hours
+        const adjustedMinimumHours = MINIMUM_HOURS + paidHours;
+        
+        //calculate deductions
+        let deductions = [];
+        
+        //1. unpaid leave deduction
+        const unpaidLeaveDeduction = unpaidLeaveDays * dailyRate;
+        deductions.push({
+            type: 'Unpaid Leave',
+            amount: unpaidLeaveDeduction,
+            details: `${unpaidLeaveDays} days × $${dailyRate.toFixed(2)}`
+        });
+        
+        //2. hours short deduction
+        if (hoursWorked < adjustedMinimumHours) {
+            const hoursShort = adjustedMinimumHours - hoursWorked;
+            const hourlyRate = baseSalary / MINIMUM_HOURS;
+            const hoursDeduction = hoursShort * hourlyRate;
+            deductions.push({
+                type: 'Hours Short',
+                amount: hoursDeduction,
+                details: `${hoursShort.toFixed(2)} hours × $${hourlyRate.toFixed(2)}`
+            });
+        }
+        
+        //calculate total deductions
+        const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
+        
+        //calculate final salary
+        const actualSalary = baseSalary - totalDeductions;
+        
+        //calculate CPF contributions based on original base salary
+        const employeeCPF = baseSalary * EMPLOYEE_CPF_RATE;
+        const employerCPF = baseSalary * EMPLOYER_CPF_RATE;
+        const netSalary = actualSalary - employeeCPF;
+
+        //update existing payroll record
+        await connection.execute(
+            "UPDATE payroll SET baseSalary = ?, employeeCPF = ?, employerCPF = ?, netSalary = ? WHERE payrollId = ?",
+            [actualSalary, employeeCPF, employerCPF, netSalary, payrollId]
+        );
+
+        return res.status(200).json({
+            message: "Payroll recalculated successfully",
+            payrollId: payrollId,
+            details: {
+                employeeName: employee.name,
+                department: employee.departmentName,
+                originalBaseSalary: baseSalary,
+                actualSalary: actualSalary,
+                hoursWorked: hoursWorked.toFixed(2),
+                minimumHours: MINIMUM_HOURS,
+                adjustedMinimumHours: adjustedMinimumHours.toFixed(2),
+                hourlyRate: (baseSalary / MINIMUM_HOURS).toFixed(2),
+                workingDaysInMonth,
+                dailyRate: dailyRate.toFixed(2),
+                leaves: {
+                    paid: paidLeaveDays,
+                    unpaid: unpaidLeaveDays,
+                    medical: medicalLeaveDays,
+                    totalPaidDays
+                },
+                deductions: deductions,
+                totalDeductions: totalDeductions.toFixed(2),
+                employeeCPF,
+                employerCPF,
+                netSalary
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: "Internal Server Error." });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 module.exports = {
     calculateMonthlyPayroll,
+    recalculateMonthlyPayroll,
     getEmployeePayroll,
     getAllPayroll,
     updatePayrollStatus,

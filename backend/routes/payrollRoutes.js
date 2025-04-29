@@ -5,6 +5,9 @@ const payrollController = require('../controllers/payrollController');
 //calculate monthly payroll for an employee
 router.post('/calculate', payrollController.calculateMonthlyPayroll);
 
+//recalculate monthly payroll for an employee
+router.post('/recalculate', payrollController.recalculateMonthlyPayroll);
+
 //get payroll details for a specific employee
 router.get('/employee/:employeeId', payrollController.getEmployeePayroll);
 
