@@ -1,10 +1,10 @@
 const db = require('../database/db');
 
-//base salary by department
+//base salary by department (used as fallback if employee doesn't have a baseSalary)
 const BASE_SALARIES = {
     'Nurse': 3000,
     'Receptionist': 2000,
-    'Doctor': 6000
+    'Doctor': 6000,
 };
 
 //CPF rates - 20% from the employee, 17% from the employer
@@ -126,11 +126,23 @@ const calculateMonthlyPayroll = async (req, res) => {
         }
 
         const employee = employees[0];
-        const baseSalary = BASE_SALARIES[employee.departmentName] || 0;
+        
+        // Print the employee data including baseSalary for debugging
+        console.log('Employee data for payroll:', JSON.stringify({
+            userId: employee.userId,
+            name: employee.name,
+            department: employee.departmentName,
+            baseSalary: employee.baseSalary
+        }));
+        
+        // Use employee's baseSalary directly if available, otherwise fall back to BASE_SALARIES
+        const baseSalary = employee.baseSalary ? parseFloat(employee.baseSalary) : BASE_SALARIES[employee.departmentName] || 0;
 
         if (baseSalary === 0) {
-            return res.status(400).json({ error: "Invalid department for salary calculation." });
+            return res.status(400).json({ error: "No salary defined for this employee. Please set a base salary first." });
         }
+        
+        console.log(`Using base salary: ${baseSalary} for employee ${employee.name}`);
 
         //calculate hours worked
         const hoursWorked = await calculateHoursWorked(connection, employeeId, month, year);
@@ -180,9 +192,20 @@ const calculateMonthlyPayroll = async (req, res) => {
         const actualSalary = baseSalary - totalDeductions;
         
         //calculate CPF contributions based on actual salary
-        const employeeCPF = actualSalary * EMPLOYEE_CPF_RATE;
-        const employerCPF = actualSalary * EMPLOYER_CPF_RATE;
+        const employeeCPF = parseFloat((actualSalary * EMPLOYEE_CPF_RATE).toFixed(2));
+        const employerCPF = parseFloat((actualSalary * EMPLOYER_CPF_RATE).toFixed(2));
         const netSalary = actualSalary - employeeCPF;
+
+        // Debug CPF calculation
+        console.log(`CPF calculation for ${employee.name}:
+            Actual Salary: ${actualSalary}
+            Employee CPF Rate: ${EMPLOYEE_CPF_RATE}
+            Employer CPF Rate: ${EMPLOYER_CPF_RATE}
+            Raw Employee CPF: ${actualSalary * EMPLOYEE_CPF_RATE}
+            Raw Employer CPF: ${actualSalary * EMPLOYER_CPF_RATE}
+            Formatted Employee CPF: ${employeeCPF}
+            Formatted Employer CPF: ${employerCPF}
+            Net Salary: ${netSalary}`);
 
         //check if payroll already exists for this month
         const [existingPayroll] = await connection.execute(
@@ -194,11 +217,30 @@ const calculateMonthlyPayroll = async (req, res) => {
             return res.status(400).json({ error: "Payroll already exists for this month." });
         }
 
+        // Log the exact values being inserted
+        console.log("Inserting payroll with values:", {
+            employeeId,
+            month,
+            year,
+            baseSalary,
+            employeeCPF,
+            employerCPF,
+            netSalary
+        });
+
         //creates new payroll record
         const [result] = await connection.execute(
             "INSERT INTO payroll (employeeId, month, year, baseSalary, employeeCPF, employerCPF, netSalary) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [employeeId, month, year, actualSalary, employeeCPF, employerCPF, netSalary]
+            [employeeId, month, year, baseSalary, employeeCPF, employerCPF, netSalary]
         );
+
+        // Verify the saved data
+        const [savedPayroll] = await connection.execute(
+            "SELECT * FROM payroll WHERE payrollId = ?",
+            [result.insertId]
+        );
+        
+        console.log("Saved payroll record:", JSON.stringify(savedPayroll[0]));
 
         return res.status(201).json({
             message: "Payroll calculated successfully",
@@ -248,8 +290,56 @@ const getEmployeePayroll = async (req, res) => {
     try {
         connection = await db.getConnection();
 
+        // First check for records with zero CPF and fix them
+        let fixQuery = `
+            SELECT p.*, u.name as employeeName, u.department
+            FROM payroll p
+            JOIN user u ON p.employeeId = u.userId
+            WHERE p.employeeId = ? AND (p.employeeCPF = 0 OR p.employerCPF = 0)
+        `;
+        
+        if (month && year) {
+            fixQuery += " AND p.month = ? AND p.year = ?";
+        }
+        
+        // Execute the query with appropriate parameters
+        const fixParams = [employeeId];
+        if (month && year) {
+            fixParams.push(month, year);
+        }
+        
+        const [recordsToFix] = await connection.execute(fixQuery, fixParams);
+        
+        if (recordsToFix.length > 0) {
+            console.log(`Auto-calculating CPF for ${recordsToFix.length} records before retrieving payroll details`);
+            
+            // Fix each record with zero CPF
+            for (const record of recordsToFix) {
+                const baseSalary = parseFloat(record.baseSalary);
+                const employeeCPF = parseFloat((baseSalary * EMPLOYEE_CPF_RATE).toFixed(2));
+                const employerCPF = parseFloat((baseSalary * EMPLOYER_CPF_RATE).toFixed(2));
+                const netSalary = baseSalary - employeeCPF;
+                
+                console.log(`Calculating CPF for payroll ID ${record.payrollId} - ${record.employeeName}:
+                    Base Salary: ${baseSalary}
+                    Employee CPF: ${employeeCPF}
+                    Employer CPF: ${employerCPF}`);
+                
+                // Update the database
+                await connection.execute(
+                    "UPDATE payroll SET employeeCPF = ?, employerCPF = ?, netSalary = ? WHERE payrollId = ?",
+                    [employeeCPF, employerCPF, netSalary, record.payrollId]
+                );
+            }
+        }
+
         let query = `
-            SELECT p.*, u.name as employeeName, d.departmentName
+            SELECT 
+                p.*, 
+                u.name as employeeName, 
+                d.departmentName,
+                CAST(p.employeeCPF AS DECIMAL(10,2)) as employeeCPF,
+                CAST(p.employerCPF AS DECIMAL(10,2)) as employerCPF
             FROM payroll p
             JOIN user u ON p.employeeId = u.userId
             JOIN department d ON u.department = d.departmentName
@@ -266,8 +356,19 @@ const getEmployeePayroll = async (req, res) => {
         query += " ORDER BY p.year DESC, p.month DESC";
 
         const [payrollRecords] = await connection.execute(query, params);
+        
+        // Ensure numeric values are properly parsed
+        const formattedRecords = payrollRecords.map(record => ({
+            ...record,
+            baseSalary: parseFloat(record.baseSalary) || 0,
+            employeeCPF: parseFloat(record.employeeCPF) || 0,
+            employerCPF: parseFloat(record.employerCPF) || 0,
+            netSalary: parseFloat(record.netSalary) || 0
+        }));
+        
+        console.log('Employee payroll records:', JSON.stringify(formattedRecords.slice(0, 1)));
 
-        return res.status(200).json(payrollRecords);
+        return res.status(200).json(formattedRecords);
     } catch (err) {
         console.error(err);
         return res.status(500).json({ error: "Internal Server Error." });
@@ -285,7 +386,12 @@ const getAllPayroll = async (req, res) => {
         connection = await db.getConnection();
 
         let query = `
-            SELECT p.*, u.name as employeeName, d.departmentName
+            SELECT 
+                p.*, 
+                u.name as employeeName, 
+                d.departmentName,
+                CAST(p.employeeCPF AS DECIMAL(10,2)) as employeeCPF,
+                CAST(p.employerCPF AS DECIMAL(10,2)) as employerCPF
             FROM payroll p
             JOIN user u ON p.employeeId = u.userId
             JOIN department d ON u.department = d.departmentName
@@ -307,8 +413,57 @@ const getAllPayroll = async (req, res) => {
         query += " ORDER BY p.year DESC, p.month DESC, u.name ASC";
 
         const [payrollRecords] = await connection.execute(query, params);
+        
+        // Log the raw data from database
+        console.log('Raw payroll records from database (first 2):', 
+            JSON.stringify(payrollRecords.slice(0, 2)));
+        
+        // Auto-fix: Check for records with zero CPF values and fix them
+        const recordsWithZeroCPF = payrollRecords.filter(record => 
+            !record.employeeCPF || parseFloat(record.employeeCPF) === 0 || 
+            !record.employerCPF || parseFloat(record.employerCPF) === 0
+        );
+        
+        if (recordsWithZeroCPF.length > 0) {
+            console.log(`Auto-calculating CPF for ${recordsWithZeroCPF.length} records`);
+            
+            // Fix each record with zero CPF
+            for (const record of recordsWithZeroCPF) {
+                const baseSalary = parseFloat(record.baseSalary);
+                const employeeCPF = parseFloat((baseSalary * EMPLOYEE_CPF_RATE).toFixed(2));
+                const employerCPF = parseFloat((baseSalary * EMPLOYER_CPF_RATE).toFixed(2));
+                const netSalary = baseSalary - employeeCPF;
+                
+                console.log(`Calculating CPF for payroll ID ${record.payrollId} - ${record.employeeName}:
+                    Base Salary: ${baseSalary}
+                    Employee CPF: ${employeeCPF}
+                    Employer CPF: ${employerCPF}`);
+                
+                // Update the database
+                await connection.execute(
+                    "UPDATE payroll SET employeeCPF = ?, employerCPF = ?, netSalary = ? WHERE payrollId = ?",
+                    [employeeCPF, employerCPF, netSalary, record.payrollId]
+                );
+                
+                // Update the record in the array to reflect fixed values
+                record.employeeCPF = employeeCPF;
+                record.employerCPF = employerCPF;
+                record.netSalary = netSalary;
+            }
+        }
+        
+        // Ensure numeric values are properly parsed
+        const formattedRecords = payrollRecords.map(record => ({
+            ...record,
+            baseSalary: parseFloat(record.baseSalary) || 0,
+            employeeCPF: parseFloat(record.employeeCPF) || 0,
+            employerCPF: parseFloat(record.employerCPF) || 0,
+            netSalary: parseFloat(record.netSalary) || 0
+        }));
+        
+        console.log('Sample payroll record:', JSON.stringify(formattedRecords.length > 0 ? formattedRecords[0] : {}));
 
-        return res.status(200).json(payrollRecords);
+        return res.status(200).json(formattedRecords);
     } catch (err) {
         console.error(err);
         return res.status(500).json({ error: "Internal Server Error." });
@@ -360,13 +515,64 @@ const getPayrollStats = async (req, res) => {
     try {
         connection = await db.getConnection();
 
+        // First let's find and fix any payroll records with zero CPF values
+        let fixQuery = `
+            SELECT p.*, u.name as employeeName, u.department
+            FROM payroll p
+            JOIN user u ON p.employeeId = u.userId
+            WHERE (p.employeeCPF = 0 OR p.employerCPF = 0)
+        `;
+        
+        if (month && year) {
+            fixQuery += " AND p.month = ? AND p.year = ?";
+        }
+        
+        if (department) {
+            fixQuery += " AND u.department = ?";
+        }
+
+        // Execute the query with appropriate parameters
+        const fixParams = [];
+        if (month && year) {
+            fixParams.push(month, year);
+        }
+        if (department) {
+            fixParams.push(department);
+        }
+        
+        const [recordsToFix] = await connection.execute(fixQuery, fixParams);
+        
+        if (recordsToFix.length > 0) {
+            console.log(`Auto-calculating CPF for ${recordsToFix.length} records before retrieving statistics`);
+            
+            // Fix each record with zero CPF
+            for (const record of recordsToFix) {
+                const baseSalary = parseFloat(record.baseSalary);
+                const employeeCPF = parseFloat((baseSalary * EMPLOYEE_CPF_RATE).toFixed(2));
+                const employerCPF = parseFloat((baseSalary * EMPLOYER_CPF_RATE).toFixed(2));
+                const netSalary = baseSalary - employeeCPF;
+                
+                console.log(`Calculating CPF for payroll ID ${record.payrollId} - ${record.employeeName}:
+                    Base Salary: ${baseSalary}
+                    Employee CPF: ${employeeCPF}
+                    Employer CPF: ${employerCPF}`);
+                
+                // Update the database
+                await connection.execute(
+                    "UPDATE payroll SET employeeCPF = ?, employerCPF = ?, netSalary = ? WHERE payrollId = ?",
+                    [employeeCPF, employerCPF, netSalary, record.payrollId]
+                );
+            }
+        }
+
+        // Now get the statistics with fixed data
         let query = `
             SELECT 
                 d.departmentName,
                 COUNT(*) as totalEmployees,
                 SUM(p.baseSalary) as totalBaseSalary,
-                SUM(p.employeeCPF) as totalEmployeeCPF,
-                SUM(p.employerCPF) as totalEmployerCPF,
+                CAST(SUM(p.employeeCPF) AS DECIMAL(10,2)) as totalEmployeeCPF,
+                CAST(SUM(p.employerCPF) AS DECIMAL(10,2)) as totalEmployerCPF,
                 SUM(p.netSalary) as totalNetSalary
             FROM payroll p
             JOIN user u ON p.employeeId = u.userId
@@ -389,8 +595,23 @@ const getPayrollStats = async (req, res) => {
         query += " GROUP BY d.departmentName";
 
         const [stats] = await connection.execute(query, params);
+        
+        // Log the raw data from database
+        console.log('Raw payroll stats from database:', JSON.stringify(stats));
+        
+        // Ensure values are numbers before sending response
+        const formattedStats = stats.map(dept => ({
+            departmentName: dept.departmentName,
+            totalEmployees: Number(dept.totalEmployees),
+            totalBaseSalary: parseFloat(dept.totalBaseSalary) || 0,
+            totalEmployeeCPF: parseFloat(dept.totalEmployeeCPF) || 0,
+            totalEmployerCPF: parseFloat(dept.totalEmployerCPF) || 0,
+            totalNetSalary: parseFloat(dept.totalNetSalary) || 0
+        }));
+        
+        console.log('Payroll stats being returned:', JSON.stringify(formattedStats));
 
-        return res.status(200).json(stats);
+        return res.status(200).json(formattedStats);
     } catch (err) {
         console.error(err);
         return res.status(500).json({ error: "Internal Server Error." });
@@ -399,7 +620,7 @@ const getPayrollStats = async (req, res) => {
     }
 };
 
-//recalculate monthly payroll for an employee
+//recalculate payroll for an employee - used when needing to update an existing record
 const recalculateMonthlyPayroll = async (req, res) => {
     const { employeeId, month, year } = req.body;
 
@@ -410,18 +631,6 @@ const recalculateMonthlyPayroll = async (req, res) => {
     let connection;
     try {
         connection = await db.getConnection();
-
-        //get existing payroll record
-        const [existingPayroll] = await connection.execute(
-            "SELECT * FROM payroll WHERE employeeId = ? AND month = ? AND year = ?",
-            [employeeId, month, year]
-        );
-
-        if (existingPayroll.length === 0) {
-            return res.status(404).json({ error: "No existing payroll record found to recalculate." });
-        }
-
-        const payrollId = existingPayroll[0].payrollId;
 
         //get employee details
         const [employees] = await connection.execute(
@@ -434,24 +643,46 @@ const recalculateMonthlyPayroll = async (req, res) => {
         }
 
         const employee = employees[0];
-        const baseSalary = BASE_SALARIES[employee.departmentName] || 0;
+        
+        // Print the employee data including baseSalary for debugging
+        console.log('Employee data for payroll recalculation:', JSON.stringify({
+            userId: employee.userId,
+            name: employee.name,
+            department: employee.departmentName,
+            baseSalary: employee.baseSalary
+        }));
+        
+        // Use employee's baseSalary directly if available, otherwise fall back to BASE_SALARIES
+        const baseSalary = employee.baseSalary ? parseFloat(employee.baseSalary) : BASE_SALARIES[employee.departmentName] || 0;
 
         if (baseSalary === 0) {
-            return res.status(400).json({ error: "Invalid department for salary calculation." });
+            return res.status(400).json({ error: "No salary defined for this employee. Please set a base salary first." });
+        }
+        
+        console.log(`Using base salary: ${baseSalary} for employee ${employee.name}`);
+
+        //check if payroll exists for this month
+        const [existingPayroll] = await connection.execute(
+            "SELECT * FROM payroll WHERE employeeId = ? AND month = ? AND year = ?",
+            [employeeId, month, year]
+        );
+
+        if (existingPayroll.length === 0) {
+            return res.status(404).json({ error: "No payroll record found for this month." });
         }
 
-        //recalculate hours worked
+        //calculate hours worked
         const hoursWorked = await calculateHoursWorked(connection, employeeId, month, year);
         
-        //recalculate leave impact
+        //calculate leaves 
         const { paidLeaveDays, unpaidLeaveDays, medicalLeaveDays } = await calculateLeaves(connection, employeeId, month, year);
         
-        //recalculate rates
+        //calculate rates
         const workingDaysInMonth = calculateWorkingDaysInMonth(month, year);
         const dailyRate = baseSalary / workingDaysInMonth;
         const hoursPerDay = MINIMUM_HOURS / workingDaysInMonth;
         
-        //recalculate total paid days (including paid and medical leaves)
+        //calculate total paid days (including paid and medical leaves)
         const totalPaidDays = paidLeaveDays + medicalLeaveDays;
         const paidHours = totalPaidDays * hoursPerDay;
         
@@ -481,26 +712,55 @@ const recalculateMonthlyPayroll = async (req, res) => {
             });
         }
         
-        //calculate total deductions
+        //calculates total deductions
         const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
         
         //calculate final salary
         const actualSalary = baseSalary - totalDeductions;
         
         //calculate CPF contributions based on actual salary
-        const employeeCPF = actualSalary * EMPLOYEE_CPF_RATE;
-        const employerCPF = actualSalary * EMPLOYER_CPF_RATE;
+        const employeeCPF = parseFloat((actualSalary * EMPLOYEE_CPF_RATE).toFixed(2));
+        const employerCPF = parseFloat((actualSalary * EMPLOYER_CPF_RATE).toFixed(2));
         const netSalary = actualSalary - employeeCPF;
 
-        //update existing payroll record
+        // Debug CPF calculation for recalculation
+        console.log(`CPF recalculation for ${employee.name}:
+            Actual Salary: ${actualSalary}
+            Employee CPF Rate: ${EMPLOYEE_CPF_RATE}
+            Employer CPF Rate: ${EMPLOYER_CPF_RATE}
+            Raw Employee CPF: ${actualSalary * EMPLOYEE_CPF_RATE}
+            Raw Employer CPF: ${actualSalary * EMPLOYER_CPF_RATE}
+            Formatted Employee CPF: ${employeeCPF}
+            Formatted Employer CPF: ${employerCPF}
+            Net Salary: ${netSalary}`);
+
+        // Log the exact values being updated
+        console.log("Updating payroll with values:", {
+            employeeId,
+            month,
+            year,
+            baseSalary,
+            employeeCPF,
+            employerCPF,
+            netSalary
+        });
+
+        //update payroll record
         await connection.execute(
-            "UPDATE payroll SET baseSalary = ?, employeeCPF = ?, employerCPF = ?, netSalary = ? WHERE payrollId = ?",
-            [actualSalary, employeeCPF, employerCPF, netSalary, payrollId]
+            "UPDATE payroll SET baseSalary = ?, employeeCPF = ?, employerCPF = ?, netSalary = ? WHERE employeeId = ? AND month = ? AND year = ?",
+            [baseSalary, employeeCPF, employerCPF, netSalary, employeeId, month, year]
         );
+
+        // Verify the updated data
+        const [updatedPayroll] = await connection.execute(
+            "SELECT * FROM payroll WHERE employeeId = ? AND month = ? AND year = ?",
+            [employeeId, month, year]
+        );
+        
+        console.log("Updated payroll record:", JSON.stringify(updatedPayroll[0]));
 
         return res.status(200).json({
             message: "Payroll recalculated successfully",
-            payrollId: payrollId,
             details: {
                 employeeName: employee.name,
                 department: employee.departmentName,

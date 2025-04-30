@@ -34,6 +34,7 @@ CREATE TABLE user
     gender ENUM('Male', 'Female', 'other'),
     department VARCHAR(50),
     clinicId INT UNSIGNED ZEROFILL,
+    baseSalary DECIMAL(10,2) DEFAULT NULL,
     assignedTask VARCHAR(255),
     CONSTRAINT userFK1 FOREIGN KEY (role)
         REFERENCES role (roleName)

@@ -699,9 +699,71 @@ function showCreateEmployeeModal() {
         document.getElementById('createEmployeeModal').style.display = 'none';
     };
 
+    // Load departments for dropdown
+    loadDepartmentsForDropdown();
+     
      // Load clinics for dropdown
      loadClinicsForDropdown();
  }
+
+// Function to load departments for dropdown
+async function loadDepartmentsForDropdown() {
+    try {
+        const departmentDropdown = document.getElementById('department');
+        if (!departmentDropdown) return;
+        
+        // Clear existing options except the first one
+        while (departmentDropdown.options.length > 1) {
+            departmentDropdown.remove(1);
+        }
+        
+        // Add loading option
+        const loadingOption = document.createElement('option');
+        loadingOption.text = 'Loading departments...';
+        loadingOption.disabled = true;
+        departmentDropdown.add(loadingOption);
+        
+        // Fetch departments
+        const response = await fetch(`${window.API_BASE_URL}/department/all`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to fetch departments');
+        }
+        
+        const departments = await response.json();
+        
+        // Remove loading option
+        departmentDropdown.remove(departmentDropdown.options.length - 1);
+        
+        // Add department options
+        departments.forEach(dept => {
+            const option = document.createElement('option');
+            option.value = dept.departmentName;
+            option.text = dept.departmentName;
+            departmentDropdown.add(option);
+        });
+    } catch (error) {
+        console.error('Error loading departments:', error);
+        // Handle error in dropdown
+        const departmentDropdown = document.getElementById('department');
+        if (departmentDropdown) {
+            // Remove loading option if it exists
+            if (departmentDropdown.options.length > 1) {
+                departmentDropdown.remove(departmentDropdown.options.length - 1);
+            }
+            
+            // Add error option
+            const errorOption = document.createElement('option');
+            errorOption.text = 'Error loading departments';
+            errorOption.disabled = true;
+            departmentDropdown.add(errorOption);
+        }
+    }
+}
  
  // Function to load clinics for dropdown
  async function loadClinicsForDropdown() {
@@ -774,6 +836,7 @@ document.getElementById('createEmployeeForm').addEventListener('submit', async f
         gender: document.getElementById('gender').value,
         role: document.getElementById('role').value,
         department: document.getElementById('department').value,
+        baseSalary: document.getElementById('baseSalary').value || null,
         clinicId: document.getElementById('clinic').value || null
     };
 
@@ -834,7 +897,7 @@ async function loadEmployees() {
     try {
         // Show loading indicator
         const tableBody = document.getElementById('employeeTableBody');
-        tableBody.innerHTML = '<tr><td colspan="6">Loading employees...</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7">Loading employees...</td></tr>';
         
         // Get current user info for role check
         const currentUserInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
@@ -886,12 +949,19 @@ async function loadEmployees() {
                 }
             }
             
+            // Format salary if exists
+            let salaryDisplay = '-';
+            if (employee.baseSalary) {
+                salaryDisplay = `$${parseFloat(employee.baseSalary).toFixed(2)}`;
+            }
+            
             row.innerHTML = `
                 <td>${employee.name || '-'}</td>
                 <td>${employee.email || '-'}</td>
                 <td>${employee.role || '-'}</td>
                 <td>${employee.department || '-'}</td>
                 <td>${clinicName}</td>
+                <td>${salaryDisplay}</td>
                 <td>
                     ${canManageEmployees ? `
                             <button onclick="editEmployee(${employee.userId})" class="edit-btn">
@@ -910,7 +980,7 @@ async function loadEmployees() {
         console.error('Error loading employees:', error);
         document.getElementById('employeeTableBody').innerHTML = `
              <tr>
-                 <td colspan="6" class="error-message">Error loading employees: ${error.message}</td>
+                 <td colspan="7" class="error-message">Error loading employees: ${error.message}</td>
              </tr>
          `;
     }
@@ -985,7 +1055,43 @@ function formatDateForInput(dateStr) {
 // Load user profile data
 async function loadUserProfile() {
     try {
-        // Get the user info from localStorage if available
+        // Fetch fresh data from the server
+        const token = localStorage.getItem('token');
+        if (!token) {
+            console.error('No token found in localStorage');
+            return;
+        }
+        
+        // First try to get fresh data from the server
+        try {
+            const response = await fetch(`${window.API_BASE_URL}/user/me`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const userData = await response.json();
+                console.log('Fresh user data loaded:', userData);
+                
+                // Update localStorage with fresh data
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                const updatedUserInfo = {
+                    ...userInfo,
+                    ...userData
+                };
+                localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
+            } else {
+                console.warn('Could not fetch fresh user data, using cached data');
+            }
+        } catch (fetchError) {
+            console.warn('Error fetching fresh user data:', fetchError);
+            // Continue with cached data if fetch fails
+        }
+        
+        // Get the user info from localStorage
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         
         document.getElementById('profile-name').textContent = userInfo.name || '-';
@@ -1026,6 +1132,7 @@ document.getElementById('editProfileForm').addEventListener('submit', async func
     console.log('Profile update - formData:', JSON.stringify(formData));
     
     try {
+        // Update profile information
         const response = await fetch(`${window.API_BASE_URL}/user/updateUser`, {
             method: 'POST',
             headers: {
@@ -1054,7 +1161,7 @@ document.getElementById('editProfileForm').addEventListener('submit', async func
         }
     } catch (error) {
         console.error('Error updating profile:', error);
-        alert('An error occurred while updating your profile');
+        alert('An error occurred while updating your profile: ' + error.message);
     }
 });
 
@@ -2389,6 +2496,7 @@ async function processApproval(requestId, approvedBy, requestDetails, balanceTyp
                 document.getElementById('warningModal').remove();
             }, 500);
         });
+        
         
         // Show the modal
         document.getElementById('warningModal').style.display = 'block';
@@ -3798,10 +3906,7 @@ async function deleteEmployee(userId) {
             return;
         }
         
-        // Get API base URL from localStorage or use default
-        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
-        
-        // Fetch all users and find the one we want to edit
+        // Fetch all users and find the one we want to delete
         const response = await fetch(`${window.API_BASE_URL}/user/getUsers`, {
             method: 'GET',
             headers: {
@@ -3834,26 +3939,41 @@ async function deleteEmployee(userId) {
             return;
         }
         
-        // For this example, we'll just show a message since actual deletion is not implemented in the backend yet
-        alert(`This would delete the employee ${employee.name} (${employee.email}). Backend endpoint for deletion needs to be implemented.`);
+        // Call the delete API endpoint
+        const deleteResponse = await fetch(`${window.API_BASE_URL}/user/deleteUser/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+            }
+        });
         
+        if (!deleteResponse.ok) {
+            const errorData = await deleteResponse.json();
+            throw new Error(errorData.error || 'Failed to delete employee');
+        }
+        
+        // Show success message
+        showNotification('Employee deleted successfully', 'success');
+        
+        // Reload the employees list
         loadEmployees();
         
     } catch (error) {
         console.error('Error deleting employee:', error);
-        alert(`Error deleting employee: ${error.message}`);
+        showNotification(`Error deleting employee: ${error.message}`, 'error');
     }
 }
 
 // Edit employee function 
 async function editEmployee(userId) {
     try {
-                // Fetch all users and find the specific user by ID
-                const userResponse = await fetch(
-                    `${window.API_BASE_URL}/user/getUsers`,
-                    {
+        // Fetch all users and find the specific user by ID
+        const userResponse = await fetch(
+            `${window.API_BASE_URL}/user/getUsers`,
+            {
             headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
         });
         
@@ -3867,6 +3987,8 @@ async function editEmployee(userId) {
         if (!employee) {
             throw new Error(`Employee with ID ${userId} not found`);
         }
+        
+        console.log('Editing employee:', employee);
         
         // Get current user info for permissions checking
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
@@ -3894,6 +4016,28 @@ async function editEmployee(userId) {
                     <option value="Manager" selected>Manager</option>
                 `;
             }
+        }
+        
+        // Pre-fetch departments to include directly in the modal
+        const deptsResponse = await fetch(`${window.API_BASE_URL}/department/all`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        
+        let departmentOptions = '<option value="">Select Department</option>';
+        
+        if (deptsResponse.ok) {
+            const departments = await deptsResponse.json();
+            console.log('Fetched departments:', departments);
+            
+            departmentOptions = departments.map(dept => 
+                `<option value="${dept.departmentName}" ${employee.department === dept.departmentName ? 'selected' : ''}>${dept.departmentName}</option>`
+            ).join('');
+            
+            departmentOptions = '<option value="">Select Department</option>' + departmentOptions;
+        } else {
+            console.error('Failed to fetch departments');
         }
         
         // Create a modal for editing
@@ -3925,7 +4069,9 @@ async function editEmployee(userId) {
                     </div>
                     <div class="form-group">
                         <label for="edit-department">Department</label>
-                        <input type="text" id="edit-department" name="department" value="${employee.department || ''}">
+                        <select id="edit-department" name="department">
+                            ${departmentOptions}
+                        </select>
                     </div>
                     <div class="form-group">
                          <label for="edit-clinic">Clinic</label>
@@ -3946,6 +4092,10 @@ async function editEmployee(userId) {
                             <option value="other" ${employee.gender === 'other' ? 'selected' : ''}>Other</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label for="edit-baseSalary">Base Salary</label>
+                        <input type="number" id="edit-baseSalary" name="baseSalary" step="0.01" min="0" value="${employee.baseSalary || ''}">
+                    </div>
                     <div class="form-actions">
                         <button type="button" class="cancel-btn" onclick="this.closest('.modal').remove()">Cancel</button>
                         <button type="submit" class="save-btn">Save Changes</button>
@@ -3956,9 +4106,11 @@ async function editEmployee(userId) {
         
         document.body.appendChild(editModal);
 
+        // No need to populate department dropdown again since we've included it directly in the HTML
+        console.log('Department dropdown populated directly with HTML options');
 
-         // Load clinics for the dropdown and set selected value
-         populateClinicDropdown(document.getElementById('edit-clinic'), employee.clinicId);
+        // Load clinics for the dropdown and set selected value
+        populateClinicDropdown(document.getElementById('edit-clinic'), employee.clinicId);
         
         // Handle form submission
         const form = document.getElementById('editEmployeeForm');
@@ -4004,7 +4156,8 @@ async function editEmployee(userId) {
                 department: formValues.department,
                 clinicId: formValues.clinicId || null,
                 birthday: formValues.birthday,
-                gender: genderValue || formValues.gender // Use manually extracted gender value as fallback
+                gender: genderValue || formValues.gender, // Use manually extracted gender value as fallback
+                baseSalary: formValues.baseSalary || null
             };
             
             try {
@@ -4035,70 +4188,10 @@ async function editEmployee(userId) {
                 console.error('Error updating employee:', error);
                 alert('An error occurred while updating the employee');
              }
-         });
-     } catch (error) {
-         console.error('Error fetching employee details:', error);
-         alert('Failed to load employee details. Please try again.');
-     }
- }
- 
- // Function to populate clinic dropdown and set selected clinic
- async function populateClinicDropdown(dropdownElement, selectedClinicId) {
-     try {
-         if (!dropdownElement) return;
-         
-         // Clear existing options except the first one
-         while (dropdownElement.options.length > 1) {
-             dropdownElement.remove(1);
-         }
-         
-         // Add loading option
-         const loadingOption = document.createElement('option');
-         loadingOption.text = 'Loading clinics...';
-         loadingOption.disabled = true;
-         dropdownElement.add(loadingOption);
-         
-         // Fetch clinics
-         const response = await fetch(`${window.API_BASE_URL}/clinic/getClinics`, {
-             headers: {
-                 'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
         });
-        if (!response.ok) {
-            throw new Error('Failed to fetch clinics');
-        }
-        
-        const clinics = await response.json();
-        
-        // Remove loading option
-        dropdownElement.remove(dropdownElement.options.length - 1);
-        
-        // Add clinic options
-        clinics.forEach(clinic => {
-            const option = document.createElement('option');
-            option.value = clinic.clinicId;
-            option.text = clinic.clinicName;
-            if (selectedClinicId && clinic.clinicId == selectedClinicId) {
-                option.selected = true;
-            }
-            dropdownElement.add(option);
-        });
-        
     } catch (error) {
-        console.error('Error loading clinics:', error);
-         // Handle error in dropdown
-         if (dropdownElement) {
-             // Remove loading option if it exists
-             if (dropdownElement.options.length > 1) {
-                 dropdownElement.remove(dropdownElement.options.length - 1);
-             }
-             
-             // Add error option
-             const errorOption = document.createElement('option');
-             errorOption.text = 'Error loading clinics';
-             errorOption.disabled = true;
-             dropdownElement.add(errorOption);
-         }
+        console.error('Error in editEmployee function:', error);
+        alert(`Error: ${error.message}`);
     }
 }
 
@@ -6298,6 +6391,7 @@ async function processApproval(requestId, approvedBy, requestDetails, balanceTyp
             }, 500);
         });
         
+        
         // Show the modal
         document.getElementById('warningModal').style.display = 'block';
         
@@ -6394,4 +6488,64 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Function to populate clinic dropdown and set selected clinic
+async function populateClinicDropdown(dropdownElement, selectedClinicId) {
+    try {
+        if (!dropdownElement) return;
+        
+        // Clear existing options except the first one
+        while (dropdownElement.options.length > 1) {
+            dropdownElement.remove(1);
+        }
+        
+        // Add loading option
+        const loadingOption = document.createElement('option');
+        loadingOption.text = 'Loading clinics...';
+        loadingOption.disabled = true;
+        dropdownElement.add(loadingOption);
+        
+        // Fetch clinics
+        const response = await fetch(`${window.API_BASE_URL}/clinic/getClinics`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to fetch clinics');
+        }
+        
+        const clinics = await response.json();
+        
+        // Remove loading option
+        dropdownElement.remove(dropdownElement.options.length - 1);
+        
+        // Add clinic options
+        clinics.forEach(clinic => {
+            const option = document.createElement('option');
+            option.value = clinic.clinicId;
+            option.text = clinic.clinicName;
+            if (selectedClinicId && clinic.clinicId == selectedClinicId) {
+                option.selected = true;
+            }
+            dropdownElement.add(option);
+        });
+    } catch (error) {
+        console.error('Error loading clinics:', error);
+        // Handle error in dropdown
+        if (dropdownElement) {
+            // Remove loading option if it exists
+            if (dropdownElement.options.length > 1) {
+                dropdownElement.remove(dropdownElement.options.length - 1);
+            }
+            
+            // Add error option
+            const errorOption = document.createElement('option');
+            errorOption.text = 'Error loading clinics';
+            errorOption.disabled = true;
+            dropdownElement.add(errorOption);
+        }
+    }
+}
 

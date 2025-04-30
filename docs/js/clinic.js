@@ -84,20 +84,33 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        let allContent = mainContent.querySelectorAll('div[class$="-section"]');
+        // Define specific sections to hide (more targeted approach)
+        const sectionsToHide = [
+            '.calendar-section', 
+            '.upcoming-shifts-section', 
+            '.reports-section',
+            '.attendance-section',
+            '.payroll-section',
+            '.employee-management-section',
+            '.timeoff-section',
+            '.availability-section',
+            '.generate-shifts-section',
+            '.approve-shifts-section',
+            '.department-management-section'
+        ];
         
-        // If we didn't find any sections, try a more generic selector
-        if (allContent.length === 0) {
-            allContent = mainContent.querySelectorAll(':scope > div');
-        }
-        
-        allContent.forEach(content => {
-            content.style.display = 'none';
+        // Hide all known section types
+        sectionsToHide.forEach(sectionSelector => {
+            const section = mainContent.querySelector(sectionSelector);
+            if (section) {
+                section.style.display = 'none';
+            }
         });
         
         // Show clinic management section
         if (clinicManagementSection) {
             clinicManagementSection.style.display = 'block';
+            debugLog('Displaying clinic management section');
         } else {
             console.error('clinicManagementSection element not found');
             
@@ -105,6 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const altSection = document.querySelector('[class*="clinic-management"]');
             if (altSection) {
                 altSection.style.display = 'block';
+                debugLog('Found and displayed alternative clinic section element');
             } else {
                 console.error('Could not find any clinic management section element');
             }

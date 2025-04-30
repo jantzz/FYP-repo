@@ -2254,7 +2254,7 @@ body.admin-visible .admin-only {
     font-weight: 500;
     transition: all 0.3s;
     position: relative;
-    background-color: rgba(94, 114, 228, 0.08);
+    
 }
 
 #generate-shifts-nav:hover {

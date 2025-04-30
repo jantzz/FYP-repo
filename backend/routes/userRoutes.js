@@ -9,7 +9,9 @@ const {
     getUsers,
     createUser,
     updateUser,
-    getMe
+    getMe,
+    deleteUser,
+    updateUserBaseSalary
 } = require('../controllers/userController');
 
 //router object from express 
@@ -22,11 +24,20 @@ router.get('/getUser/:email', getUser);
 
 router.get('/getUsers', getUsers);
 
+// Add a route for /all that uses the same controller as /getUsers
+router.get('/all', getUsers);
+
 router.post('/createUser', createUser);
 
 router.route('/updateUser')
     .put(updateUser)
     .post(updateUser);  // Allow both PUT and POST
+
+// Route for updating user's base salary
+router.post('/updateBaseSalary', updateUserBaseSalary);
+
+// Delete user route
+router.delete('/deleteUser/:userId', deleteUser);
 
 // get current user information
 router.get('/me', getMe);

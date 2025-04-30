@@ -63,7 +63,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             role: userData.role,    
                             department: userData.department,
                             birthday: userData.birthday,
-                            gender: userData.gender
+                            gender: userData.gender,
+                            baseSalary: userData.baseSalary
                         };
                         
                         console.log('Storing user info:', userInfo);

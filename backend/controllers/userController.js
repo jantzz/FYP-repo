@@ -85,7 +85,7 @@ const getUser = async (req, res) => {
 }
 
 const createUser = async (req, res) => {
-    const { name, email, password, role, birthday, gender, clinic } = req.body; //added clinic field to req.body
+    const { name, email, password, role, birthday, gender, clinic, baseSalary } = req.body; //added baseSalary field
 
     //for dep and assignedTasks check if there are values, if not set null 
     const department = req.body.department ? req.body.department: null; 
@@ -98,7 +98,7 @@ const createUser = async (req, res) => {
     try{
         connection = await db.getConnection();
     
-        const q = "INSERT INTO user (name, email, password, role, birthday, gender, department, clinicId, assignedTask) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        const q = "INSERT INTO user (name, email, password, role, birthday, gender, department, clinicId, assignedTask, baseSalary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         //generate salt and hash password 
         const salt = await bcrypt.genSalt(10);
@@ -106,7 +106,7 @@ const createUser = async (req, res) => {
         const hashed = await bcrypt.hash(password, salt);
 
         const data = [
-            name, email, hashed , role, birthday, gender, department, clinic, assignedTask
+            name, email, hashed, role, birthday, gender, department, clinic, assignedTask, baseSalary || null
         ];
 
         //command .execute is used over .query because we are handling async functions 
@@ -221,7 +221,7 @@ const getMe = async (req, res) => {
         // get user info from database
         const connection = await db.getConnection();
         const [users] = await connection.execute(
-            "SELECT userId, name, email, role, department, birthday, gender FROM user WHERE userId = ?",
+            "SELECT userId, name, email, role, department, birthday, gender, baseSalary FROM user WHERE userId = ?",
             [_id]
         );
         connection.release();
@@ -230,8 +230,13 @@ const getMe = async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // return user data
-        res.status(200).json(users[0]);
+        // return user data (ensuring baseSalary is included)
+        const userData = users[0];
+        
+        // Log the data being returned (for debugging)
+        console.log('User data being returned:', userData);
+        
+        res.status(200).json(userData);
     } catch (error) {
         console.error('Error getting user info:', error);
         if (error.name === 'JsonWebTokenError') {
@@ -241,11 +246,96 @@ const getMe = async (req, res) => {
     }
 };
 
+// Delete user function
+const deleteUser = async (req, res) => {
+    const { userId } = req.params;
+
+    if (!userId) {
+        return res.status(400).json({ error: "User ID is required" });
+    }
+
+    let connection;
+    try {
+        connection = await db.getConnection();
+
+        // Check if user exists
+        const [userCheck] = await connection.execute(
+            "SELECT * FROM user WHERE userId = ?",
+            [userId]
+        );
+
+        if (userCheck.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        // Delete user
+        const [result] = await connection.execute(
+            "DELETE FROM user WHERE userId = ?",
+            [userId]
+        );
+
+        return res.status(200).json({ message: "User deleted successfully" });
+    } catch (err) {
+        console.error("Error deleting user:", err);
+        return res.status(500).json({ error: "Internal Server Error" });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
+const updateUserBaseSalary = async (req, res) => {
+    const { userId, baseSalary } = req.body;
+
+    if (!userId) {
+        return res.status(400).json({ error: "User ID is required" });
+    }
+
+    if (baseSalary === undefined || baseSalary === '') {
+        return res.status(400).json({ error: "Base salary is required" });
+    }
+
+    let connection;
+    try {
+        connection = await db.getConnection();
+
+        // Check if user exists
+        const [userCheck] = await connection.execute(
+            "SELECT * FROM user WHERE userId = ?",
+            [userId]
+        );
+
+        if (userCheck.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        // Update user's base salary
+        const [result] = await connection.execute(
+            "UPDATE user SET baseSalary = ? WHERE userId = ?",
+            [baseSalary, userId]
+        );
+
+        // Log the update for debugging
+        console.log(`Updated user ${userId} base salary to ${baseSalary}. Affected rows: ${result.affectedRows}`);
+
+        return res.status(200).json({ 
+            message: "Base salary updated successfully",
+            baseSalary: baseSalary
+        });
+    } catch (err) {
+        console.error("Error updating base salary:", err);
+        return res.status(500).json({ error: "Internal Server Error" });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 module.exports = {
     loginUser,
     getUsers,
     getUser,
     createUser,
     updateUser,
-    getMe
+    getMe,
+    deleteUser,
+    updateUserBaseSalary
 }
