@@ -1477,22 +1477,38 @@ function calculateDaysBetween(startDate, endDate) {
 // Function to show the Time Off section
 function showTimeOffSection() {
     // Hide all sections first
-    document.querySelector('.upcoming-shifts-section').style.display = 'none';
-    document.querySelector('.calendar-section').style.display = 'none';
-    document.querySelector('.employee-section').style.display = 'none';
-    document.querySelector('.report-section').style.display = 'none';
-    document.querySelector('.time-off-section').style.display = 'none';
-    document.querySelector('.availability-section').style.display = 'none';
-    document.querySelector('.schedule-section').style.display = 'none';
-    document.querySelector('.generate-shifts-section').style.display = 'none';
-    document.querySelector('.approve-timeoff-section').style.display = 'none';
+    const sections = [
+        '.upcoming-shifts-section',
+        '.calendar-section',
+        '.employee-section',
+        '.report-section',
+        '.time-off-section',
+        '.availability-section',
+        '.schedule-section',
+        '.generate-shifts-section',
+        '.approve-timeoff-section'
+    ];
+    
+    // Hide all sections safely with null checks
+    sections.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
     
     // Show Time Off section
-    document.querySelector('.time-off-section').style.display = 'block';
+    const timeOffSection = document.querySelector('.time-off-section');
+    if (timeOffSection) {
+        timeOffSection.style.display = 'block';
+    }
     
     // Update active state in nav
     document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-    document.querySelector('.nav-item:has(i.fa-clock)').classList.add('active');
+    const timeOffNav = document.querySelector('.nav-item:has(i.fa-clock)');
+    if (timeOffNav) {
+        timeOffNav.classList.add('active');
+    }
     
     // Fetch and update time off balances
     fetchLeaveBalances();
@@ -5701,22 +5717,37 @@ async function deleteAvailabilityPreference(id) {
 // Function to show the Approve Time Off section
 function showApproveTimeOffSection() {
     // Hide all sections first
-    document.querySelector('.upcoming-shifts-section').style.display = 'none';
-    document.querySelector('.calendar-section').style.display = 'none';
-    document.querySelector('.employee-section').style.display = 'none';
-    document.querySelector('.report-section').style.display = 'none';
-    document.querySelector('.time-off-section').style.display = 'none';
-    document.querySelector('.availability-section').style.display = 'none';
-    document.querySelector('.schedule-section').style.display = 'none';
-    document.querySelector('.generate-shifts-section').style.display = 'none';
-    // document.querySelector('.approve-timeoff-section').style.display = 'none';
+    const sections = [
+        '.upcoming-shifts-section',
+        '.calendar-section',
+        '.employee-section',
+        '.report-section',
+        '.time-off-section',
+        '.availability-section',
+        '.schedule-section',
+        '.generate-shifts-section'
+    ];
+    
+    // Hide all sections safely with null checks
+    sections.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
     
     // Show Approve Time Off section
-    document.querySelector('.approve-timeoff-section').style.display = 'block';
+    const approveTimeoffSection = document.querySelector('.approve-timeoff-section');
+    if (approveTimeoffSection) {
+        approveTimeoffSection.style.display = 'block';
+    }
     
     // Update active state in nav
     document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-    document.querySelector('#approve-timeoff-nav').classList.add('active');
+    const approveTimeoffNav = document.querySelector('#approve-timeoff-nav');
+    if (approveTimeoffNav) {
+        approveTimeoffNav.classList.add('active');
+    }
     
     // Load pending time off requests
     loadPendingTimeOffRequests();
@@ -6515,5 +6546,44 @@ async function populateClinicDropdown(dropdownElement, selectedClinicId) {
             dropdownElement.add(errorOption);
         }
     }
+}
+
+// Function to show the Availability section
+function showAvailabilitySection() {
+    // Hide all sections first
+    const sections = [
+        '.upcoming-shifts-section',
+        '.calendar-section',
+        '.employee-section',
+        '.report-section',
+        '.time-off-section',
+        '.approve-timeoff-section',
+        '.schedule-section',
+        '.generate-shifts-section'
+    ];
+    
+    // Hide all sections safely with null checks
+    sections.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
+    
+    // Show Availability section
+    const availabilitySection = document.querySelector('.availability-section');
+    if (availabilitySection) {
+        availabilitySection.style.display = 'block';
+    }
+    
+    // Update active state in nav
+    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+    const availabilityNav = document.querySelector('.nav-item:has(i.fa-calendar-check)');
+    if (availabilityNav) {
+        availabilityNav.classList.add('active');
+    }
+    
+    // Load availability data
+    loadAvailabilityData();
 }
 
