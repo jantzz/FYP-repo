@@ -328,6 +328,57 @@ const updateUserBaseSalary = async (req, res) => {
         if (connection) connection.release();
     }
 };
+// 自动分配员工到诊所
+// 系统根据员工的邮编和诊所的邮编，自动分配到距离最近的诊所（数据库表里没有postalCode字段需要添加给user表和clinic表，varchar6 邮编六位数）
+const assignUser = async (req, res) => {
+
+    // 获取诊所信息
+    let connection;
+    try {
+        connection = await db.getConnection();
+
+        // 获取诊所列表
+        const [clinics] = await connection.execute(`
+            SELECT clinicId, clinicName, location, email, phone, description, postalCode 
+            FROM clinics`
+        );
+
+        for (const clinic of clinics) {
+            // 获取 postalCode 的前两位
+            const clinicPostalCode = clinic.postalCode.substring(0, 2);
+            // 加载 utils/singapore_postal_mapping_full.json 文件 获取 key  等于 clinicPostalCode 的 value
+            const singaporePostalMapping = require('../utils/singapore_postal_mapping_full.json');
+            const clinicPostalCodes = singaporePostalMapping[clinicPostalCode];
+            if (!clinicPostalCodes || clinicPostalCodes.length === 0) {
+                continue; // 跳过没有匹配城市的诊所
+            }
+            // clinicCity  是数组形式 如 [ '01', '04', '06', '07' ]
+            // 获取员工postalCode 以clinicCity 开始的员工
+            // 构建动态 LIKE 条件
+            const likeConditions = clinicPostalCodes.map(code => `postalCode LIKE '${code}%'`).join(' OR ');
+
+            const [users] = await connection.execute(`SELECT userId, name, email, role, department, birthday, gender, baseSalary, postalCode
+                                FROM user
+                                WHERE clinicId IS NULL AND ${likeConditions}`);
+
+            for (const user of users) {
+                const [result] = await connection.execute(
+                    "UPDATE user SET clinicId = ? WHERE userId = ?",
+                    [clinic.clinicId, user.userId]
+                );
+                console.log(`Updated user ${user.userId} clinicId to ${clinic.clinicId}. Affected rows: ${result.affectedRows}`);
+            }
+
+        }
+        return res.status(200).json({message: 'Assigned successfully'});
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({message: 'Internal server error'});
+    } finally {
+        if (connection) connection.release();
+    }
+    return res.status(200).json({message: 'Assigned successfully'});
+};
 
 module.exports = {
     loginUser,
@@ -337,5 +388,6 @@ module.exports = {
     updateUser,
     getMe,
     deleteUser,
-    updateUserBaseSalary
+    updateUserBaseSalary,
+    assignUser
 }

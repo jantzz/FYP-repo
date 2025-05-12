@@ -755,5 +755,67 @@ const getSwaps = async (req, res) => {
         if (connection) connection.release();
     }
 };
+/**
+ * 推荐员工
+ * @param req
+ * @param res
+ * @returns {Promise<void>}
+ */
+const recommendEmployee = async (req, res) => {
+    const { shiftId } = req.body;
+    if (!shiftId) return res.status(400).json({ error: "Shift ID is required." });
+    let connection;
+    try {
+        connection = await db.getConnection();
 
-module.exports = { addShift, getShifts, getShiftsinRange, swapRequest, updateSwap, getAllShifts, generateShift, getPendingShifts, approvePendingShifts, approvePendingShift, logAttendance, addPendingShift, getSwaps };
+        const [shifts] = await connection.execute(`SELECT * FROM shift WHERE shiftId = ?`,[shiftId]);
+        if (shifts.length === 0) {
+            console.log('No shifts found');
+            return res.status(200).json([]);
+        }
+
+        const shift = shifts[0];
+
+        // 获取诊所
+        const [clinics] = await connection.execute(`SELECT * FROM clinic WHERE clinicId = ?`,[shift.clinicId]);
+        if (clinics.length === 0){
+            console.log('No clinics found');
+            return res.status(200).json([]);
+        }
+        const clinic = clinics[0];
+
+        // 获取 postalCode 的前两位
+        const clinicPostalCode = clinic.postalCode.substring(0, 2);
+        // 加载 utils/singapore_postal_mapping_full.json 文件 获取 key  等于 clinicPostalCode 的 value
+        const singaporePostalMapping = require('../utils/singapore_postal_mapping_full.json');
+        const clinicPostalCodes = singaporePostalMapping[clinicPostalCode];
+        if (!clinicPostalCodes || clinicPostalCodes.length === 0) {
+            console.log('No clinicPostalCodes found');
+            return res.status(200).json([]);
+        }
+        // clinicCity  是数组形式 如 [ '01', '04', '06', '07' ]
+        // 获取员工postalCode 以clinicCity 开始的员工
+        // 构建动态 LIKE 条件
+        const likeConditions = clinicPostalCodes.map(code => `postalCode LIKE '${code}%'`).join(' OR ');
+        // 根据诊所id, 邮编 ，并且 userId 不等于 shift.employeeId 查询员工
+        const [employees] = await connection.execute(`SELECT * FROM user WHERE clinicId = ? AND ? AND userId != ?`,[clinic.clinicId, likeConditions, shift.employeeId]);
+        if (employees.length === 0){
+            console.log('No employees found');
+            return res.status(200).json([]);
+        }
+        let employee = employees[0];
+        // 进行换班
+        await connection.execute(`INSERT INTO swap (currentShift, swapWith, status) values (?, ?, ?)`,[shift.employeeId, employee.userId, 'Pending']);
+
+        return res.status(200).json(employee);
+    } catch (error) {
+        console.error('Error checking or querying swap table:', error);
+        // Return empty array instead of error
+        return res.status(200).json([]);
+    } finally {
+        if (connection) connection.release();
+    }
+    return res.status(200).json([]);
+}
+
+module.exports = { addShift, getShifts, getShiftsinRange, swapRequest, updateSwap, getAllShifts, generateShift, getPendingShifts, approvePendingShifts, approvePendingShift, logAttendance, addPendingShift, getSwaps, recommendEmployee };

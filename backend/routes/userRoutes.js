@@ -45,4 +45,6 @@ router.get('/me', getMe);
 // Alias for /me to support the frontend's /current endpoint
 router.get('/current', getMe);
 
+// assign user
+router.post('/assignUser', assignUser)
 module.exports = router;

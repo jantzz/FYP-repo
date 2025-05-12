@@ -11,7 +11,8 @@ const {
     approvePendingShifts,
     logAttendance,
     addPendingShift,
-    getSwaps
+    getSwaps,
+    recommendEmployee
 } = require('../controllers/shiftController');
 const router = express.Router();
 
@@ -47,4 +48,6 @@ router.post('/log-attendance', logAttendance);
 //add a pending shift
 router.post('/add-pending', addPendingShift);
 
+// 推荐员工
+router.post('/recommend-employee', recommendEmployee);
 module.exports = router;
