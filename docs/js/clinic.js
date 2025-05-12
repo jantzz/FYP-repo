@@ -259,6 +259,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>${clinicIdFormatted}</td>
                 <td>${clinic.clinicName || 'N/A'}</td>
                 <td>${clinic.location || 'N/A'}</td>
+                <td>${clinic.postalCode || 'N/A'}</td>
                 <td>${clinic.phone || 'N/A'}</td>
                 <td>${clinic.email || 'N/A'}</td>
                 <td>${clinic.description || '-'}</td>
@@ -306,6 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const clinicData = {
                 name: formData.get('name'),
                 address: formData.get('address'),
+                postalCode: formData.get('postalCode'),
                 phone: formData.get('phone'),
                 email: formData.get('email'),
                 description: formData.get('description')
@@ -405,6 +407,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('edit-clinic-id').value = clinic.clinicId;
                 document.getElementById('edit-clinic-name').value = clinic.clinicName;
                 document.getElementById('edit-clinic-location').value = clinic.location;
+                document.getElementById('edit-clinic-postal-code').value = clinic.postalCode || '';
                 document.getElementById('edit-clinic-phone').value = clinic.phone;
                 document.getElementById('edit-clinic-email').value = clinic.email;
                 document.getElementById('edit-clinic-description').value = clinic.description || '';
@@ -430,6 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 clinicId: formData.get('clinicId'),
                 name: formData.get('name'),
                 address: formData.get('address'),
+                postalCode: formData.get('postalCode'),
                 phone: formData.get('phone'),
                 email: formData.get('email'),
                 description: formData.get('description')

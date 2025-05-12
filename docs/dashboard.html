@@ -139,10 +139,6 @@
                 <i class="fas fa-calendar-check"></i>
                 <span>Availability</span>
             </div>
-            <div class="nav-item manager-only" id="generate-shifts-nav">
-                <i class="fas fa-magic"></i>
-                <span>Generate Shifts</span>
-            </div>
             <div class="nav-item manager-only" id="approve-shifts-nav" onclick="window.location.href='approve-pending-shifts.html'">
                 <i class="fas fa-check"></i>
                 <span>Approve Shifts</span>
@@ -215,52 +211,6 @@
                 <div id="calendar"></div>
             </div>
 
-            <!-- Generate Shifts Section -->
-            <div class="generate-shifts-section" style="display: none;">
-                <div class="section-header">
-                    <h2>Generate Shifts</h2>
-                </div>
-                <div class="section-content">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Create Automatic Shift Schedule</h3>
-                            <p>Generate shifts based on employee availability and workload distribution across clinics..</p>
-                        </div>
-                        <div class="card-body">
-                            <form id="generateShiftsForm">
-                                <div class="form-group">
-                                    <label for="startDate">Start Date:</label>
-                                    <input type="date" id="startDate" name="startDate" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="endDate">End Date:</label>
-                                    <input type="date" id="endDate" name="endDate" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="clinicSelector">Clinic:</label>
-                                    <select id="clinicSelector" name="clinicSelector">
-                                        <option value="all">All Clinics</option>
-                                        <!-- Will be populated dynamically -->
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="departmentSelector">Department:</label>
-                                    <select id="departmentSelector" name="departmentSelector">
-                                        <option value="all">All Departments</option>
-                                        <!-- Will be populated dynamically -->
-                                    </select>
-                                </div>
-                                <div class="form-actions">
-                                    <button type="submit" class="btn-primary">
-                                        <i class="fas fa-magic"></i> Generate Shifts
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div class="employee-section" style="display: none;">
                 <div class="section-header">
                     <h2>Employee Management</h2>
@@ -277,6 +227,7 @@
                                 <th>Role</th>
                                 <th>Department</th>
                                 <th>Clinic</th>
+                                <th>Postal Code</th>
                                 <th>Salary</th>
                                 <th>Actions</th>
                             </tr>
@@ -899,6 +850,7 @@
                             <th>ID</th>
                             <th>Clinic Name</th>
                             <th>Location</th>
+                            <th>Postal Code</th>
                             <th>Phone</th>
                             <th>Email</th>
                             <th>Description</th>
@@ -908,7 +860,7 @@
                     <tbody id="clinics-table-body">
                         <!-- Will be populated via JavaScript -->
                         <tr>
-                            <td colspan="7" class="loading-message">Loading clinics data...</td>
+                            <td colspan="8" class="loading-message">Loading clinics data...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -930,6 +882,10 @@
                 <div class="form-group">
                     <label for="clinic-location">Location*</label>
                     <input type="text" id="clinic-location" name="address" required>
+                </div>
+                <div class="form-group">
+                    <label for="clinic-postal-code">Postal Code*</label>
+                    <input type="text" id="clinic-postal-code" name="postalCode" required>
                 </div>
                 <div class="form-group">
                     <label for="clinic-phone">Phone*</label>
@@ -962,6 +918,10 @@
                 <div class="form-group">
                     <label for="edit-clinic-location">Location*</label>
                     <input type="text" id="edit-clinic-location" name="address" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-clinic-postal-code">Postal Code*</label>
+                    <input type="text" id="edit-clinic-postal-code" name="postalCode" required>
                 </div>
                 <div class="form-group">
                     <label for="edit-clinic-phone">Phone*</label>
@@ -1066,15 +1026,12 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="baseSalary">Base Salary</label>
-                    <input type="number" id="baseSalary" step="0.01" min="0">
+                    <label for="postalCode">Postal Code</label>
+                    <input type="text" id="postalCode" required>
                 </div>
                 <div class="form-group">
-                    <label for="clinic">Clinic</label>
-                    <select id="clinic">
-                        <option value="">Select Clinic</option>
-                        <!-- Will be populated dynamically -->
-                    </select>
+                    <label for="baseSalary">Base Salary</label>
+                    <input type="number" id="baseSalary" step="0.01" min="0">
                 </div>
                 <button type="submit" class="btn-primary">Create Employee</button>
             </form>

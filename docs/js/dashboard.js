@@ -58,29 +58,6 @@ function isShiftInNearFuture(shiftDate) {
     return shiftDateOnly >= today && shiftDateOnly < dayAfterTomorrow;
 }
 
-// Function to show the Generate Shifts section
-function showGenerateShiftsModal() {
-    // Hide all sections first
-    const mainContentSections = document.querySelectorAll('.main-content > div[class$="-section"]');
-    mainContentSections.forEach(section => {
-        section.style.display = 'none';
-    });
-    
-    // Show generate shifts section
-    const generateShiftsSection = document.querySelector('.generate-shifts-section');
-    if (generateShiftsSection) {
-        generateShiftsSection.style.display = 'block';
-        setupGenerateShiftsSection();
-    }
-    
-    // Update active state in nav
-    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-    const generateShiftsNav = document.getElementById('generate-shifts-nav');
-    if (generateShiftsNav) {
-        generateShiftsNav.classList.add('active');
-    }
-}
-
 // Initialize calendar and page functionality
 document.addEventListener('DOMContentLoaded', async function() {
     // Define API base URL globally at the top level
@@ -701,10 +678,7 @@ function showCreateEmployeeModal() {
 
     // Load departments for dropdown
     loadDepartmentsForDropdown();
-     
-     // Load clinics for dropdown
-     loadClinicsForDropdown();
- }
+}
 
 // Function to load departments for dropdown
 async function loadDepartmentsForDropdown() {
@@ -824,69 +798,57 @@ async function loadDepartmentsForDropdown() {
      }
 }
 
-// Handle employee creation
+// Handle employee creation form submission
 document.getElementById('createEmployeeForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    const formData = {
-        name: document.getElementById('name').value,
-        email: document.getElementById('email').value,
-        password: document.getElementById('password').value,
-        birthday: document.getElementById('birthday').value,
-        gender: document.getElementById('gender').value,
-        role: document.getElementById('role').value,
-        department: document.getElementById('department').value,
-        baseSalary: document.getElementById('baseSalary').value || null,
-        clinicId: document.getElementById('clinic').value || null
-    };
-
+    const name = document.getElementById('name').value;
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const birthday = document.getElementById('birthday').value;
+    const gender = document.getElementById('gender').value;
+    const role = document.getElementById('role').value;
+    const department = document.getElementById('department').value;
+    const baseSalary = document.getElementById('baseSalary').value;
+    const postalCode = document.getElementById('postalCode').value;
+    
+    if (!postalCode) {
+        alert('Postal code is required for clinic auto-assignment');
+        return;
+    }
+    
     try {
-        // Try to create the role, but don't fail if it already exists
-        try {
-            await fetch(
-                `${window.API_BASE_URL}/role/createRole`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify({
-                        roleName: formData.role,
-                        description: "User role"
-                    })
-                }
-            );
-            console.log(`Role '${formData.role}' created or already exists`);
-        } catch (roleError) {
-            // If role creation fails because it already exists, we can continue
-            console.warn('Role creation error (might already exist):', roleError);
-            // Don't throw error - continue with user creation
+        const response = await fetch(`${window.API_BASE_URL}/user/createUser`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                name,
+                email,
+                password,
+                role,
+                birthday,
+                gender,
+                department,
+                baseSalary,
+                postalCode
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create employee');
         }
-
-        // Then create the user
-        const response = await fetch(
-            `${window.API_BASE_URL}/user/createUser`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify(formData)
-            }
-        );
-
-        if (response.ok) {
-            alert('Employee created successfully');
-            document.getElementById('createEmployeeModal').style.display = 'none';
-            document.getElementById('createEmployeeForm').reset();
-            loadEmployees();
-        } else {
-            const data = await response.json();
-            alert(data.error || 'Failed to create employee');
-        }
+        
+        alert('Employee created successfully!');
+        document.getElementById('createEmployeeModal').style.display = 'none';
+        document.getElementById('createEmployeeForm').reset();
+        loadEmployees();
+        
     } catch (error) {
+        alert(`Error: ${error.message}`);
         console.error('Error:', error);
         alert('Failed to create employee. Please make sure the backend server is running.');
     }
@@ -897,7 +859,7 @@ async function loadEmployees() {
     try {
         // Show loading indicator
         const tableBody = document.getElementById('employeeTableBody');
-        tableBody.innerHTML = '<tr><td colspan="7">Loading employees...</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="8">Loading employees...</td></tr>';
         
         // Get current user info for role check
         const currentUserInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
@@ -942,11 +904,15 @@ async function loadEmployees() {
             
             // Find clinic name if clinicId exists
             let clinicName = '-';
+            let postalCode = '-';
             if (employee.clinicId && clinics.length) {
                 const clinic = clinics.find(c => c.clinicId == employee.clinicId);
                 if (clinic) {
                     clinicName = clinic.clinicName;
+                    postalCode = employee.postalCode || clinic.postalCode || '-';
                 }
+            } else {
+                postalCode = employee.postalCode || '-';
             }
             
             // Format salary if exists
@@ -960,7 +926,8 @@ async function loadEmployees() {
                 <td>${employee.email || '-'}</td>
                 <td>${employee.role || '-'}</td>
                 <td>${employee.department || '-'}</td>
-                <td>${clinicName}</td>
+                <td>${clinicName} <span class="auto-assigned">(Auto-assigned)</span></td>
+                <td>${postalCode}</td>
                 <td>${salaryDisplay}</td>
                 <td>
                     ${canManageEmployees ? `
@@ -980,7 +947,7 @@ async function loadEmployees() {
         console.error('Error loading employees:', error);
         document.getElementById('employeeTableBody').innerHTML = `
              <tr>
-                 <td colspan="7" class="error-message">Error loading employees: ${error.message}</td>
+                 <td colspan="8" class="error-message">Error loading employees: ${error.message}</td>
              </tr>
          `;
     }
@@ -4074,12 +4041,10 @@ async function editEmployee(userId) {
                         </select>
                     </div>
                     <div class="form-group">
-                         <label for="edit-clinic">Clinic</label>
-                         <select id="edit-clinic" name="clinicId">
-                             <option value="">Select Clinic</option>
-                             <!-- Will be populated dynamically -->
-                         </select>
-                     </div>
+                        <label for="edit-postalCode">Postal Code</label>
+                        <input type="text" id="edit-postalCode" name="postalCode" value="${employee.postalCode || ''}" required>
+                        <small>Clinic will be auto-assigned based on postal code</small>
+                    </div>
                     <div class="form-group">
                         <label for="edit-birthday">Birthday</label>
                         <input type="date" id="edit-birthday" name="birthday" value="${formatDateForInput(employee.birthday)}" required>
@@ -4109,9 +4074,6 @@ async function editEmployee(userId) {
         // No need to populate department dropdown again since we've included it directly in the HTML
         console.log('Department dropdown populated directly with HTML options');
 
-        // Load clinics for the dropdown and set selected value
-        populateClinicDropdown(document.getElementById('edit-clinic'), employee.clinicId);
-        
         // Handle form submission
         const form = document.getElementById('editEmployeeForm');
         form.addEventListener('submit', async function(e) {
@@ -4136,6 +4098,12 @@ async function editEmployee(userId) {
                 return;
             }
             
+            // Check if postal code is present
+            if (!formValues.postalCode) {
+                alert('Postal code is required for clinic auto-assignment');
+                return;
+            }
+            
             // Get role for permission check
             const newRole = formValues.role;
             
@@ -4154,7 +4122,7 @@ async function editEmployee(userId) {
                 name: formValues.name,
                 role: formValues.role,
                 department: formValues.department,
-                clinicId: formValues.clinicId || null,
+                postalCode: formValues.postalCode,
                 birthday: formValues.birthday,
                 gender: genderValue || formValues.gender, // Use manually extracted gender value as fallback
                 baseSalary: formValues.baseSalary || null
@@ -4175,7 +4143,7 @@ async function editEmployee(userId) {
             );
 
             if (updateResponse.ok) {
-                alert('Employee updated successfully');
+                alert('Employee updated successfully. Clinic auto-assigned based on postal code.');
                 editModal.remove();
                 loadEmployees();
 

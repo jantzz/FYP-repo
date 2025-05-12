@@ -3113,3 +3113,9 @@ body.admin-visible .admin-only {
         opacity: 0.7;
     }
 } 
+
+.auto-assigned {
+    font-size: 0.8rem;
+    color: #666;
+    font-style: italic;
+}
