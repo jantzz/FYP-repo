@@ -328,33 +328,34 @@ const updateUserBaseSalary = async (req, res) => {
         if (connection) connection.release();
     }
 };
-// 自动分配员工到诊所
-// 系统根据员工的邮编和诊所的邮编，自动分配到距离最近的诊所（数据库表里没有postalCode字段需要添加给user表和clinic表，varchar6 邮编六位数）
+// Automatically assign employees to clinics
+// System automatically assigns employees to the nearest clinic based on employee and clinic postal codes 
+// (need to add postalCode field to user and clinic tables, varchar(6) for 6-digit postal code)
 const assignUser = async (req, res) => {
 
-    // 获取诊所信息
+    // Get clinic information
     let connection;
     try {
         connection = await db.getConnection();
 
-        // 获取诊所列表
+        // Get list of clinics
         const [clinics] = await connection.execute(`
             SELECT clinicId, clinicName, location, email, phone, description, postalCode 
             FROM clinics`
         );
 
         for (const clinic of clinics) {
-            // 获取 postalCode 的前两位
+            // Get the first two digits of postalCode
             const clinicPostalCode = clinic.postalCode.substring(0, 2);
-            // 加载 utils/singapore_postal_mapping_full.json 文件 获取 key  等于 clinicPostalCode 的 value
+            // Load utils/singapore_postal_mapping_full.json file to get values where key equals clinicPostalCode
             const singaporePostalMapping = require('../utils/singapore_postal_mapping_full.json');
             const clinicPostalCodes = singaporePostalMapping[clinicPostalCode];
             if (!clinicPostalCodes || clinicPostalCodes.length === 0) {
-                continue; // 跳过没有匹配城市的诊所
+                continue; // Skip clinics without matching cities
             }
-            // clinicCity  是数组形式 如 [ '01', '04', '06', '07' ]
-            // 获取员工postalCode 以clinicCity 开始的员工
-            // 构建动态 LIKE 条件
+            // clinicCity is in array format like [ '01', '04', '06', '07' ]
+            // Find employees whose postalCode starts with values in clinicCity
+            // Build dynamic LIKE conditions
             const likeConditions = clinicPostalCodes.map(code => `postalCode LIKE '${code}%'`).join(' OR ');
 
             const [users] = await connection.execute(`SELECT userId, name, email, role, department, birthday, gender, baseSalary, postalCode

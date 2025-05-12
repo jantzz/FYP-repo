@@ -217,7 +217,7 @@
         .close-modal:hover {
             color: #000;
         }
-        
+
         /* Summary cards styles */
         .summary-cards {
             display: grid;
@@ -272,7 +272,7 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        
+
         /* Department color indicators */
         .department-badge {
             display: inline-block;
@@ -298,7 +298,7 @@
             background-color: #f5f5f5;
             color: #757575;
         }
-        
+
         /* Date display styling */
         .date-display {
             display: flex;
@@ -309,7 +309,7 @@
             color: #6c757d;
             font-size: 14px;
         }
-        
+
         /* Time display styling */
         .time-display {
             display: inline-flex;
@@ -323,7 +323,7 @@
             margin-right: 5px;
             color: #6c757d;
         }
-        
+
         /* Employee name styling */
         .employee-name {
             display: flex;
@@ -342,7 +342,7 @@
             color: #495057;
             font-size: 12px;
         }
-        
+
         /* Animations */
         @keyframes fadeIn {
             from { opacity: 0; }
@@ -356,7 +356,7 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        
+
         /* Confirmation dialog */
         .confirm-dialog {
             display: none;
@@ -418,7 +418,7 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        
+
         /* Responsive styles */
         @media (max-width: 768px) {
             .page-controls {
@@ -433,11 +433,11 @@
                 margin: 10% auto;
                 padding: 20px;
             }
-            .shifts-table th:nth-child(1), 
+            .shifts-table th:nth-child(1),
             .shifts-table td:nth-child(1) {
                 display: none;
             }
-            .shifts-table th:nth-child(4), 
+            .shifts-table th:nth-child(4),
             .shifts-table td:nth-child(4) {
                 display: none;
             }
@@ -481,25 +481,25 @@
             overflow-x: hidden;
             position: relative;
         }
-        
+
         /* Add styles for collapsed sidebar */
         .sidebar.collapsed {
             width: 60px;
         }
-        
+
         .sidebar.collapsed .nav-item {
             text-align: center;
             padding: 15px 0;
         }
-        
+
         .sidebar.collapsed .nav-item i {
             margin-right: 0;
         }
-        
+
         .sidebar.collapsed .nav-item span {
             display: none;
         }
-        
+
         /* Toggle button styles */
         .sidebar-toggle {
             position: absolute;
@@ -518,13 +518,13 @@
             z-index: 5;
             transition: all 0.3s ease;
         }
-        
+
         .sidebar-toggle:hover {
             background: #e9ecef;
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
-        
+
         /* Adjust main content when sidebar is collapsed */
         .sidebar.collapsed + .main-content {
             margin-left: 60px;
@@ -607,7 +607,7 @@
                 <i class="fas fa-money-bill-wave"></i>
                 <span>Payroll</span>
             </div>
-            
+
             <!-- Add sidebar toggle button -->
             <button class="sidebar-toggle" id="sidebarToggle">
                 <i class="fas fa-chevron-left"></i>
@@ -619,14 +619,14 @@
             <div class="content-header">
                 <h1>Approve Pending Shifts</h1>
             </div>
-            
+
             <div class="approve-shifts-content">
                 <div class="section-header">
                     <h2>Review and Approve Pending Shifts</h2>
                 </div>
-                
+
                 <p>Review all pending shifts below before approving them. You can approve individual shifts or approve all at once.</p>
-                
+
                 <!-- Summary Cards -->
                 <div class="summary-cards">
                     <div class="summary-card total-pending">
@@ -645,7 +645,7 @@
                         <div class="label">Departments</div>
                     </div>
                 </div>
-                
+
                 <div class="page-controls">
                     <div class="filter-options">
                         <select id="department-filter">
@@ -657,19 +657,19 @@
                             <!-- Will be populated dynamically -->
                         </select>
                     </div>
-                    
+
                     <div>
                         <button id="approveAllButton" class="approve-btn">
                             <i class="fas fa-check-circle"></i> Approve All Pending Shifts
                         </button>
                     </div>
                 </div>
-                
+
                 <div id="loading" class="loading">
                     <i class="fas fa-spinner fa-spin"></i>
                     <span>Loading pending shifts...</span>
                 </div>
-                
+
                 <div id="shiftsTableContainer" class="shifts-table-container" style="display: none;">
                     <div class="shift-count">Showing <span id="shiftCount">0</span> pending shifts</div>
                     <table class="shifts-table" id="pendingShiftsTable">
@@ -691,7 +691,7 @@
                         </tbody>
                     </table>
                 </div>
-                
+
                 <div id="noShiftsMessage" class="no-shifts-message" style="display: none;">
                     <i class="fas fa-calendar-times"></i>
                     <h3>No Pending Shifts Found</h3>
@@ -700,12 +700,12 @@
                         <i class="fas fa-magic"></i> Generate Shifts
                     </button>
                 </div>
-                
+
                 <div id="result" class=""></div>
             </div>
         </div>
     </div>
-    
+
     <!-- Edit Shift Modal -->
     <div id="editShiftModal" class="edit-modal">
         <div class="edit-modal-content">
@@ -750,7 +750,7 @@
             </form>
         </div>
     </div>
-    
+
     <!-- Confirmation Dialog -->
     <div id="confirmDialog" class="confirm-dialog">
         <div class="confirm-dialog-content">
@@ -759,7 +759,7 @@
             </div>
             <h3 class="confirm-dialog-title">Approve All Shifts?</h3>
             <p class="confirm-dialog-message">
-                You are about to approve <span id="confirmShiftCount">0</span> pending shifts. 
+                You are about to approve <span id="confirmShiftCount">0</span> pending shifts.
                 This action cannot be undone. All shifts will be added to the schedule.
             </p>
             <div class="confirm-dialog-buttons">
@@ -768,29 +768,29 @@
             </div>
         </div>
     </div>
-    
+
     <script>
         // Define functions in global scope
         let allPendingShifts = [];
         let employees = [];
         let departments = [];
-        let clinics = []; 
-        
+        let clinics = [];
+
         function closeConfirmDialog() {
             document.getElementById('confirmDialog').style.display = 'none';
         }
-        
+
         function bulkApproveShifts() {
             closeConfirmDialog();
-            
+
             const bulkApproveBtn = document.getElementById('approveAllButton');
             const resultDiv = document.getElementById('result');
             const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
-            
+
             // Show loading state on button
             bulkApproveBtn.disabled = true;
             bulkApproveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-            
+
             fetch(`${API_BASE_URL}/shift/approve-all-pending`, {
                 method: 'POST',
                 headers: {
@@ -809,11 +809,11 @@
                 resultDiv.className = 'success';
                 resultDiv.innerHTML = `<i class="fas fa-check-circle"></i> All pending shifts have been approved successfully!`;
                 resultDiv.style.display = 'block';
-                
+
                 // Reset button state
                 bulkApproveBtn.disabled = false;
                 bulkApproveBtn.innerHTML = '<i class="fas fa-check-circle"></i> Approve All Pending Shifts';
-                
+
                 // Fade out the success message after 5 seconds
                 setTimeout(() => {
                     resultDiv.style.opacity = '0';
@@ -822,12 +822,12 @@
                         resultDiv.style.opacity = '1';
                     }, 500);
                 }, 5000);
-                
+
                 // Refresh data
                 if (document.readyState === "complete") {
                     window.fetchData();
                 }
-                
+
                 showNotification('Success! All pending shifts have been approved.', 'success');
             })
             .catch(error => {
@@ -836,21 +836,21 @@
                 resultDiv.className = 'error';
                 resultDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Error: ${error.message}`;
                 resultDiv.style.display = 'block';
-                
+
                 // Reset button state
                 bulkApproveBtn.disabled = false;
                 bulkApproveBtn.innerHTML = '<i class="fas fa-check-circle"></i> Approve All Pending Shifts';
-                
+
                 showNotification('Error approving shifts. Please try again.', 'error');
             });
         }
-        
+
         function showNotification(message, type) {
             const resultDiv = document.getElementById('result');
             resultDiv.className = type;
             resultDiv.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
             resultDiv.style.display = 'block';
-            
+
             // Auto hide after 3 seconds
             setTimeout(() => {
                 resultDiv.style.opacity = '0';
@@ -860,7 +860,7 @@
                 }, 500);
             }, 3000);
         }
-        
+
         document.addEventListener('DOMContentLoaded', function() {
             const approveAllButton = document.getElementById('approveAllButton');
             const resultDiv = document.getElementById('result');
@@ -875,24 +875,24 @@
             const confirmDialog = document.getElementById('confirmDialog');
             const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
             const confirmApproveBtn = document.getElementById('confirmApproveBtn');
-            
+
             // Get API base URL from localStorage or use default
             const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
-            
+
             console.log('Using API URL:', API_BASE_URL);
-            
+
             // Function to handle sidebar navigation
             function initSidebar() {
                 // Get user info to check permissions
                 const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
                 const userRole = (userInfo.role || '').toLowerCase();
-                
+
                 // Check if user is admin or manager
                 const isAdmin = userRole === 'admin';
                 const isManager = userRole === 'admin' || userRole === 'manager';
-                
+
                 console.log('User role:', userRole, 'Is admin:', isAdmin, 'Is manager:', isManager);
-                
+
                 // Add classes to body if user is admin/manager for CSS targeting
                 if (isAdmin) {
                     document.body.classList.add('admin-visible');
@@ -900,96 +900,96 @@
                 if (isManager) {
                     document.body.classList.add('manager-visible');
                 }
-                
+
                 // Hide admin-only elements for non-admins
                 document.querySelectorAll('.admin-only').forEach(item => {
                     item.style.display = isAdmin ? 'flex' : 'none';
                 });
-                
+
                 // Hide manager-only elements for non-managers
                 document.querySelectorAll('.manager-only').forEach(item => {
                     item.style.display = isManager ? 'flex' : 'none';
                 });
-                
+
                 // Setup sidebar item click events
                 document.querySelectorAll('.sidebar .nav-item').forEach(item => {
                     if (item.classList.contains('active')) return; // Skip the active item
-                    
+
                     item.addEventListener('click', function() {
                         const id = this.id || this.textContent.trim().toLowerCase().replace(/\s+/g, '-');
                         if (this.hasAttribute('onclick')) return; // Skip if it already has an onclick attribute
-                        
+
                         // Special handling for department and clinic management
                         if (id === 'department-management-nav') {
                             window.location.href = 'dashboard.html#department-management';
                             return;
                         }
-                        
+
                         if (id === 'clinic-management-nav') {
                             window.location.href = 'dashboard.html#clinic-management';
                             return;
                         }
-                        
+
                         // Navigate to dashboard with section hash
                         window.location.href = `dashboard.html#${id}`;
                     });
                 });
             }
-            
+
             // Fetch pending shifts, employees, and departments
             async function fetchData() {
                 loading.style.display = 'block';
                 shiftsTableContainer.style.display = 'none';
                 noShiftsMessage.style.display = 'none';
-                
+
                 try {
                     const token = localStorage.getItem('token');
-                    
+
                     if (!token) {
                         throw new Error('You need to be logged in. Please log in through the main application first.');
                     }
-                    
+
                     console.log('Attempting to fetch pending shifts...');
-                    
+
                     // Fetch pending shifts
                     const response = await fetch(`${API_BASE_URL}/shift/pending`, {
                         headers: {
                             'Authorization': `Bearer ${token}`
                         }
                     });
-                    
+
                     if (!response.ok) {
                         const errorData = await response.json().catch(e => ({ error: `HTTP error: ${response.status}` }));
                         throw new Error(errorData.error || `Failed to fetch pending shifts: ${response.status} ${response.statusText}`);
                     }
-                    
+
                     allPendingShifts = await response.json();
                     console.log('Pending shifts loaded:', allPendingShifts.length);
-                    
+
                     // Fetch employees for filters
                     const employeesResponse = await fetch(`${API_BASE_URL}/user/getUsers`, {
                         headers: {
                             'Authorization': `Bearer ${token}`
                         }
                     });
-                    
+
                     if (employeesResponse.ok) {
                         employees = await employeesResponse.json();
                         populateEmployeeFilter();
                     }
-                    
+
                                       // Fetch clinics for clinic information
                                       const clinicsResponse = await fetch(`${API_BASE_URL}/clinic/getClinics`, {
                          headers: {
                              'Authorization': `Bearer ${token}`
                          }
                      });
-                     
+
                      if (clinicsResponse.ok) {
                          clinics = await clinicsResponse.json();
                          console.log('Clinics loaded:', clinics.length);
                      }
-                     
+
                     // Extract unique departments from shifts
                     const deptSet = new Set();
                     allPendingShifts.forEach(shift => {
@@ -999,10 +999,10 @@
                     });
                     departments = Array.from(deptSet);
                     populateDepartmentFilter();
-                    
+
                     // Display shifts
                     renderPendingShifts();
-                    
+
                 } catch (error) {
                     console.error('Error loading data:', error);
                     resultDiv.className = 'error';
@@ -1012,7 +1012,7 @@
                     loading.style.display = 'none';
                 }
             }
-            
+
             // Populate department filter
             function populateDepartmentFilter() {
                 departmentFilter.innerHTML = '<option value="all">All Departments</option>';
@@ -1023,7 +1023,7 @@
                     departmentFilter.appendChild(option);
                 });
             }
-            
+
             // Populate employee filter
             function populateEmployeeFilter() {
                 employeeFilter.innerHTML = '<option value="all">All Employees</option>';
@@ -1034,59 +1034,60 @@
                     employeeFilter.appendChild(option);
                 });
             }
-            
+
             // Render pending shifts table
             function renderPendingShifts() {
                 pendingShiftsBody.innerHTML = '';
-                
+
                 const deptFilter = departmentFilter.value;
                 const empFilter = employeeFilter.value;
-                
+
                 const filteredShifts = allPendingShifts.filter(shift => {
                     if (deptFilter !== 'all' && shift.department !== deptFilter) return false;
                     if (empFilter !== 'all' && shift.employeeId != empFilter) return false;
                     return true;
                 });
-                
+
                 // Update counts in summary cards
                 document.getElementById('pendingShiftsCount').textContent = allPendingShifts.length;
                 document.getElementById('employeesCount').textContent = employees.length;
                 document.getElementById('departmentsCount').textContent = departments.length;
-                
+
                 // Update shift count display
                 shiftCountSpan.textContent = filteredShifts.length;
-                
+
                 // Update confirmation dialog count
                 document.getElementById('confirmShiftCount').textContent = filteredShifts.length;
-                
+
                 if (filteredShifts.length === 0) {
                     shiftsTableContainer.style.display = 'none';
                     noShiftsMessage.style.display = 'block';
                     return;
                 }
-                
+
                 filteredShifts.forEach(shift => {
                     const tr = document.createElement('tr');
-                    
+
                     // Parse dates
-                    const startDate = new Date(shift.startDate);
-                    const endDate = new Date(shift.endDate);
-                    
+                    const startDate = shift.startDate;
+                    const endDate = shift.endDate;
+
                     // Format date and time
-                    const dateStr = startDate.toLocaleDateString();
-                    const startTimeStr = startDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    const endTimeStr = endDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    
+                    // const dateStr = shift.shiftDate.toLocaleDateString();
+                    const dateStr = new Date(shift.shiftDate).toLocaleDateString();
+                    const startTimeStr = startDate;
+                    const endTimeStr = endDate;
+
                     // Get department class for styling
                     const deptClass = getDepartmentClass(shift.department);
-                    
+
                     // Get employee initials for avatar
                     const initials = getInitials(shift.employeeName || 'Unknown');
-                    
+
                     // Get clinic information
                     let clinicName = 'Unknown';
                      let clinicId = shift.clinicId;
-                     
+
                      // Try to get clinic information from the shift or user
                      if (shift.clinicName) {
                          clinicName = shift.clinicName;
@@ -1132,10 +1133,10 @@
                             </button>
                         </td>
                     `;
-                    
+
                     pendingShiftsBody.appendChild(tr);
                 });
-                
+
                 // Add event listeners to buttons
                 document.querySelectorAll('.approve-single-btn').forEach(btn => {
                     btn.addEventListener('click', function() {
@@ -1143,33 +1144,33 @@
                         approveSingleShift(shiftId);
                     });
                 });
-                
+
                 document.querySelectorAll('.edit-btn').forEach(btn => {
                     btn.addEventListener('click', function() {
                         const shiftId = this.getAttribute('data-id');
                         openEditModal(shiftId);
                     });
                 });
-                
+
                 shiftsTableContainer.style.display = 'block';
                 noShiftsMessage.style.display = 'none';
             }
-            
+
             // Helper for getting department class
             function getDepartmentClass(department) {
                 if (!department) return 'default';
-                
+
                 department = department.toLowerCase();
                 if (department.includes('doctor')) return 'doctor';
                 if (department.includes('nurse')) return 'nurse';
                 if (department.includes('recept')) return 'receptionist';
                 return 'default';
             }
-            
+
             // Helper for getting initials from name
             function getInitials(name) {
                 if (!name || name === 'Unknown') return '?';
-                
+
                 return name
                     .split(' ')
                     .map(part => part.charAt(0))
@@ -1177,17 +1178,17 @@
                     .toUpperCase()
                     .substring(0, 2);
             }
-            
+
             // Approve a single shift
             async function approveSingleShift(pendingShiftId) {
                 try {
                     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
                     const token = localStorage.getItem('token');
-                    
+
                     if (!token) {
                         throw new Error('You need to be logged in');
                     }
-                    
+
                     const response = await fetch(`${API_BASE_URL}/shift/approve-pending`, {
                         method: 'POST',
                         headers: {
@@ -1199,45 +1200,45 @@
                             managerId: userInfo.userId
                         })
                     });
-                    
+
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.error || 'Failed to approve shift');
                     }
-                    
+
                     const result = await response.json();
-                    
+
                     // Show success message
                     showNotification('Shift approved successfully!', 'success');
-                    
+
                     // Refresh the data
                     fetchData();
-                    
+
                 } catch (error) {
                     console.error('Error approving shift:', error);
                     showNotification(`Error: ${error.message}`, 'error');
                 }
             }
-            
+
             // Open edit modal for a shift
             function openEditModal(shiftId) {
                 const shift = allPendingShifts.find(s => s.pendingShiftId == shiftId);
                 if (!shift) return;
-                
+
                 const startDate = new Date(shift.startDate);
                 const endDate = new Date(shift.endDate);
-                
+
                 document.getElementById('edit-shift-id').value = shift.pendingShiftId;
                 document.getElementById('edit-shift-title').value = shift.title || `${shift.department} Shift`;
                 document.getElementById('edit-shift-department').value = shift.department || '';
                 document.getElementById('edit-shift-date').value = startDate.toISOString().split('T')[0];
                 document.getElementById('edit-shift-start-time').value = startDate.toTimeString().slice(0, 5);
                 document.getElementById('edit-shift-end-time').value = endDate.toTimeString().slice(0, 5);
-                
+
                 // Populate employee dropdown
                 const employeeSelect = document.getElementById('edit-shift-employee');
                 employeeSelect.innerHTML = '';
-                
+
                 employees.forEach(emp => {
                     const option = document.createElement('option');
                     option.value = emp.userId;
@@ -1247,37 +1248,37 @@
                     }
                     employeeSelect.appendChild(option);
                 });
-                
+
                 editShiftModal.style.display = 'block';
             }
-            
+
             // Close edit modal
             function closeEditModal() {
                 editShiftModal.style.display = 'none';
             }
-            
+
             // Handle edit form submission
             document.getElementById('editShiftForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
-                
+
                 const shiftId = document.getElementById('edit-shift-id').value;
                 const title = document.getElementById('edit-shift-title').value;
                 const employeeId = document.getElementById('edit-shift-employee').value;
                 const date = document.getElementById('edit-shift-date').value;
                 const startTime = document.getElementById('edit-shift-start-time').value;
                 const endTime = document.getElementById('edit-shift-end-time').value;
-                
+
                 // Combine date and time
                 const startDate = `${date}T${startTime}:00`;
                 const endDate = `${date}T${endTime}:00`;
-                
+
                 try {
                     const token = localStorage.getItem('token');
-                    
+
                     if (!token) {
                         throw new Error('You need to be logged in');
                     }
-                    
+
                     const response = await fetch(`${API_BASE_URL}/shift/update-pending/${shiftId}`, {
                         method: 'PUT',
                         headers: {
@@ -1291,21 +1292,21 @@
                             endDate
                         })
                     });
-                    
+
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.error || 'Failed to update shift');
                     }
-                    
+
                     // Show success message
                     resultDiv.className = 'success';
                     resultDiv.textContent = 'Shift updated successfully!';
                     resultDiv.style.display = 'block';
-                    
+
                     // Close modal and refresh data
                     closeEditModal();
                     fetchData();
-                    
+
                 } catch (error) {
                     console.error('Error updating shift:', error);
                     resultDiv.className = 'error';
@@ -1313,28 +1314,28 @@
                     resultDiv.style.display = 'block';
                 }
             });
-            
+
             // Handle approve all button click
             approveAllButton.addEventListener('click', function() {
                 if (allPendingShifts.length === 0) {
                     showNotification('No pending shifts to approve', 'error');
                     return;
                 }
-                
+
                 // Show confirm dialog instead of immediately approving
                 document.getElementById('confirmDialog').style.display = 'block';
             });
-            
+
             // Handle filter changes
             departmentFilter.addEventListener('change', renderPendingShifts);
             employeeFilter.addEventListener('change', renderPendingShifts);
-            
+
             // When we click outside the modal, close it
             window.onclick = function(event) {
                 if (event.target == editShiftModal) {
                     closeEditModal();
                 }
-                
+
                 if (!event.target.matches('.fa-cog')) {
                     var dropdowns = document.getElementsByClassName("dropdown-content");
                     for (var i = 0; i < dropdowns.length; i++) {
@@ -1345,33 +1346,33 @@
                     }
                 }
             }
-            
+
             // Add other needed functions
             function toggleDropdown() {
                 document.getElementById("settingsDropdown").classList.toggle("show");
             }
-            
+
             function logout() {
                 localStorage.removeItem('token');
                 localStorage.removeItem('userInfo');
                 window.location.href = 'index.html';
             }
-            
+
             window.closeEditModal = closeEditModal;
             window.toggleDropdown = toggleDropdown;
             window.bulkApproveShifts = bulkApproveShifts;
             window.closeConfirmDialog = closeConfirmDialog;
             window.fetchData = fetchData;
-            
+
             // Add event listeners for the confirmation dialog buttons
             document.getElementById('confirmApproveBtn').addEventListener('click', bulkApproveShifts);
             document.getElementById('cancelConfirmBtn').addEventListener('click', closeConfirmDialog);
-            
+
             // Add event listener for sidebar toggle
             document.getElementById('sidebarToggle').addEventListener('click', function() {
                 const sidebar = document.getElementById('sidebar');
                 sidebar.classList.toggle('collapsed');
-                
+
                 // Change the icon based on sidebar state
                 const icon = this.querySelector('i');
                 if (sidebar.classList.contains('collapsed')) {
@@ -1381,25 +1382,25 @@
                     icon.classList.remove('fa-chevron-right');
                     icon.classList.add('fa-chevron-left');
                 }
-                
+
                 // Save preference to localStorage
                 localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
             });
-            
+
             // Check if sidebar was collapsed previously
             if (localStorage.getItem('sidebarCollapsed') === 'true') {
                 const sidebar = document.getElementById('sidebar');
                 const toggleIcon = document.querySelector('#sidebarToggle i');
-                
+
                 sidebar.classList.add('collapsed');
                 toggleIcon.classList.remove('fa-chevron-left');
                 toggleIcon.classList.add('fa-chevron-right');
             }
-            
+
             // Initial data load
             fetchData();
             initSidebar();
         });
     </script>
 </body>
-</html> 
+</html>

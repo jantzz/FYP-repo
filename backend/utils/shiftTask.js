@@ -5,13 +5,13 @@ const db = require('../database/db');
 
 const job = new schedule.Job('monthlyShift', async function() {
     const lastMondayDate = getLastMondayOfMonth();
-    console.log('本月最后一个周一：', getLastMondayOfMonth());
+    console.log('Last Monday of the month:', getLastMondayOfMonth());
 
     const today = new Date();
     if (today.getFullYear() !== lastMondayDate.getFullYear() ||
         today.getMonth()+1 !== lastMondayDate.getMonth()+1 ||
         today.getDate() !== lastMondayDate.getDate()) {
-        console.log(`今日 ${today.toISOString()} 非最后一个周一 ${lastMondayDate.toISOString()}`);
+        console.log(`Today ${today.toISOString()} is not the last Monday of the month ${lastMondayDate.toISOString()}`);
         return;
     }
 
@@ -27,7 +27,7 @@ const job = new schedule.Job('monthlyShift', async function() {
         // 诊所列表
         const [clinics] = await connection.execute("SELECT clinicId FROM clinics");
         if (!clinics.length) {
-            console.log('诊所列表为空');
+            console.log('Clinic list is empty');
             return;
         }
 
@@ -36,7 +36,7 @@ const job = new schedule.Job('monthlyShift', async function() {
          }
         // await generateShift(connection, 1);
     } catch (err) {
-        console.error('定时任务执行失败:', err);
+        console.error('Task execution failed:', err);
     } finally {
         if (connection) {
             connection.release();
@@ -50,33 +50,33 @@ async function generateShift(connection, clinicId) {
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth()+1, 1);
     const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0);
 
-    console.log('开始生成排班：', parseTime(startOfMonth), parseTime(endOfMonth));
+    console.log('Start generating shifts:', parseTime(startOfMonth), parseTime(endOfMonth));
     await connection.execute(
         "DELETE FROM pendingshift WHERE clinicId = ? AND shiftDate >= ? AND shiftDate <= ?",
         [clinicId, startOfMonth, endOfMonth]
     );
-    console.log('已删除之前的排班记录');
+    console.log('Previous shift records deleted');
 
-    // 2. 获取该诊所的所有员工
+    // 2. Get all employees of the clinic
     const [employees] = await connection.execute(
         "SELECT userId, department FROM user WHERE clinicId = ? AND department IN ('Doctor', 'Nurse', 'Receptionist')",
         [clinicId]
     );
-    // 3. 根据角色分类员工
-    // 修改后的分类逻辑
+    // 3. Categorize employees by role
+    // Modified classification logic
     const categorizedEmployees = employees.reduce((acc, employee) => {
-        // 确保每个角色都有初始数组
+        // Ensure each role has an initial array
         ['Doctor', 'Nurse', 'Receptionist'].forEach(role => {
             if (!acc[role]) acc[role] = [];
         });
-        // 如果员工角色不在预定义列表中，跳过
+        // If the employee role is not in the predefined list, skip
         if (acc[employee.department]) {
             acc[employee.department].push(employee.userId);
         }
         return acc;
     }, {});
 
-    // 4. 检查每个员工本月已排班次数
+    // 4. Check the number of shifts each employee has this month
     const [existingShifts] = await connection.execute(
         "SELECT employeeId, COUNT(*) as shiftCount FROM pendingshift WHERE clinicId = ? AND shiftDate >= ? AND shiftDate <= ? GROUP BY employeeId",
         [clinicId, startOfMonth, endOfMonth]
@@ -87,12 +87,12 @@ async function generateShift(connection, clinicId) {
         return acc;
     }, {});
 
-    // 5. 初始化排班数组
+    // 5. Initialize the shift array
     const shifts = [];
     const roles = ['Nurse', 'Doctor', 'Receptionist'];
     const roleCounts = { 'Nurse': 2, 'Doctor': 2, 'Receptionist': 1 };
 
-    // 6. 生成每月每天的排班
+    // 6. Generate shifts for each day of the month
     for (let d = startOfMonth; d <= endOfMonth; d.setDate(d.getDate() + 1)) {
         const currentDt = new Date(parseTime(new Date(d)));
         for (let session = 0; session < 2; session++) { // 两个班次
@@ -113,7 +113,7 @@ async function generateShift(connection, clinicId) {
                     selectedEmployees = eligibleEmployees.slice(shifts.length*roleCounts[role]-1, shifts.length*roleCounts[role]-1+roleCounts[role]);
                 }
                 shift.employees.push(...selectedEmployees);
-                // 更新已排班次数
+                // Update the number of shifts
                 selectedEmployees.forEach(employeeId => {
                     shiftCounts[employeeId] = (shiftCounts[employeeId] || 0) + 1;
                 });
@@ -121,7 +121,7 @@ async function generateShift(connection, clinicId) {
             shifts.push(shift);
         }
     }
-    // 7. 插入排班数据到数据库
+    // 7. Insert shift data into the database
     for (const shift of shifts) {
         const { shiftDate, startDate, endDate, clinicId, employees } = shift;
         for (const employeeId of employees) {
@@ -136,14 +136,14 @@ async function generateShift(connection, clinicId) {
 
         }
     }
-    console.log('排班生成完成');
+    console.log('Shift generation completed');
 }
 
 job.schedule({
     rule: '0 0 0 * * *',
-    tz: 'Asia/Shanghai' // 设置为中国时区
+    tz: 'Asia/Shanghai' // Set to Chinese timezone
 });
-// 立即触发一次执行任务
+// Trigger the task immediately
 job.invoke();
 
 module.exports = job;

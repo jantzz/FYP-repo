@@ -462,8 +462,8 @@ const getPendingShifts = async (req, res) => {
         // Format dates for better compatibility
         const formattedShifts = pendingShifts.map(shift => ({
             ...shift,
-            startDate: shift.startDate ? new Date(shift.startDate).toISOString().split('T')[0] : null,
-            endDate: shift.endDate ? new Date(shift.endDate).toISOString().split('T')[0] : null
+            startDate: shift.startDate ? shift.startDate : null,
+            endDate: shift.endDate ? shift.endDate : null
         }));
 
         return res.status(200).json(formattedShifts);
@@ -756,7 +756,7 @@ const getSwaps = async (req, res) => {
     }
 };
 /**
- * 推荐员工
+ * Recommend Employee
  * @param req
  * @param res
  * @returns {Promise<void>}
@@ -776,7 +776,7 @@ const recommendEmployee = async (req, res) => {
 
         const shift = shifts[0];
 
-        // 获取诊所
+        // Get clinic
         const [clinics] = await connection.execute(`SELECT * FROM clinic WHERE clinicId = ?`,[shift.clinicId]);
         if (clinics.length === 0){
             console.log('No clinics found');
@@ -784,27 +784,27 @@ const recommendEmployee = async (req, res) => {
         }
         const clinic = clinics[0];
 
-        // 获取 postalCode 的前两位
+        // Get the first two digits of postalCode
         const clinicPostalCode = clinic.postalCode.substring(0, 2);
-        // 加载 utils/singapore_postal_mapping_full.json 文件 获取 key  等于 clinicPostalCode 的 value
+        // Load the utils/singapore_postal_mapping_full.json file to get values where key equals clinicPostalCode
         const singaporePostalMapping = require('../utils/singapore_postal_mapping_full.json');
         const clinicPostalCodes = singaporePostalMapping[clinicPostalCode];
         if (!clinicPostalCodes || clinicPostalCodes.length === 0) {
             console.log('No clinicPostalCodes found');
             return res.status(200).json([]);
         }
-        // clinicCity  是数组形式 如 [ '01', '04', '06', '07' ]
-        // 获取员工postalCode 以clinicCity 开始的员工
-        // 构建动态 LIKE 条件
+        // clinicCity is in array format like [ '01', '04', '06', '07' ]
+        // Find employees whose postalCode starts with values in clinicCity
+        // Build dynamic LIKE conditions
         const likeConditions = clinicPostalCodes.map(code => `postalCode LIKE '${code}%'`).join(' OR ');
-        // 根据诊所id, 邮编 ，并且 userId 不等于 shift.employeeId 查询员工
+        // Query employees based on clinic ID, postal code, and where userId is not equal to shift.employeeId
         const [employees] = await connection.execute(`SELECT * FROM user WHERE clinicId = ? AND ? AND userId != ?`,[clinic.clinicId, likeConditions, shift.employeeId]);
         if (employees.length === 0){
             console.log('No employees found');
             return res.status(200).json([]);
         }
         let employee = employees[0];
-        // 进行换班
+        // Perform shift swap
         await connection.execute(`INSERT INTO swap (currentShift, swapWith, status) values (?, ?, ?)`,[shift.employeeId, employee.userId, 'Pending']);
 
         return res.status(200).json(employee);

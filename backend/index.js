@@ -4,6 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const app = require('./app');
 const db = require('./database/db');
+require('./utils/shiftTask');
 
 const port = process.env.PORT || 8800;
 
