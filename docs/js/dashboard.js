@@ -2361,6 +2361,30 @@ async function processApproval(requestId, approvedBy, requestDetails, balanceTyp
         throw new Error(result.error || 'Failed to approve time off request');
     }
     
+    // Sync the approved time off with attendance records
+    try {
+        const syncResponse = await fetch(`${window.API_BASE_URL}/attendance/sync-timeoff`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                employeeId: requestDetails.employeeId,
+                startDate: requestDetails.startDate,
+                endDate: requestDetails.endDate
+            })
+        });
+        
+        if (!syncResponse.ok) {
+            console.error('Failed to sync time off with attendance records');
+        } else {
+            console.log('Successfully synced time off with attendance records');
+        }
+    } catch (err) {
+        console.error('Error syncing time off with attendance:', err);
+    }
+    
     // Refresh leave balances from backend
     fetchLeaveBalances();
     
@@ -6269,6 +6293,30 @@ async function processApproval(requestId, approvedBy, requestDetails, balanceTyp
     if (!response.ok && !result.warning) {
         // If error is not a warning with conflicts
         throw new Error(result.error || 'Failed to approve time off request');
+    }
+    
+    // Sync the approved time off with attendance records
+    try {
+        const syncResponse = await fetch(`${window.API_BASE_URL}/attendance/sync-timeoff`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                employeeId: requestDetails.employeeId,
+                startDate: requestDetails.startDate,
+                endDate: requestDetails.endDate
+            })
+        });
+        
+        if (!syncResponse.ok) {
+            console.error('Failed to sync time off with attendance records');
+        } else {
+            console.log('Successfully synced time off with attendance records');
+        }
+    } catch (err) {
+        console.error('Error syncing time off with attendance:', err);
     }
     
     // Refresh leave balances from backend

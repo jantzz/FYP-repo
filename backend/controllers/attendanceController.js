@@ -249,7 +249,7 @@ const getEmployeeAttendance = async (req, res) => {
         let query = `
             SELECT a.*, s.startDate as shiftStartDate, s.endDate as shiftEndDate, s.title as shiftTitle, u.name as employeeName
             FROM attendance a
-            JOIN shift s ON a.shiftId = s.shiftId
+            LEFT JOIN shift s ON a.shiftId = s.shiftId
             JOIN user u ON a.employeeId = u.userId
             WHERE a.employeeId = ?
         `;
@@ -288,7 +288,7 @@ const getAllAttendance = async (req, res) => {
             SELECT a.*, s.startDate as shiftStartDate, s.endDate as shiftEndDate, s.title as shiftTitle, 
                    u.name as employeeName, u.department
             FROM attendance a
-            JOIN shift s ON a.shiftId = s.shiftId
+            LEFT JOIN shift s ON a.shiftId = s.shiftId
             JOIN user u ON a.employeeId = u.userId
             WHERE 1=1
         `;
@@ -336,6 +336,7 @@ const getAttendanceStats = async (req, res) => {
                 COUNT(CASE WHEN a.status = 'Leave' THEN 1 END) as leaveCount,
                 COUNT(*) as totalCount
             FROM attendance a
+            LEFT JOIN shift s ON a.shiftId = s.shiftId
             JOIN user u ON a.employeeId = u.userId
             WHERE 1=1
         `;
@@ -361,7 +362,7 @@ const getAttendanceStats = async (req, res) => {
         
         // Calculate attendance rate
         const attendanceRate = stats[0].totalCount > 0 
-            ? ((stats[0].presentCount + stats[0].lateCount) / stats[0].totalCount * 100).toFixed(2)
+            ? (((stats[0].presentCount + stats[0].lateCount) / (stats[0].totalCount - stats[0].leaveCount)) * 100).toFixed(2)
             : 0;
         
         // Get daily attendance breakdown if date range provided
@@ -376,6 +377,7 @@ const getAttendanceStats = async (req, res) => {
                     COUNT(CASE WHEN a.status = 'Leave' THEN 1 END) as leaveCount,
                     COUNT(*) as totalCount
                 FROM attendance a
+                LEFT JOIN shift s ON a.shiftId = s.shiftId
                 JOIN user u ON a.employeeId = u.userId
                 WHERE 1=1
             `;
@@ -464,10 +466,106 @@ function determineStatus(clockInTime, shift) {
     }
 }
 
+/**
+ * Sync approved time off with attendance records
+ * This should be called whenever a time off request is approved
+ */
+const syncTimeOffWithAttendance = async (req, res) => {
+    const { employeeId, startDate, endDate } = req.body;
+    
+    if (!employeeId || !startDate || !endDate) {
+        return res.status(400).json({ error: "Employee ID, start date, and end date are required." });
+    }
+
+    let connection;
+    try {
+        connection = await db.getConnection();
+        
+        // Get all dates between start and end dates (inclusive)
+        const dates = [];
+        let currentDate = new Date(startDate);
+        const lastDate = new Date(endDate);
+        
+        // Include start date in the loop
+        while (currentDate <= lastDate) {
+            // Format date as YYYY-MM-DD for SQL
+            const formattedDate = currentDate.toISOString().split('T')[0];
+            dates.push(formattedDate);
+            
+            // Move to next day
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        console.log(`Processing ${dates.length} leave days for employee ${employeeId}`);
+        
+        // Process each date
+        for (const date of dates) {
+            // Check if there's already an attendance record for this date and employee
+            const [existingRecords] = await connection.execute(
+                "SELECT * FROM attendance WHERE employeeId = ? AND date = ?",
+                [employeeId, date]
+            );
+            
+            if (existingRecords.length > 0) {
+                // Update existing record
+                console.log(`Updating existing attendance record for ${date} to Leave status`);
+                await connection.execute(
+                    "UPDATE attendance SET status = 'Leave', clockInTime = NULL, clockOutTime = NULL WHERE attendanceId = ?",
+                    [existingRecords[0].attendanceId]
+                );
+            } else {
+                // Get employee's default shift
+                // First try to get a shift that covers this specific date
+                const [dateShifts] = await connection.execute(
+                    "SELECT * FROM shift WHERE employeeId = ? AND startDate <= ? AND endDate >= ? LIMIT 1",
+                    [employeeId, date, date]
+                );
+                
+                let shiftId;
+                if (dateShifts.length > 0) {
+                    shiftId = dateShifts[0].shiftId;
+                } else {
+                    // Fallback to any shift assigned to the employee
+                    const [anyShifts] = await connection.execute(
+                        "SELECT * FROM shift WHERE employeeId = ? ORDER BY startDate DESC LIMIT 1",
+                        [employeeId]
+                    );
+                    
+                    if (anyShifts.length > 0) {
+                        shiftId = anyShifts[0].shiftId;
+                    } else {
+                        // If no shifts exist, use a default value of 1
+                        shiftId = 1;
+                        console.log(`Warning: No shifts found for employee ${employeeId}, using default shiftId=1`);
+                    }
+                }
+                
+                // Create new attendance record with Leave status
+                console.log(`Creating new Leave attendance record for ${date} with shiftId=${shiftId}`);
+                await connection.execute(
+                    "INSERT INTO attendance (employeeId, shiftId, date, status, notes) VALUES (?, ?, ?, 'Leave', 'Approved leave')",
+                    [employeeId, shiftId, date]
+                );
+            }
+        }
+        
+        return res.status(200).json({ 
+            message: "Time off synchronized with attendance records.",
+            datesProcessed: dates.length
+        });
+    } catch (err) {
+        console.error('Error in syncTimeOffWithAttendance:', err);
+        return res.status(500).json({ error: "Internal Server Error." });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 module.exports = {
     clockIn,
     clockOut,
     getEmployeeAttendance,
     getAllAttendance,
-    getAttendanceStats
+    getAttendanceStats,
+    syncTimeOffWithAttendance
 }; 
