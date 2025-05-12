@@ -11,7 +11,8 @@ const {
     updateUser,
     getMe,
     deleteUser,
-    updateUserBaseSalary
+    updateUserBaseSalary,
+    assignUser
 } = require('../controllers/userController');
 
 //router object from express 
