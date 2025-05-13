@@ -694,12 +694,139 @@ function renderTimeOffBreakdownChart(timeOffData = null) {
 
 // Function to export report as PDF
 function exportReportAsPDF() {
-    showNotification('PDF export is not implemented yet', 'info');
+    try {
+        // Check if jsPDF is available
+        if (typeof window.jspdf === 'undefined') {
+            showNotification('PDF library is not loaded. Please refresh the page.', 'error');
+            return;
+        }
+        
+        // Create a new jsPDF instance
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape', 'mm', 'a4');
+        
+        // Add title
+        doc.setFontSize(18);
+        doc.text('Attendance Report', 15, 15);
+        
+        // Add date of generation
+        const today = new Date();
+        doc.setFontSize(10);
+        doc.text(`Generated on: ${today.toLocaleDateString()} ${today.toLocaleTimeString()}`, 15, 22);
+        
+        // Get selected time period
+        const periodSelector = document.getElementById('report-period-selector');
+        const periodText = periodSelector ? `Period: ${periodSelector.options[periodSelector.selectedIndex].text}` : 'Period: Yearly';
+        doc.text(periodText, 15, 28);
+        
+        // Use html2canvas to capture each chart
+        const captureAndAddChart = (chartId, title, yPosition) => {
+            return new Promise((resolve) => {
+                const chart = document.getElementById(chartId);
+                if (!chart) {
+                    resolve(yPosition); // Skip if chart doesn't exist
+                    return;
+                }
+                
+                // Create an offscreen canvas with willReadFrequently set to true
+                const offscreenCanvas = document.createElement('canvas');
+                offscreenCanvas.width = chart.width;
+                offscreenCanvas.height = chart.height;
+                const ctx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+                
+                // Use html2canvas with the optimized canvas
+                html2canvas(chart, { 
+                    canvas: offscreenCanvas,
+                    useCORS: true,
+                    allowTaint: true,
+                    scale: 2 // Improve quality
+                }).then(canvas => {
+                    // Add chart title
+                    doc.setFontSize(14);
+                    doc.text(title, 15, yPosition);
+                    
+                    // Add canvas as image
+                    const imgData = canvas.toDataURL('image/png');
+                    doc.addImage(imgData, 'PNG', 15, yPosition + 5, 270, 80);
+                    
+                    resolve(yPosition + 90); // Return next Y position
+                });
+            });
+        };
+        
+        // Capture all charts in sequence
+        captureAndAddChart('attendanceHistoryChart', 'Attendance History', 35)
+            .then(nextY => captureAndAddChart('punctualityChart', 'Punctuality Trend', nextY))
+            .then(nextY => captureAndAddChart('timeoffBreakdownChart', 'Time Off Breakdown', nextY))
+            .then(() => {
+                // Get user info
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                const userName = userInfo.name || 'Employee';
+                
+                // Add footer with user info
+                doc.setFontSize(10);
+                doc.text(`Report for: ${userName}`, 15, doc.internal.pageSize.height - 10);
+                
+                // Save the PDF
+                doc.save(`attendance_report_${today.toISOString().split('T')[0]}.pdf`);
+                
+                showNotification('PDF report has been downloaded', 'success');
+            })
+            .catch(err => {
+                showNotification('Error generating PDF: ' + err.message, 'error');
+            });
+    } catch (error) {
+        showNotification('Error generating PDF: ' + error.message, 'error');
+    }
 }
 
 // Function to export report as CSV
 function exportReportAsCSV() {
-    showNotification('CSV export is not implemented yet', 'info');
+    try {
+        // Get attendance history data from the chart
+        const attendanceChart = reportChartInstances.attendanceHistoryChart;
+        if (!attendanceChart) {
+            showNotification('No chart data available to export', 'error');
+            return;
+        }
+        
+        // Extract chart data
+        const labels = attendanceChart.data.labels;
+        const datasets = attendanceChart.data.datasets;
+        
+        // Create CSV header row
+        let csvContent = 'Period,Present Days,Late Days,Absent Days,Time Off Days,Total Days\n';
+        
+        // Create data rows
+        for (let i = 0; i < labels.length; i++) {
+            const period = labels[i].replace('*', ''); // Remove asterisk from incomplete months
+            
+            // Get values for each category for this month
+            const presentDays = datasets[0].data[i] || 0;
+            const lateDays = datasets[1].data[i] || 0;
+            const absentDays = datasets[2].data[i] || 0;
+            const timeOffDays = datasets[3].data[i] || 0;
+            const totalDays = presentDays + lateDays + absentDays + timeOffDays;
+            
+            // Add row to CSV
+            csvContent += `${period},${presentDays},${lateDays},${absentDays},${timeOffDays},${totalDays}\n`;
+        }
+        
+        // Create a download link for the CSV
+        const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `attendance_report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        
+        // Trigger download and clean up
+        link.click();
+        document.body.removeChild(link);
+        
+        showNotification('CSV report has been downloaded', 'success');
+    } catch (error) {
+        showNotification('Error generating CSV: ' + error.message, 'error');
+    }
 }
 
 // Utility function to show notifications
