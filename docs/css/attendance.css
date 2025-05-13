@@ -574,4 +574,25 @@
     .attendance-chart {
         flex: 0 0 100%;
     }
+}
+
+/* Attendance History and Punctuality Chart Styles - Now in Reports */
+.report-section .attendance-history,
+.report-section .punctuality-trend {
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.report-section .attendance-history:hover,
+.report-section .punctuality-trend:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.report-section .attendance-chart-container,
+.report-section .trend-chart-container {
+    height: 300px;
+    position: relative;
+    width: 100%;
 } 

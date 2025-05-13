@@ -409,6 +409,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             document.querySelector('.report-section').style.display = 'none';
             document.querySelector('.attendance-section').style.display = 'none';
             document.querySelector('.payroll-section').style.display = 'none';
+            document.querySelector('.approve-timeoff-section').style.display = 'none';
             
             // Show appropriate section based on clicked item
             if (itemText === 'Dashboard') {
@@ -464,6 +465,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (typeof initializePayroll === 'function') {
                     initializePayroll();
                 }
+            } else if (itemText === 'Approve Time Off') {
+                document.querySelector('.approve-timeoff-section').style.display = 'block';
+                // Load pending time off requests
+                loadPendingTimeOffRequests();
             }
         });
     });
@@ -5741,23 +5746,8 @@ async function deleteAvailabilityPreference(id) {
 // Function to show the Approve Time Off section
 function showApproveTimeOffSection() {
     // Hide all sections first
-    const sections = [
-        '.upcoming-shifts-section',
-        '.calendar-section',
-        '.employee-section',
-        '.report-section',
-        '.time-off-section',
-        '.availability-section',
-        '.schedule-section',
-        '.generate-shifts-section'
-    ];
-    
-    // Hide all sections safely with null checks
-    sections.forEach(selector => {
-        const element = document.querySelector(selector);
-        if (element) {
-            element.style.display = 'none';
-        }
+    document.querySelectorAll('.main-content > div').forEach(section => {
+        section.style.display = 'none';
     });
     
     // Show Approve Time Off section

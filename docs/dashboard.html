@@ -499,54 +499,6 @@
                 </div>
             </div>
 
-            <div class="report-section" style="display: none;">
-                <div class="section-header">
-                    <h2>Analytics Dashboard</h2>
-                    <div class="export-buttons">
-                        <button class="btn-export" id="export-pdf">
-                            <i class="fas fa-file-pdf"></i> Export PDF
-                        </button>
-                        <button class="btn-export" id="export-csv">
-                            <i class="fas fa-file-csv"></i> Export CSV
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="report-grid">
-                    <div class="report-card performance-metrics">
-                        <h3>Performance Metrics</h3>
-                        <p>Track key performance indicators such as attendance consistency and task completion rates.</p>
-                        <div class="chart-container">
-                            <canvas id="performanceChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <div class="report-card feedback-integration">
-                        <h3>Feedback Integration</h3>
-                        <p>View aggregated feedback from peers and supervisors to understand employee performance qualitatively.</p>
-                        <div class="chart-container">
-                            <canvas id="feedbackChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <div class="report-card managerial-insights">
-                        <h3>Managerial Insights</h3>
-                        <p>Analyze trends to identify top performance and areas needing more training.</p>
-                        <div class="chart-container">
-                            <canvas id="trendsChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <div class="report-card goal-setting">
-                        <h3>Goal Setting and Progress Tracking</h3>
-                        <p>Set personal or team goals and track progress with visual indicators like progress bars.</p>
-                        <div class="chart-container">
-                            <canvas id="goalsChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Attendance Rate Section -->
             <div class="attendance-section" style="display: none;">
                 <div class="section-header">
@@ -635,7 +587,7 @@
                         </div>
                     </div>
                     
-                    <!-- Total Work Hours Display -->
+                    <!-- Work Hours Summary -->
                     <div class="work-hours-summary">
                         <div class="hours-header">
                             <i class="fas fa-hourglass-half"></i>
@@ -680,24 +632,6 @@
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
-                </div>
-                
-                <div class="attendance-history">
-                    <h3>Attendance History</h3>
-                    <div class="chart-container attendance-chart-container">
-                        <canvas id="attendanceHistoryChart"></canvas>
-                    </div>
-                </div>
-                
-                <div class="attendance-trends">
-                    <div class="trend-cards">
-                        <div class="trend-card">
-                            <h4>Punctuality Trend</h4>
-                            <div class="chart-container trend-chart-container">
-                                <canvas id="punctualityChart"></canvas>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -835,6 +769,37 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Reports Section -->
+            <div class="report-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Analytics Dashboard</h2>
+                    <div class="export-buttons">
+                        <button class="btn-export" id="export-pdf">
+                            <i class="fas fa-file-pdf"></i> Export PDF
+                        </button>
+                        <button class="btn-export" id="export-csv">
+                            <i class="fas fa-file-csv"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Attendance History - Moved from attendance section -->
+                <div class="report-card attendance-history">
+                    <h3>Attendance History</h3>
+                    <div class="chart-container attendance-chart-container">
+                        <canvas id="attendanceHistoryChart" height="300"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Punctuality Trend - Moved from attendance section -->
+                <div class="report-card punctuality-trend">
+                    <h3>Punctuality Trend</h3>
+                    <div class="chart-container trend-chart-container">
+                        <canvas id="punctualityChart" height="300"></canvas>
                     </div>
                 </div>
             </div>
