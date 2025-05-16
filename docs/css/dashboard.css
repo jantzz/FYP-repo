@@ -3121,3 +3121,58 @@ body.admin-visible .admin-only {
     color: #666;
     font-style: italic;
 }
+
+/* No Data Message Styling */
+.no-data-message {
+    padding: 40px 20px !important;
+    text-align: center;
+}
+
+.no-data-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.no-data-content i {
+    font-size: 48px;
+    color: #adb5bd;
+    margin-bottom: 15px;
+}
+
+.no-data-content p {
+    color: #495057;
+    margin: 0 0 5px 0;
+}
+
+.no-data-content p.help-text {
+    font-size: 14px;
+    color: #6c757d;
+    margin-top: 10px;
+}
+
+/* Deletion animation for real-time updates */
+@keyframes deletion-fade {
+    from { 
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to { 
+        opacity: 0;
+        transform: translateX(-10px);
+        background-color: rgba(255, 200, 200, 0.5);
+    }
+}
+
+.deletion-animation {
+    animation: deletion-fade 0.5s forwards;
+}
+
+/* Add transition for table rows to make them animate smoothly */
+#availabilityTableBody tr {
+    transition: all 0.3s ease;
+}

@@ -5651,7 +5651,16 @@ async function loadAvailabilityPreferences() {
         const availabilityArray = Array.isArray(data) ? data : (data.availability || []);
 
         if (availabilityArray.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="3">No availability preferences found</td></tr>';
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="no-data-message">
+                        <div class="no-data-content">
+                            <i class="fas fa-calendar-times"></i>
+                            <p>No availability preferences found</p>
+                            <p class="help-text">Use the "Set Availability" button above to add your preferred working days.</p>
+                        </div>
+                    </td>
+                </tr>`;
             return;
         }
 
@@ -5713,10 +5722,12 @@ function getShiftName(shiftCode) {
 // Handle availability preference form submission
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('availabilityPreferenceForm');
-    if (form) {
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
+    const submitButton = document.getElementById('submit-availability-btn');
+    
+    if (submitButton) {
+        submitButton.addEventListener('click', async function() {
+            console.log('Submit availability button clicked');
+            
             // Get selected days
             const selectedDays = Array.from(document.querySelectorAll('input[name="preferredDays"]:checked'))
                 .map(checkbox => checkbox.value)
@@ -5727,24 +5738,50 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            // Show loading state
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+            
             try {
                 const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                
+                // Debug info
+                console.log('User info:', userInfo);
+                console.log('API URL:', window.API_BASE_URL);
+                console.log('Selected days:', selectedDays);
+                
+                const requestData = {
+                    employeeId: userInfo.userId,
+                    preferredDates: selectedDays
+                };
+                
+                console.log('Request data:', requestData);
+                
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Authentication token is missing. Please log in again.');
+                }
+                
                 const response = await fetch(`${window.API_BASE_URL}/availability/submit`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({
-                        employeeId: userInfo.userId,
-                        preferredDates: selectedDays,
-                        hours: 8 // Default to 8 hours per day
-                    })
+                    body: JSON.stringify(requestData)
                 });
 
+                console.log('Response status:', response.status);
+                
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to submit availability preference');
+                    let errorMessage = 'Failed to submit availability preference';
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        console.error('Error parsing error response:', e);
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 showNotification('Availability preference submitted successfully', 'success');
@@ -5753,6 +5790,22 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch (error) {
                 console.error('Error submitting availability preference:', error);
                 showNotification(error.message || 'Failed to submit availability preference', 'error');
+                alert('Error submitting availability: ' + error.message); // More visible error for debugging
+            } finally {
+                // Reset button state
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Submit Availability';
+            }
+        });
+    }
+
+    // For backward compatibility, also handle the form submit event
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            // If we have a button with click handler, trigger that instead
+            if (submitButton) {
+                submitButton.click();
             }
         });
     }
@@ -6579,6 +6632,20 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Clinic management nav clicked, delegating to clinic.js');
         });
     }
+    
+    // Initialize the Availability section properly
+    const availabilityNav = document.querySelector('.nav-item:has(i.fa-calendar-check)');
+    if (availabilityNav) {
+        console.log('Adding click handler to availability nav');
+        availabilityNav.addEventListener('click', showAvailabilitySection);
+    }
+    
+    // Manually trigger click event handler on availability button
+    console.log('Checking for availability button handler');
+    const submitButton = document.getElementById('submit-availability-btn');
+    if (submitButton) {
+        console.log('Found submit-availability-btn, ensuring event handlers are set');
+    }
 });
 
 // Function to populate clinic dropdown and set selected clinic
@@ -6676,8 +6743,8 @@ function showAvailabilitySection() {
         availabilityNav.classList.add('active');
     }
 
-    // Load availability data
-    loadAvailabilityData();
+    // Load availability preferences
+    loadAvailabilityPreferences();
 }
 
 // Function to populate clinic filter
@@ -6726,5 +6793,177 @@ async function populateClinicFilter() {
     } catch (error) {
         console.error('Error populating clinic filter:', error);
     }
+}
+
+// Direct function to handle simple availability preference submission
+// This is a fallback function for when the click event handlers don't work
+function submitAvailabilityPreference() {
+    console.log('Direct submitAvailabilityPreference function called');
+    
+    // Get the button for state management
+    const submitButton = document.getElementById('submit-availability-btn');
+    if (!submitButton) {
+        console.error('Submit button not found');
+        return;
+    }
+    
+    // Get selected days
+    const selectedDays = Array.from(document.querySelectorAll('input[name="preferredDays"]:checked'))
+        .map(checkbox => checkbox.value)
+        .join(',');
+
+    if (!selectedDays) {
+        alert('Please select at least one preferred day');
+        return;
+    }
+
+    // Show loading state
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+    
+    // Get user info and token
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+        alert('Authentication token is missing. Please log in again.');
+        submitButton.disabled = false;
+        submitButton.innerHTML = 'Submit Availability';
+        return;
+    }
+    
+    // Make the API request
+    fetch(`${window.API_BASE_URL}/availability/submit`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            employeeId: userInfo.userId,
+            preferredDates: selectedDays
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to submit availability preference');
+            });
+        }
+        return response.json();
+    })
+    .then(() => {
+        alert('Availability preference submitted successfully!');
+        
+        // Close the modal
+        const modal = document.getElementById('availabilityPreferenceModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        
+        // Reload availability preferences
+        loadAvailabilityPreferences();
+    })
+    .catch(error => {
+        console.error('Error submitting availability preference:', error);
+        alert('Error: ' + error.message);
+    })
+    .finally(() => {
+        // Reset button state
+        submitButton.disabled = false;
+        submitButton.innerHTML = 'Submit Availability';
+    });
+}
+
+// Function to handle real-time availability deletion
+function handleRealTimeAvailabilityDeletion(data) {
+    console.log('Received real-time availability deletion:', data);
+    
+    if (data.deletedId) {
+        // Find the row in the table with the matching ID and remove it
+        const availabilityRow = document.querySelector(`#availability-item-${data.deletedId}`);
+        if (availabilityRow) {
+            availabilityRow.classList.add('deletion-animation');
+            
+            // After animation completes, remove the element
+            setTimeout(() => {
+                availabilityRow.remove();
+                
+                // Check if there are no more preferences
+                const availabilityTableBody = document.getElementById('availabilityTableBody');
+                if (availabilityTableBody && availabilityTableBody.children.length === 0) {
+                    availabilityTableBody.innerHTML = '<tr><td colspan="3">No availability preferences found</td></tr>';
+                }
+            }, 500);
+            
+            // Show notification
+            showNotification(data.message || 'Availability preference was deleted', 'info');
+        }
+    }
+}
+
+// Setup Socket.IO event listeners for real-time updates
+document.addEventListener('DOMContentLoaded', function() {
+    // Original DOMContentLoaded event listeners
+    
+    // Set up Socket.IO connection for real-time updates
+    const socket = io();
+    
+    // Get user info for user-specific socket room
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    if (userInfo.userId) {
+        // Join user-specific room
+        socket.emit('join_user_room', { userId: userInfo.userId });
+        
+        // Listen for availability deletion notifications
+        socket.on('availability_deleted', handleRealTimeAvailabilityDeletion);
+        
+        // Listen for other availability updates
+        socket.on('availability_updated', function(data) {
+            console.log('Received availability update:', data);
+            // Reload preferences to reflect the changes
+            loadAvailabilityPreferences();
+        });
+    }
+});
+
+// Update the renderAvailabilityPreferences function to add IDs to rows for easier targeting
+function renderAvailabilityPreferences(preferences) {
+    const tableBody = document.getElementById('availabilityTableBody');
+    
+    if (!tableBody) {
+        console.error('Availability table body not found');
+        return;
+    }
+    
+    if (!preferences || preferences.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="3">No availability preferences found</td></tr>';
+        return;
+    }
+    
+    tableBody.innerHTML = '';
+    
+    preferences.forEach(pref => {
+        const preferredDates = formatPreferredDates(pref.preferredDates);
+        
+        const row = document.createElement('tr');
+        row.id = `availability-item-${pref.availabilityId}`; // Add ID for targeting during deletion
+        
+        // Add a class based on status
+        const statusClass = pref.status === 'Approved' ? 'status-approved' : 
+                           pref.status === 'Declined' ? 'status-declined' : 'status-pending';
+        
+        row.innerHTML = `
+            <td>${preferredDates}</td>
+            <td><span class="status-badge ${statusClass}">${pref.status}</span></td>
+            <td>
+                <button class="action-btn delete-btn" onclick="deleteAvailabilityPreference(${pref.availabilityId})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
 }
 

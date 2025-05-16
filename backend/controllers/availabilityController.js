@@ -2,83 +2,35 @@ const db = require('../database/db');
 // TODO: other availability functions for User Story 8
 //function to let an employee submit availability details
 const submitAvailability = async (req, res) => {
-    const { employeeId, preferredDates, hours } = req.body;
+    const { employeeId, preferredDates } = req.body;
 
-    if (!employeeId || !preferredDates || !hours) {
-        return res.status(400).json({ error: "Employee ID, preferred dates, and hours are required." });
+    if (!employeeId || !preferredDates) {
+        return res.status(400).json({ error: "Employee ID and preferred dates are required." });
     }
 
     let connection;
     try {
         connection = await db.getConnection();
 
-        // Validate hours
-        const requestedHours = parseFloat(hours);
-        if (isNaN(requestedHours) || requestedHours <= 0) {
-            return res.status(400).json({ error: "Hours must be a positive number." });
-        }
-
-        // Get current week's dates
-        const now = new Date();
-        const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
-        weekStart.setHours(0, 0, 0, 0);
-
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
-        weekEnd.setHours(23, 59, 59, 999);
-
-        // Get current used hours for this week
-        const [currentHours] = await connection.execute(
-            `SELECT 
-                COALESCE(SUM(hours), 0) as usedHours
-            FROM availability 
-            WHERE employeeId = ? 
-            AND status != 'Declined'
-            AND submittedAt BETWEEN ? AND ?`,
-            [
-                employeeId,
-                weekStart.toISOString().split('T')[0],
-                weekEnd.toISOString().split('T')[0]
-            ]
-        );
-
-        const usedHours = parseFloat(currentHours[0].usedHours);
-        const maxHoursPerWeek = 40;
-        const remainingHours = Math.max(0, maxHoursPerWeek - usedHours);
-
-        // Check if employee has enough remaining hours for this week
-        if (requestedHours > remainingHours) {
-            return res.status(400).json({
-                error: "Not enough remaining hours for this week",
-                requestedHours: parseFloat(requestedHours.toFixed(2)),
-                remainingHours: parseFloat(remainingHours.toFixed(2)),
-                weekInfo: {
-                    weekStart: weekStart.toISOString().split('T')[0],
-                    weekEnd: weekEnd.toISOString().split('T')[0]
-                }
-            });
-        }
-
         // Insert availability record - automatically set to Approved (no manager approval needed)
         const query = `
-            INSERT INTO availability (employeeId, preferredDates, hours, status) 
-            VALUES (?, ?, ?, 'Approved')
+            INSERT INTO availability (employeeId, preferredDates, status) 
+            VALUES (?, ?, 'Approved')
         `;
 
         await connection.execute(query, [
             employeeId,
-            preferredDates,
-            requestedHours
+            preferredDates
         ]);
 
         // Create a pending shift that requires manager approval
         const daysString = preferredDates || 'No specific days';
 
-        // Get current date for the start date and add hours to end date
+        // Get current date for the start date and end date (using fixed 8 hours shift)
+        const now = new Date();
         const start = new Date(now);
         const end = new Date(now);
-        end.setHours(end.getHours() + Math.floor(requestedHours));
+        end.setHours(end.getHours() + 8); // Default 8 hour shift
 
         // Format dates for MySQL
         const formattedStartDate = start.toISOString().slice(0, 19).replace('T', ' ');
@@ -105,9 +57,6 @@ const submitAvailability = async (req, res) => {
             daysString
         });
 
-        // Calculate new remaining hours
-        const newRemainingHours = remainingHours - requestedHours;
-
         // Send notification about pending shift if socket.io is available
         const io = req.app.get('io');
         if (io && employeeId) {
@@ -123,9 +72,7 @@ const submitAvailability = async (req, res) => {
         }
 
         return res.status(201).json({
-            message: "Availability submitted successfully and pending shift created.",
-            requestedHours: parseFloat(requestedHours.toFixed(2)),
-            remainingHours: parseFloat(newRemainingHours.toFixed(2))
+            message: "Availability submitted successfully and pending shift created."
         });
     } catch (err) {
         console.error('Error submitting availability:', err);
@@ -180,7 +127,7 @@ const updateAvailabilityStatus = async (req, res) => {
             return res.status(404).json({ error: "Availability request not found." });
         }
 
-        const { employeeId, preferredDates, hours } = availabilityCheck[0];
+        const { employeeId, preferredDates } = availabilityCheck[0];
 
         //if the availability is approved, adds it to shift table
         if (status === "Approved") {
@@ -192,7 +139,7 @@ const updateAvailabilityStatus = async (req, res) => {
             const now = new Date();
             const start = new Date(now);
             const end = new Date(now);
-            end.setHours(end.getHours() + Math.floor(hours));
+            end.setHours(end.getHours() + 8); // Default 8 hour shift
 
             // Format dates for MySQL
             const formattedStartDate = start.toISOString().slice(0, 19).replace('T', ' ');
@@ -315,7 +262,6 @@ const getEmployeeAvailability = async (req, res) => {
             `SELECT 
                 availabilityId,
                 preferredDates,
-                hours,
                 status,
                 submittedAt,
                 approvedBy
@@ -329,31 +275,10 @@ const getEmployeeAvailability = async (req, res) => {
                 weekEnd.toISOString().split('T')[0]
             ]
         );
-        // Get current used hours for this week
-        const [currentHours] = await connection.execute(
-            `SELECT 
-                COALESCE(SUM(hours), 0) as usedHours
-            FROM availability 
-            WHERE employeeId = ? 
-            AND status != 'Declined'
-            AND submittedAt BETWEEN ? AND ?`,
-            [
-                employeeId,
-                weekStart.toISOString().split('T')[0],
-                weekEnd.toISOString().split('T')[0]
-            ]
-        );
-        console.log(347, currentHours);
-        const usedHours = parseFloat(currentHours[0].usedHours);
-        const maxHoursPerWeek = 40;
-        const remainingHours = Math.max(0, maxHoursPerWeek - usedHours);
 
-        // Return empty array if no availability records found
+        // Return availability records
         return res.status(200).json({
-            availability: availability || [],
-            remainingHours: parseFloat(remainingHours.toFixed(2)),
-            usedHours: parseFloat(usedHours.toFixed(2)),
-            maxHoursPerWeek
+            availability: availability || []
         });
     } catch (err) {
         console.error('Error getting employee availability:', err);
@@ -363,26 +288,57 @@ const getEmployeeAvailability = async (req, res) => {
     }
 };
 
-
-const deleteAvailabilityPreference = (req, res) => {
+const deleteAvailabilityPreference = async (req, res) => {
     const { id } = req.params;
+    const userId = req.headers['user-id']; // Get the user ID from request headers
 
-    const query = 'DELETE FROM availability WHERE availabilityId = ?';
+    let connection;
+    try {
+        connection = await db.getConnection();
 
-    db.query(query, [id], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ message: 'Failed to delete availability preference' });
+        // First, get the availability info to have employeeId for notification
+        const [availabilityInfo] = await connection.execute(
+            'SELECT employeeId, preferredDates FROM availability WHERE availabilityId = ?',
+            [id]
+        );
+
+        if (availabilityInfo.length === 0) {
+            return res.status(404).json({ message: 'Availability preference not found' });
         }
+
+        const { employeeId, preferredDates } = availabilityInfo[0];
+
+        // Now delete the availability preference
+        const [result] = await connection.execute(
+            'DELETE FROM availability WHERE availabilityId = ?',
+            [id]
+        );
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Availability preference not found' });
         }
 
-        res.status(200).json({ message: 'Availability preference deleted successfully' });
-    });
-};
+        // Send socket notification about the deleted availability
+        const io = req.app.get('io');
+        if (io && employeeId) {
+            io.to(`user_${employeeId}`).emit('availability_deleted', {
+                message: `Your availability preference for ${preferredDates} has been deleted.`,
+                deletedId: id
+            });
+        }
 
+        // Return success response
+        res.status(200).json({ 
+            message: 'Availability preference deleted successfully',
+            deletedId: id
+        });
+    } catch (err) {
+        console.error('Error deleting availability preference:', err);
+        res.status(500).json({ message: 'Failed to delete availability preference' });
+    } finally {
+        if (connection) connection.release();
+    }
+};
 
 module.exports = {
     submitAvailability,
