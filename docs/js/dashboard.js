@@ -1489,6 +1489,12 @@ async function fetchLeaveBalances() {
     try {
         const token = getToken();
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        
+        if (!userInfo.userId) {
+            console.warn('Cannot fetch leave balances: Missing user ID');
+            setDefaultLeaveBalances();
+            return;
+        }
 
         const response = await fetch(`${window.API_BASE_URL}/timeoff/balances?employeeId=${userInfo.userId}`, {
             method: 'GET',
@@ -1499,6 +1505,11 @@ async function fetchLeaveBalances() {
         });
 
         if (!response.ok) {
+            if (response.status === 404) {
+                console.warn('No leave balances found for user, using defaults');
+                setDefaultLeaveBalances();
+                return;
+            }
             throw new Error('Failed to fetch leave balances');
         }
 
@@ -1511,11 +1522,23 @@ async function fetchLeaveBalances() {
                 Medical: balance.Medical
             };
             updateTimeOffPolicyDisplay();
+        } else {
+            setDefaultLeaveBalances();
         }
     } catch (err) {
         console.error('Error fetching leave balances:', err);
-        showNotification('Failed to fetch leave balances', 'error');
+        setDefaultLeaveBalances();
     }
+}
+
+// Function to set default leave balances when API fails
+function setDefaultLeaveBalances() {
+    timeOffBalances = {
+        Paid: 0,
+        Unpaid: 0,
+        Medical: 0
+    };
+    updateTimeOffPolicyDisplay();
 }
 
 // Function to update time off policy display

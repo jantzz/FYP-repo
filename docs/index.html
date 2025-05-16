@@ -59,59 +59,5 @@
             </div>
         </div>
     </div>
-
-    <!-- Reset Password Modal -->
-    <div id="reset-password-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal">&times;</span>
-            <h2>Reset Password</h2>
-            <p class="reset-instructions">Please enter your email and date of birth to reset your password.</p>
-            
-            <!-- Step 1: Email and DOB Verification -->
-            <div id="reset-step-1">
-                <form id="reset-verify-form">
-                    <div class="form-group">
-                        <label for="reset-email">Email</label>
-                        <input type="email" id="reset-email" name="email" placeholder="Enter your email" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="reset-birthday">Date of Birth</label>
-                        <input type="date" id="reset-birthday" name="birthday" required>
-                    </div>
-                    
-                    <button type="submit" class="btn">Verify</button>
-                    <div id="reset-error" class="error-message"></div>
-                </form>
-            </div>
-            
-            <!-- Step 2: New Password -->
-            <div id="reset-step-2" style="display: none;">
-                <form id="reset-password-form">
-                    <div class="form-group">
-                        <label for="new-password">New Password</label>
-                        <input type="password" id="new-password" name="newPassword" placeholder="Enter new password" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="confirm-password">Confirm Password</label>
-                        <input type="password" id="confirm-password" name="confirmPassword" placeholder="Confirm new password" required>
-                    </div>
-                    
-                    <button type="submit" class="btn">Reset Password</button>
-                    <div id="reset-password-error" class="error-message"></div>
-                </form>
-            </div>
-            
-            <!-- Step 3: Success Message -->
-            <div id="reset-step-3" style="display: none;">
-                <div class="success-message">
-                    <i class="fas fa-check-circle"></i>
-                    <p>Your password has been reset successfully!</p>
-                </div>
-                <button class="btn back-to-login">Back to Login</button>
-            </div>
-        </div>
-    </div>
 </body>
 </html> 
