@@ -257,7 +257,7 @@ const getMe = async (req, res) => {
         // get user info from database
         const connection = await db.getConnection();
         const [users] = await connection.execute(
-            "SELECT userId, name, email, role, department, birthday, gender, baseSalary FROM user WHERE userId = ?",
+            "SELECT userId, name, email, role, department, birthday, gender, baseSalary, clinicId FROM user WHERE userId = ?",
             [_id]
         );
         connection.release();
@@ -266,7 +266,7 @@ const getMe = async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // return user data (ensuring baseSalary is included)
+        // return user data (ensuring baseSalary and clinicId are included)
         const userData = users[0];
         
         // Log the data being returned (for debugging)

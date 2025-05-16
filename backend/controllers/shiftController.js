@@ -13,9 +13,10 @@ const getShifts = async (req, res) => {
         connection = await db.getConnection();
         //query to fetch shifts for an employee with their name from 'user' table
         const query = `
-            SELECT shift.*, user.name AS employeeName
+            SELECT shift.*, user.name AS employeeName, user.department, user.clinicId, clinics.clinicName
             FROM shift
             JOIN user ON shift.employeeId = user.userId
+            LEFT JOIN clinics ON user.clinicId = clinics.clinicId
             WHERE shift.employeeId = ?
             ORDER BY shift.startDate ASC
         `;
@@ -189,11 +190,12 @@ const getAllShifts = async(req, res) => {
     try{
         connection = await db.getConnection();
 
-        // Enhanced query to include employee name and department information
+        // Enhanced query to include employee name, department, and clinic information
         const query = `
-            SELECT s.*, u.name as employeeName, u.department 
+            SELECT s.*, u.name as employeeName, u.department, u.clinicId, c.clinicName
             FROM shift s
             JOIN user u ON s.employeeId = u.userId
+            LEFT JOIN clinics c ON u.clinicId = c.clinicId
             ORDER BY s.startDate ASC
         `;
 
@@ -453,9 +455,10 @@ const getPendingShifts = async (req, res) => {
 
         // Get all pending shifts regardless of status
         const query = `
-            SELECT ps.*, u.name as employeeName, u.department 
+            SELECT ps.*, u.name as employeeName, u.department, u.clinicId, c.clinicName
             FROM pendingShift ps
             JOIN user u ON ps.employeeId = u.userId
+            LEFT JOIN clinics c ON u.clinicId = c.clinicId
             ORDER BY ps.startDate ASC
         `;
 

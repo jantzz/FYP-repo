@@ -64,7 +64,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             department: userData.department,
                             birthday: userData.birthday,
                             gender: userData.gender,
-                            baseSalary: userData.baseSalary
+                            baseSalary: userData.baseSalary,
+                            clinicId: userData.clinicId
                         };
                         
                         console.log('Storing user info:', userInfo);
