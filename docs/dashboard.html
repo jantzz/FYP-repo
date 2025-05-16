@@ -40,25 +40,25 @@
             overflow-x: hidden;
             position: relative;
         }
-        
+
         /* Styles for collapsed sidebar */
         .sidebar.collapsed {
             width: 60px;
         }
-        
+
         .sidebar.collapsed .nav-item {
             text-align: center;
             padding: 15px 0;
         }
-        
+
         .sidebar.collapsed .nav-item i {
             margin-right: 0;
         }
-        
+
         .sidebar.collapsed .nav-item span {
             display: none;
         }
-        
+
         /* Toggle button styles */
         .sidebar-toggle {
             position: absolute;
@@ -77,20 +77,20 @@
             z-index: 5;
             transition: all 0.3s ease;
         }
-        
+
         .sidebar-toggle:hover {
             background: #e9ecef;
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
-        
+
         /* Adjust main content when sidebar is collapsed */
         .sidebar.collapsed + .main-content {
             margin-left: 60px;
         }
     </style>
 </head>
-<body>      
+<body>
     <!-- Header -->
     <div class="header">
         <div class="logo">ShiftRoster</div>
@@ -166,7 +166,7 @@
                 <i class="fas fa-money-bill-wave"></i>
                 <span>Payroll</span>
             </div>
-            
+
             <!-- Add sidebar toggle button -->
             <button class="sidebar-toggle" id="sidebarToggle">
                 <i class="fas fa-chevron-left"></i>
@@ -178,14 +178,15 @@
             <div class="content-header">
                 <h1>Master Roster</h1>
             </div>
-            
+
             <!-- Upcoming Shifts Section -->
             <div class="upcoming-shifts-section">
                 <h2>Upcoming Shifts</h2>
                 <div class="shifts-container">
                     <!-- Shifts will be added dynamically here -->
+
                 </div>
-                
+
                 <!-- Show More Button -->
                 <div class="show-more-container">
                     <button id="showMoreShifts" class="show-more-btn">
@@ -194,7 +195,7 @@
                     </button>
                 </div>
             </div>
-            
+
             <!-- Calendar Section -->
             <div class="calendar-section">
                 <div class="section-header">
@@ -207,6 +208,10 @@
                         </select>
                         <select id="department-filter" class="department-filter">
                             <option value="all">All Departments</option>
+                            <!-- Will be populated dynamically -->
+                        </select>
+                        <select id="clinic-filter" class="clinic-filter">
+                            <option value="all">All Clinics</option>
                             <!-- Will be populated dynamically -->
                         </select>
                     </div>
@@ -250,7 +255,7 @@
                         <i class="fas fa-plus"></i> Request Time Off
                     </button>
                 </div>
-                
+
                 <div class="time-off-policies">
                     <h3>Time Off Policies</h3>
                     <div class="policy-cards">
@@ -272,7 +277,7 @@
                         <!-- More policy cards can be added here -->
                     </div>
                 </div>
-                
+
                 <div class="request-history">
                     <h3>Request History</h3>
                     <table class="time-off-table">
@@ -306,7 +311,7 @@
                         </select>
                     </div>
                 </div>
-                
+
                 <div class="pending-requests">
                     <table class="time-off-table">
                         <thead>
@@ -336,7 +341,7 @@
                         <i class="fas fa-plus"></i> Set Availability
                     </button>
                 </div>
-                
+
                 <div class="availability-list">
                     <table id="availabilityTable">
                         <thead>
@@ -395,18 +400,18 @@
                 <div class="section-header">
                     <h2>Schedule</h2>
                 </div>
-                
+
                 <div class="schedule-tabs">
                     <div class="tab active" data-tab="my-roster">My Roster</div>
                     <div class="tab" data-tab="replacement">Replacement</div>
                 </div>
-                
+
                 <div class="tab-content">
                     <!-- Roster Tab -->
                     <div class="tab-pane active" id="my-roster-tab">
                         <div id="employee-calendar"></div>
                     </div>
-                    
+
                     <!-- Replacement Tab -->
                     <div class="tab-pane" id="replacement-tab">
                         <div class="replacement-header">
@@ -415,7 +420,7 @@
                                 <i class="fas fa-exchange-alt"></i> Request Shift Swap
                             </button>
                         </div>
-                        
+
                         <div class="swap-requests-section">
                             <div class="filter-options">
                                 <select id="swap-status-filter">
@@ -515,7 +520,7 @@
                         </select>
                     </div>
                 </div>
-                
+
                 <!-- Clock In/Out Card -->
                 <div class="attendance-card attendance-actions">
                     <h3>Clock In/Out</h3>
@@ -543,7 +548,7 @@
                         <div class="loading-indicator">Loading your shifts...</div>
                     </div>
                 </div>
-                
+
                 <!-- Attendance Rate Overview -->
                 <div class="attendance-overview">
                     <div class="attendance-chart">
@@ -558,7 +563,7 @@
                         </svg>
                         <p class="chart-label">Attendance Rate</p>
                     </div>
-                    
+
                     <div class="attendance-details">
                         <div class="detail-item">
                             <i class="fas fa-check-circle"></i>
@@ -589,7 +594,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Work Hours Summary -->
                     <div class="work-hours-summary">
                         <div class="hours-header">
@@ -613,7 +618,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Attendance History Table -->
                 <div class="attendance-records">
                     <h3>Recent Attendance Records</h3>
@@ -644,7 +649,7 @@
                 <div class="section-header">
                     <h2>Payroll Management</h2>
                 </div>
-                
+
                 <!-- Employee Payroll View -->
                 <div id="employee-payroll-view" style="display: none;">
                     <h3>My Payroll Records</h3>
@@ -669,7 +674,7 @@
                         </table>
                     </div>
                 </div>
-                
+
                 <!-- Admin/Manager Payroll View -->
                 <div id="admin-payroll-view" style="display: none;">
                     <!-- Payroll Filters -->
@@ -689,18 +694,18 @@
                             <option value="11">November</option>
                             <option value="12">December</option>
                         </select>
-                        
+
                         <select id="payroll-year-filter">
                             <option value="all">All Years</option>
                             <!-- Will be populated dynamically -->
                         </select>
-                        
+
                         <select id="payroll-department-filter">
                             <option value="all">All Departments</option>
                             <!-- Will be populated dynamically -->
                         </select>
                     </div>
-                    
+
                     <!-- Calculate Payroll Card -->
                     <div class="calculate-payroll-card">
                         <h3>Calculate Monthly Payroll</h3>
@@ -709,7 +714,7 @@
                                 <option value="">Select Employee</option>
                                 <!-- Will be populated dynamically -->
                             </select>
-                            
+
                             <select id="calc-month" required>
                                 <option value="">Select Month</option>
                                 <option value="1">January</option>
@@ -725,14 +730,14 @@
                                 <option value="11">November</option>
                                 <option value="12">December</option>
                             </select>
-                            
+
                             <select id="calc-year" required>
                                 <option value="">Select Year</option>
                                 <option value="2023">2023</option>
                                 <option value="2024">2024</option>
                                 <option value="2025">2025</option>
                             </select>
-                            
+
                             <button type="submit" id="calculate-btn">
                                 <i class="fas fa-calculator"></i> Calculate
                             </button>
@@ -741,7 +746,7 @@
                             <p><i class="fas fa-info-circle"></i> Note: Each employee must have a base salary set in their profile before calculating payroll.</p>
                         </div>
                     </div>
-                    
+
                     <!-- Payroll Statistics -->
                     <div class="payroll-stats">
                         <h3>Payroll Statistics</h3>
@@ -775,7 +780,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Reports Section -->
             <div class="report-section" style="display: none;">
                 <div class="section-header">
@@ -789,7 +794,7 @@
                         </button>
                     </div>
                 </div>
-                
+
                 <!-- Attendance History - Moved from attendance section -->
                 <div class="report-card attendance-history">
                     <h3>Attendance History</h3>
@@ -797,7 +802,7 @@
                         <canvas id="attendanceHistoryChart" height="300"></canvas>
                     </div>
                 </div>
-                
+
                 <!-- Punctuality Trend - Moved from attendance section -->
                 <div class="report-card punctuality-trend">
                     <h3>Punctuality Trend</h3>
@@ -806,7 +811,7 @@
                     </div>
                 </div>
             </div>
-            
+
     <!-- Department Management Section -->
     <div class="department-management-section" style="display: none;">
         <div class="section-header">
@@ -815,7 +820,7 @@
                 <i class="fas fa-plus"></i> Add New Department
             </button>
         </div>
-        
+
         <div class="departments-container">
             <div class="table-container">
                 <table id="departments-table">
@@ -837,7 +842,7 @@
                     </div>
                 </div>
             </div>
-            
+
     <!-- Clinic Management Section -->
     <div class="clinic-management-section" style="display: none;">
         <div class="section-header">
@@ -846,7 +851,7 @@
                 <i class="fas fa-plus"></i> Add New Clinic
             </button>
         </div>
-        
+
         <div class="clinics-container">
             <div class="table-container">
                 <table id="clinics-table">
@@ -1278,7 +1283,7 @@
                         <!-- Populated by JavaScript -->
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="target-employee">Target Employee</label>
                     <select id="target-employee" required>
@@ -1286,7 +1291,7 @@
                         <!-- Populated by JavaScript -->
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="target-shift">Target Shift</label>
                     <select id="target-shift" required disabled>
@@ -1294,7 +1299,7 @@
                         <!-- Populated by JavaScript -->
                     </select>
                 </div>
-                
+
                 <button type="submit" class="btn-primary">Submit Request</button>
             </form>
         </div>
@@ -1307,7 +1312,7 @@
             document.getElementById('sidebarToggle').addEventListener('click', function() {
                 const sidebar = document.getElementById('sidebar');
                 sidebar.classList.toggle('collapsed');
-                
+
                 // Change the icon based on sidebar state
                 const icon = this.querySelector('i');
                 if (sidebar.classList.contains('collapsed')) {
@@ -1317,41 +1322,47 @@
                     icon.classList.remove('fa-chevron-right');
                     icon.classList.add('fa-chevron-left');
                 }
-                
+
                 // Save preference to localStorage
                 localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
             });
-            
+
             // Check if sidebar was collapsed previously
             if (localStorage.getItem('sidebarCollapsed') === 'true') {
                 const sidebar = document.getElementById('sidebar');
                 const toggleIcon = document.querySelector('#sidebarToggle i');
-                
+
                 sidebar.classList.add('collapsed');
                 toggleIcon.classList.remove('fa-chevron-left');
                 toggleIcon.classList.add('fa-chevron-right');
             }
-            
+
             // Set up event listeners for sidebar navigation
             document.querySelector('.nav-item:has(i.fa-clock)').addEventListener('click', showTimeOffSection);
             // Add event listener for Approve Time Off section
             document.getElementById('approve-timeoff-nav').addEventListener('click', showApproveTimeOffSection);
             // Add event listener for Availability section
             document.querySelector('.nav-item:has(i.fa-calendar-check)').addEventListener('click', showAvailabilitySection);
-            
+
             // Add event listener for show more button
             const showMoreBtn = document.getElementById('showMoreShifts');
             if (showMoreBtn) {
                 showMoreBtn.addEventListener('click', function() {
                     const shiftsContainer = document.querySelector('.shifts-container');
                     const buttonText = this.querySelector('.show-more-text');
-                    
+
                     shiftsContainer.classList.toggle('expanded');
                     this.classList.toggle('expanded');
-                    
+
                     if (shiftsContainer.classList.contains('expanded')) {
+                        document.querySelectorAll('.shift-card').forEach(card => {
+                            card.style.display = 'block';
+                        });
                         buttonText.textContent = 'Show Less';
                     } else {
+                        document.querySelectorAll('.shift-card').forEach(card => {
+                            card.style.display = 'none';
+                        });
                         buttonText.textContent = 'Show More';
                     }
                 });
@@ -1359,4 +1370,4 @@
         });
     </script>
 </body>
-</html> 
+</html>

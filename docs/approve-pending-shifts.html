@@ -765,13 +765,30 @@
         </div>
     </div>
 
+    <div id="singleConfirmDialog" class="confirm-dialog">
+        <div class="confirm-dialog-content">
+            <div class="confirm-dialog-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 class="confirm-dialog-title">Hint</h3>
+            <p class="confirm-dialog-message">
+                Are you sure to approve?
+            </p>
+            <div class="confirm-dialog-buttons">
+                <button class="confirm-dialog-btn cancel" onclick="closeSigleConfirmDialog()">Cancel</button>
+                <button class="confirm-dialog-btn confirm" onclick="approveSingleShift()">Approve</button>
+            </div>
+        </div>
+    </div>
     <script>
         // Define functions in global scope
         let allPendingShifts = [];
         let employees = [];
         let departments = [];
         let clinics = [];
-
+        let singleShiftId = null;
+        // Get API base URL from localStorage or use default
+        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
         function closeConfirmDialog() {
             document.getElementById('confirmDialog').style.display = 'none';
         }
@@ -872,8 +889,7 @@
             const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
             const confirmApproveBtn = document.getElementById('confirmApproveBtn');
 
-            // Get API base URL from localStorage or use default
-            const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
+
 
             console.log('Using API URL:', API_BASE_URL);
 
@@ -911,7 +927,7 @@
                 document.querySelectorAll('.sidebar .nav-item').forEach(item => {
                     if (item.classList.contains('active')) return; // Skip the active item
 
-                    item.addEventListener('click', function() {
+                    item.addEventListener('click', function () {
                         const id = this.id || this.textContent.trim().toLowerCase().replace(/\s+/g, '-');
                         if (this.hasAttribute('onclick')) return; // Skip if it already has an onclick attribute
 
@@ -955,7 +971,7 @@
                     });
 
                     if (!response.ok) {
-                        const errorData = await response.json().catch(e => ({ error: `HTTP error: ${response.status}` }));
+                        const errorData = await response.json().catch(e => ({error: `HTTP error: ${response.status}`}));
                         throw new Error(errorData.error || `Failed to fetch pending shifts: ${response.status} ${response.statusText}`);
                     }
 
@@ -974,17 +990,17 @@
                         populateEmployeeFilter();
                     }
 
-                                      // Fetch clinics for clinic information
-                                      const clinicsResponse = await fetch(`${API_BASE_URL}/clinic/getClinics`, {
-                         headers: {
-                             'Authorization': `Bearer ${token}`
-                         }
-                     });
+                    // Fetch clinics for clinic information
+                    const clinicsResponse = await fetch(`${API_BASE_URL}/clinic/getClinics`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
 
-                     if (clinicsResponse.ok) {
-                         clinics = await clinicsResponse.json();
-                         console.log('Clinics loaded:', clinics.length);
-                     }
+                    if (clinicsResponse.ok) {
+                        clinics = await clinicsResponse.json();
+                        console.log('Clinics loaded:', clinics.length);
+                    }
 
                     // Extract unique departments from shifts
                     const deptSet = new Set();
@@ -1082,18 +1098,18 @@
 
                     // Get clinic information
                     let clinicName = 'Unknown';
-                     let clinicId = shift.clinicId;
+                    let clinicId = shift.clinicId;
 
-                     // Try to get clinic information from the shift or user
-                     if (shift.clinicName) {
-                         clinicName = shift.clinicName;
-                     } else if (clinicId) {
-                         // Look up clinic in the clinics list if available
-                         const clinic = clinics.find(c => c.clinicId == clinicId);
-                         if (clinic) {
-                             clinicName = clinic.clinicName;
-                         }
-                     }
+                    // Try to get clinic information from the shift or user
+                    if (shift.clinicName) {
+                        clinicName = shift.clinicName;
+                    } else if (clinicId) {
+                        // Look up clinic in the clinics list if available
+                        const clinic = clinics.find(c => c.clinicId == clinicId);
+                        if (clinic) {
+                            clinicName = clinic.clinicName;
+                        }
+                    }
 
                     tr.innerHTML = `
                         <td>${shift.pendingShiftId}</td>
@@ -1121,7 +1137,7 @@
                             <span class="status-badge ${(shift.status || 'pending').toLowerCase()}">${shift.status || 'Pending'}</span>
                         </td>
                         <td>
-                            <button class="action-btn approve-single-btn" data-id="${shift.pendingShiftId}">
+                            <button class="action-btn approve-single-btn" data-id="${shift.pendingShiftId}" style="display:none;">
                                 <i class="fas fa-check"></i> Approve
                             </button>
                             <button class="action-btn edit-btn" data-id="${shift.pendingShiftId}">
@@ -1135,14 +1151,14 @@
 
                 // Add event listeners to buttons
                 document.querySelectorAll('.approve-single-btn').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const shiftId = this.getAttribute('data-id');
-                        approveSingleShift(shiftId);
+                    btn.addEventListener('click', function () {
+                        singleShiftId = this.getAttribute('data-id');
+                        approveShiftDialog(singleShiftId);
                     });
                 });
 
                 document.querySelectorAll('.edit-btn').forEach(btn => {
-                    btn.addEventListener('click', function() {
+                    btn.addEventListener('click', function () {
                         const shiftId = this.getAttribute('data-id');
                         openEditModal(shiftId);
                     });
@@ -1175,46 +1191,7 @@
                     .substring(0, 2);
             }
 
-            // Approve a single shift
-            async function approveSingleShift(pendingShiftId) {
-                try {
-                    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-                    const token = localStorage.getItem('token');
 
-                    if (!token) {
-                        throw new Error('You need to be logged in');
-                    }
-
-                    const response = await fetch(`${API_BASE_URL}/shift/approve-pending`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            pendingShiftId: pendingShiftId,
-                            managerId: userInfo.userId
-                        })
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || 'Failed to approve shift');
-                    }
-
-                    const result = await response.json();
-
-                    // Show success message
-                    showNotification('Shift approved successfully!', 'success');
-
-                    // Refresh the data
-                    fetchData();
-
-                } catch (error) {
-                    console.error('Error approving shift:', error);
-                    showNotification(`Error: ${error.message}`, 'error');
-                }
-            }
 
             // Open edit modal for a shift
             function openEditModal(shiftId) {
@@ -1254,7 +1231,7 @@
             }
 
             // Handle edit form submission
-            document.getElementById('editShiftForm').addEventListener('submit', async function(e) {
+            document.getElementById('editShiftForm').addEventListener('submit', async function (e) {
                 e.preventDefault();
 
                 const shiftId = document.getElementById('edit-shift-id').value;
@@ -1312,7 +1289,7 @@
             });
 
             // Handle approve all button click
-            approveAllButton.addEventListener('click', function() {
+            approveAllButton.addEventListener('click', function () {
                 if (allPendingShifts.length === 0) {
                     showNotification('No pending shifts to approve', 'error');
                     return;
@@ -1327,7 +1304,7 @@
             employeeFilter.addEventListener('change', renderPendingShifts);
 
             // When we click outside the modal, close it
-            window.onclick = function(event) {
+            window.onclick = function (event) {
                 if (event.target == editShiftModal) {
                     closeEditModal();
                 }
@@ -1365,7 +1342,7 @@
             document.getElementById('cancelConfirmBtn').addEventListener('click', closeConfirmDialog);
 
             // Add event listener for sidebar toggle
-            document.getElementById('sidebarToggle').addEventListener('click', function() {
+            document.getElementById('sidebarToggle').addEventListener('click', function () {
                 const sidebar = document.getElementById('sidebar');
                 sidebar.classList.toggle('collapsed');
 
@@ -1397,6 +1374,55 @@
             fetchData();
             initSidebar();
         });
+        function closeSigleConfirmDialog() {
+            document.getElementById('singleConfirmDialog').style.display = 'none';
+        }
+        function approveShiftDialog(shiftId) {
+            document.getElementById('singleConfirmDialog').style.display = 'block';
+        }
+        // Approve a single shift
+        async function approveSingleShift() {
+            let pendingShiftId = singleShiftId
+            try {
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                const token = localStorage.getItem('token');
+
+                if (!token) {
+                    throw new Error('You need to be logged in');
+                }
+
+                const response = await fetch(`${API_BASE_URL}/shift/approve-pending`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        pendingShiftId: pendingShiftId,
+                        managerId: userInfo.userId
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to approve shift');
+                }
+
+                const result = await response.json();
+
+                // Show success message
+                showNotification('Shift approved successfully!', 'success');
+
+                //close dialog
+                closeSigleConfirmDialog();
+                // Refresh the data
+                fetchData();
+
+            } catch (error) {
+                console.error('Error approving shift:', error);
+                showNotification(`Error: ${error.message}`, 'error');
+            }
+        }
     </script>
 </body>
 </html>

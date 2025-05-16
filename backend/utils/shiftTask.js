@@ -12,7 +12,7 @@ const job = new schedule.Job('monthlyShift', async function() {
         today.getMonth()+1 !== lastMondayDate.getMonth()+1 ||
         today.getDate() !== lastMondayDate.getDate()) {
         console.log(`Today ${today.toISOString()} is not the last Monday of the month ${lastMondayDate.toISOString()}`);
-        return;
+        // return;
     }
 
     let connection;
@@ -62,6 +62,10 @@ async function generateShift(connection, clinicId) {
         "SELECT userId, department FROM user WHERE clinicId = ? AND department IN ('Doctor', 'Nurse', 'Receptionist')",
         [clinicId]
     );
+    if (!employees.length) {
+        console.log('No employees found for this clinic');
+        return;
+    }
     // 3. Categorize employees by role
     // Modified classification logic
     const categorizedEmployees = employees.reduce((acc, employee) => {

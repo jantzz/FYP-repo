@@ -2409,7 +2409,8 @@ body.admin-visible .admin-only {
 }
 
 .employee-filter,
-.department-filter {
+.department-filter,
+.clinic-filter {
     padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -2420,7 +2421,8 @@ body.admin-visible .admin-only {
 }
 
 .employee-filter:focus,
-.department-filter:focus {
+.department-filter:focus,
+.clinic-filter:focus {
     outline: none;
     border-color: #5e72e4;
     box-shadow: 0 0 0 2px rgba(94, 114, 228, 0.1);

@@ -20,6 +20,7 @@ function parseTime(time, pattern) {
     if (arguments.length === 0 || !time) {
         return null
     }
+    // {y}-{m}-{d} {h}:{i}:{s}
     const format = pattern || '{y}-{m}-{d}'
     let date
     if (typeof time === 'object') {

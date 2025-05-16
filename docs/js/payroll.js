@@ -604,9 +604,337 @@ function renderPayrollStats(statsData) {
 }
 
 // View payslip details
-function viewPayslip(payrollId) {
-    // Implement the payslip view logic here
-    alert(`View payslip for ID: ${payrollId} - This feature is coming soon!`);
+async function viewPayslip(payrollId) {
+    try {
+        // Show loading notification
+        showNotification('Fetching payslip...', 'info');
+        
+        // Get API base URL or use default if not set
+        const apiUrl = window.API_BASE_URL || 'http://localhost:8800/api';
+        console.log(`Fetching payslip for ID: ${payrollId} from ${apiUrl}/payroll/payslip/${payrollId}`);
+        
+        // Fetch payslip data from API
+        const token = getToken();
+        const response = await fetch(`${apiUrl}/payroll/payslip/${payrollId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('Payslip response status:', response.status);
+        const responseData = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(responseData.error || 'Failed to fetch payslip');
+        }
+        
+        const payslip = responseData;
+        console.log('Payslip data received:', payslip);
+        
+        // Create modal for payslip
+        const modal = document.createElement('div');
+        modal.id = 'payslipModal';
+        modal.className = 'modal';
+        
+        // Format date for display
+        const paymentDate = payslip.paymentDate ? new Date(payslip.paymentDate).toLocaleDateString() : 'Pending';
+        
+        // Build payslip HTML
+        let html = `
+            <div class="modal-content payslip-content">
+                <span class="close" onclick="document.getElementById('payslipModal').style.display='none'">&times;</span>
+                <div class="payslip-header">
+                    <h2>Payslip Details</h2>
+                    <div class="payslip-company">ShiftRoster Ltd</div>
+                    <div class="payslip-period">Pay Period: ${payslip.payPeriod}</div>
+                </div>
+                
+                <div class="payslip-employee-info">
+                    <div class="info-group">
+                        <div class="info-label">Employee</div>
+                        <div class="info-value">${payslip.employeeName}</div>
+                    </div>
+                    <div class="info-group">
+                        <div class="info-label">Department</div>
+                        <div class="info-value">${payslip.department}</div>
+                    </div>
+                    <div class="info-group">
+                        <div class="info-label">Email</div>
+                        <div class="info-value">${payslip.employeeEmail || 'N/A'}</div>
+                    </div>
+                    <div class="info-group">
+                        <div class="info-label">Payment Date</div>
+                        <div class="info-value">${paymentDate}</div>
+                    </div>
+                    <div class="info-group">
+                        <div class="info-label">Status</div>
+                        <div class="info-value">
+                            <span class="status-badge ${payslip.status.toLowerCase()}">${payslip.status}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="payslip-section">
+                    <h3>Salary Details</h3>
+                    <div class="payslip-table">
+                        <div class="payslip-row header">
+                            <div class="payslip-cell">Description</div>
+                            <div class="payslip-cell">Amount</div>
+                        </div>
+                        <div class="payslip-row">
+                            <div class="payslip-cell">Base Salary</div>
+                            <div class="payslip-cell">$${parseFloat(payslip.baseSalary).toFixed(2)}</div>
+                        </div>
+                        <div class="payslip-row">
+                            <div class="payslip-cell">Employee CPF Contribution</div>
+                            <div class="payslip-cell">-$${parseFloat(payslip.employeeCPF).toFixed(2)}</div>
+                        </div>`;
+        
+        // Add deductions if any
+        if (payslip.deductions && payslip.deductions.length > 0) {
+            payslip.deductions.forEach(deduction => {
+                html += `
+                    <div class="payslip-row">
+                        <div class="payslip-cell">Deduction: ${deduction.type}</div>
+                        <div class="payslip-cell">-$${parseFloat(deduction.amount).toFixed(2)}</div>
+                    </div>`;
+            });
+        }
+        
+        // Add total
+        html += `
+                        <div class="payslip-row total">
+                            <div class="payslip-cell">Net Salary</div>
+                            <div class="payslip-cell">$${parseFloat(payslip.netSalary).toFixed(2)}</div>
+                        </div>
+                    </div>
+                </div>`;
+        
+        html += `
+                <div class="payslip-footer">
+                    <div class="payslip-actions">
+                        <button class="btn-primary" onclick="printPayslip()">
+                            <i class="fas fa-print"></i> Print
+                        </button>
+                    </div>
+                    <div class="payslip-generated">
+                        Generated on: ${new Date().toLocaleString()}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        modal.innerHTML = html;
+        document.body.appendChild(modal);
+        
+        // Show the modal
+        modal.style.display = 'block';
+        
+        // Add CSS for the payslip modal if it doesn't exist
+        if (!document.getElementById('payslip-styles')) {
+            const styles = document.createElement('style');
+            styles.id = 'payslip-styles';
+            styles.textContent = `
+                .payslip-content {
+                    max-width: 800px;
+                    padding: 30px;
+                }
+                
+                .payslip-header {
+                    text-align: center;
+                    margin-bottom: 20px;
+                    border-bottom: 2px solid #f0f0f0;
+                    padding-bottom: 20px;
+                }
+                
+                .payslip-company {
+                    font-size: 1.2rem;
+                    font-weight: 600;
+                    color: #333;
+                    margin: 10px 0;
+                }
+                
+                .payslip-period {
+                    font-size: 1rem;
+                    color: #666;
+                }
+                
+                .payslip-employee-info {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                    gap: 15px;
+                    margin-bottom: 30px;
+                    background: #f9f9f9;
+                    padding: 15px;
+                    border-radius: 8px;
+                }
+                
+                .info-group {
+                    margin-bottom: 10px;
+                }
+                
+                .info-label {
+                    font-size: 0.9rem;
+                    color: #666;
+                    margin-bottom: 5px;
+                }
+                
+                .info-value {
+                    font-size: 1rem;
+                    font-weight: 500;
+                    color: #333;
+                }
+                
+                .payslip-section {
+                    margin-bottom: 30px;
+                }
+                
+                .payslip-section h3 {
+                    margin-bottom: 15px;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid #eee;
+                    color: #1976d2;
+                }
+                
+                .payslip-section h4 {
+                    margin: 20px 0 10px;
+                    color: #444;
+                }
+                
+                .payslip-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 15px;
+                }
+                
+                .payslip-row {
+                    display: flex;
+                    border-bottom: 1px solid #eee;
+                }
+                
+                .payslip-row.header {
+                    background-color: #f5f5f5;
+                    font-weight: 600;
+                }
+                
+                .payslip-row.total {
+                    font-weight: 600;
+                    background-color: #e8f5e9;
+                    border-top: 2px solid #c8e6c9;
+                    border-bottom: none;
+                }
+                
+                .payslip-cell {
+                    padding: 12px 15px;
+                    flex: 1;
+                }
+                
+                .payslip-cell:last-child {
+                    text-align: right;
+                }
+                
+                .payslip-footer {
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 2px solid #f0f0f0;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                
+                .payslip-actions {
+                    display: flex;
+                    gap: 10px;
+                }
+                
+                .payslip-generated {
+                    font-size: 0.9rem;
+                    color: #666;
+                    font-style: italic;
+                }
+                
+                .status-badge {
+                    display: inline-block;
+                    padding: 5px 10px;
+                    border-radius: 20px;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                }
+                
+                .status-badge.pending {
+                    background-color: #fff8e1;
+                    color: #ff8f00;
+                }
+                
+                .status-badge.paid {
+                    background-color: #e8f5e9;
+                    color: #2e7d32;
+                }
+                
+                .status-badge.processing {
+                    background-color: #e3f2fd;
+                    color: #1976d2;
+                }
+                
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    #payslipModal, #payslipModal * {
+                        visibility: visible;
+                    }
+                    #payslipModal {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        height: 100%;
+                        padding: 0;
+                        margin: 0;
+                    }
+                    .payslip-content {
+                        width: 100%;
+                        box-shadow: none;
+                        max-width: 100%;
+                    }
+                    .payslip-actions {
+                        display: none;
+                    }
+                }
+            `;
+            document.head.appendChild(styles);
+        }
+        
+        // Add close event for the modal
+        const closeButton = modal.querySelector('.close');
+        closeButton.addEventListener('click', function() {
+            modal.style.display = 'none';
+            setTimeout(() => {
+                document.body.removeChild(modal);
+            }, 300);
+        });
+        
+        // Close when clicking outside the modal
+        window.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+                setTimeout(() => {
+                    document.body.removeChild(modal);
+                }, 300);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error fetching payslip:', error);
+        showNotification(error.message || 'Failed to fetch payslip details', 'error');
+    }
+}
+
+// Function to print payslip
+function printPayslip() {
+    window.print();
 }
 
 // Show notification message
