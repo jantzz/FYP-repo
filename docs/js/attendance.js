@@ -336,9 +336,12 @@ async function checkClockStatus() {
 // Get user's shift for today
 async function getTodayShift(employeeId) {
     try {
-        // Get today's date in YYYY-MM-DD format
-        const today = new Date().toISOString().split('T')[0];
-        console.log('Looking for shift on date:', today);
+        // Get today's date in local timezone YYYY-MM-DD format
+        const today = new Date();
+        const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const todayStr = localToday.toISOString().split('T')[0];
+        
+        console.log('Looking for shift on date (local timezone):', todayStr);
         
         // Get all shifts for the employee
         const response = await fetch(`${API_BASE_URL}/shift/${employeeId}`, {
@@ -350,22 +353,95 @@ async function getTodayShift(employeeId) {
             console.log('Shifts loaded for employee:', shifts.length);
             
             // Find a shift that matches today's date
-            // This handles timezone properly by just comparing the date portions
+            // This handles timezone properly by using local date comparison
             const todayShift = shifts.find(shift => {
-                // Extract just the date part from each shift date 
-                const shiftStartDateStr = shift.startDate.split('T')[0];
-                const shiftEndDateStr = shift.endDate.split('T')[0];
+                // Check shiftDate first if it exists
+                if (shift.shiftDate) {
+                    // Parse in local timezone to avoid UTC conversion issues
+                    try {
+                        // Get just the date part, ignoring time
+                        const shiftDateParts = shift.shiftDate.split('T')[0].split('-');
+                        if (shiftDateParts.length === 3) {
+                            const shiftDateLocal = new Date(
+                                parseInt(shiftDateParts[0]), 
+                                parseInt(shiftDateParts[1]) - 1, // JS months are 0-indexed
+                                parseInt(shiftDateParts[2])
+                            );
+                            const shiftDateStr = shiftDateLocal.toISOString().split('T')[0];
+                            
+                            console.log('Comparing shift by shiftDate:', {
+                                shiftId: shift.shiftId,
+                                shiftDate: shiftDateStr,
+                                today: todayStr,
+                                matches: (shiftDateStr === todayStr)
+                            });
+                            
+                            if (shiftDateStr === todayStr) {
+                                return true;
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Error parsing shiftDate:', err);
+                    }
+                }
                 
-                console.log('Comparing shift:', {
-                    shiftId: shift.shiftId,
-                    shiftStart: shiftStartDateStr,
-                    shiftEnd: shiftEndDateStr,
-                    today: today,
-                    matches: (shiftStartDateStr === today || shiftEndDateStr === today)
-                });
+                // Extract just the date part from startDate and endDate
+                // If startDate/endDate are just times (HH:MM:SS), assume they're for today
+                if (shift.startDate && shift.startDate.includes(':') && !shift.startDate.includes('-') && !shift.startDate.includes('T')) {
+                    // This is just a time like "09:00:00", so assume it's for today
+                    console.log('Found time-only format for startDate, assuming today:', shift.shiftId);
+                    return true;
+                }
                 
-                // Return true if either the start or end date matches today
-                return shiftStartDateStr === today || shiftEndDateStr === today;
+                // Try to parse full dates if available
+                try {
+                    let shiftStartDateStr = null;
+                    let shiftEndDateStr = null;
+                    
+                    if (shift.startDate) {
+                        if (shift.startDate.includes('T') || shift.startDate.includes('-')) {
+                            // Get just the date part
+                            const startDateParts = shift.startDate.split('T')[0].split('-');
+                            if (startDateParts.length === 3) {
+                                const startDateLocal = new Date(
+                                    parseInt(startDateParts[0]), 
+                                    parseInt(startDateParts[1]) - 1, // JS months are 0-indexed
+                                    parseInt(startDateParts[2])
+                                );
+                                shiftStartDateStr = startDateLocal.toISOString().split('T')[0];
+                            }
+                        }
+                    }
+                    
+                    if (shift.endDate) {
+                        if (shift.endDate.includes('T') || shift.endDate.includes('-')) {
+                            // Get just the date part
+                            const endDateParts = shift.endDate.split('T')[0].split('-');
+                            if (endDateParts.length === 3) {
+                                const endDateLocal = new Date(
+                                    parseInt(endDateParts[0]), 
+                                    parseInt(endDateParts[1]) - 1, // JS months are 0-indexed
+                                    parseInt(endDateParts[2])
+                                );
+                                shiftEndDateStr = endDateLocal.toISOString().split('T')[0];
+                            }
+                        }
+                    }
+                    
+                    console.log('Comparing shift by startDate/endDate:', {
+                        shiftId: shift.shiftId,
+                        shiftStart: shiftStartDateStr,
+                        shiftEnd: shiftEndDateStr,
+                        today: todayStr,
+                        matches: (shiftStartDateStr === todayStr || shiftEndDateStr === todayStr)
+                    });
+                    
+                    // Return true if either the start or end date matches today
+                    return shiftStartDateStr === todayStr || shiftEndDateStr === todayStr;
+                } catch (err) {
+                    console.error('Error parsing dates:', err);
+                    return false;
+                }
             });
             
             console.log('Today\'s shift found:', todayShift);
@@ -407,27 +483,81 @@ async function loadTodayShifts() {
         console.log('Loading today\'s shifts for user:', currentUser.userId);
         const todayShift = await getTodayShift(currentUser.userId);
         
+        // Get today's date for display - always use local date
+        const today = new Date();
+        const shiftDateDisplay = today.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        });
+        
         if (todayShift) {
             console.log('Today\'s shift found, rendering:', todayShift);
             
             // Format the shift times
-            const startDate = new Date(todayShift.startDate);
-            const endDate = new Date(todayShift.endDate);
+            let startTime, endTime;
             
-            // Format time only (hours and minutes)
-            const startTime = startDate.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true
-            });
+            // Check if startDate and endDate are time strings (HH:MM:SS) or datetime objects
+            if (todayShift.startDate && todayShift.startDate.includes(':') && todayShift.startDate.length <= 8) {
+                // Handle time string format (HH:MM:SS)
+                const startParts = todayShift.startDate.split(':');
+                const endParts = todayShift.endDate.split(':');
+                
+                if (startParts.length >= 2) {
+                    const hour = parseInt(startParts[0], 10);
+                    const minute = parseInt(startParts[1], 10);
+                    const period = hour >= 12 ? 'PM' : 'AM';
+                    const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+                    startTime = `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
+                } else {
+                    startTime = 'N/A';
+                }
+                
+                if (endParts.length >= 2) {
+                    const hour = parseInt(endParts[0], 10);
+                    const minute = parseInt(endParts[1], 10);
+                    const period = hour >= 12 ? 'PM' : 'AM';
+                    const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+                    endTime = `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
+                } else {
+                    endTime = 'N/A';
+                }
+            } else {
+                // Try to parse as full datetime
+                try {
+                    const startDate = new Date(todayShift.startDate);
+                    const endDate = new Date(todayShift.endDate);
+                    
+                    if (!isNaN(startDate.getTime())) {
+                        startTime = startDate.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: true
+                        });
+                    } else {
+                        startTime = 'N/A';
+                    }
+                    
+                    if (!isNaN(endDate.getTime())) {
+                        endTime = endDate.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: true
+                        });
+                    } else {
+                        endTime = 'N/A';
+                    }
+                } catch (e) {
+                    console.error('Error parsing shift dates:', e);
+                    startTime = 'N/A';
+                    endTime = 'N/A';
+                }
+            }
             
-            const endTime = endDate.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true
-            });
+            console.log('Formatted shift times:', startTime, endTime);
             
-            // Create the HTML for the shift
+            // Create the HTML for the shift with a cleaner layout
             todayShiftsContainer.innerHTML = `
                 <div class="shift-card ${todayShift.status.toLowerCase()}">
                     <div class="shift-header">
@@ -435,23 +565,27 @@ async function loadTodayShifts() {
                         <span class="shift-status">${todayShift.status}</span>
                     </div>
                     <div class="shift-details">
-                        <div class="shift-time">
-                            <i class="fas fa-clock"></i>
-                            <span>${startTime} - ${endTime}</span>
+                        <div class="shift-datetime">
+                            <i class="fas fa-calendar-alt"></i>
+                            <div class="datetime-info">
+                                <div class="shift-date">${shiftDateDisplay}</div>
+                                <div class="shift-time">${startTime} - ${endTime}</div>
+                            </div>
                         </div>
-                        <div class="shift-id">
-                            <i class="fas fa-id-badge"></i>
-                            <span>Shift ID: ${todayShift.shiftId}</span>
+                        <div class="shift-meta">
+                            <span class="shift-id">ID: ${todayShift.shiftId}</span>
                         </div>
                     </div>
                 </div>
             `;
         } else {
             console.log('No shift found for today');
+            
             todayShiftsContainer.innerHTML = `
                 <div class="no-shifts-message">
                     <i class="fas fa-calendar-times"></i>
-                    <p>No shifts scheduled for today.</p>
+                    <p>No shifts scheduled for</p>
+                    <p class="no-shift-date">${shiftDateDisplay}</p>
                 </div>
             `;
         }
