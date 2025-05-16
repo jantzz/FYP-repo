@@ -793,11 +793,152 @@ const recalculateMonthlyPayroll = async (req, res) => {
     }
 };
 
+// Get detailed payslip information by ID
+const getPayslipById = async (req, res) => {
+    const { payrollId } = req.params;
+    
+    if (!payrollId) {
+        return res.status(400).json({ error: "Payroll ID is required." });
+    }
+    
+    let connection;
+    try {
+        connection = await db.getConnection();
+        
+        // Get payroll details
+        const [payrolls] = await connection.execute(
+            `SELECT p.*, 
+              u.name as employeeName, 
+              u.department as departmentName,
+              u.email as employeeEmail 
+            FROM payroll p 
+            JOIN user u ON p.employeeId = u.userId 
+            WHERE p.payrollId = ?`,
+            [payrollId]
+        );
+        
+        if (payrolls.length === 0) {
+            return res.status(404).json({ error: "Payslip not found." });
+        }
+        
+        const payroll = payrolls[0];
+        console.log("Found payroll record:", JSON.stringify(payroll));
+        
+        // Get deductions for this payroll - safely handle if table doesn't exist
+        let deductions = [];
+        try {
+            const [deductionRows] = await connection.execute(
+                "SELECT * FROM payroll_deduction WHERE payrollId = ?",
+                [payrollId]
+            );
+            deductions = deductionRows;
+        } catch (deductionError) {
+            console.error("Error fetching deductions (table may not exist):", deductionError);
+            // Continue without deductions
+        }
+        
+        // Get attendance details for this payroll period - safely handle errors
+        let attendance = [];
+        try {
+            const [attendanceRows] = await connection.execute(
+                `SELECT 
+                  DATE_FORMAT(a.date, '%Y-%m-%d') as date,
+                  TIME_FORMAT(a.clockIn, '%H:%i') as clockIn,
+                  TIME_FORMAT(a.clockOut, '%H:%i') as clockOut,
+                  a.status,
+                  TIMESTAMPDIFF(MINUTE, a.clockIn, a.clockOut) / 60 as hoursWorked
+                FROM attendance a
+                WHERE a.employeeId = ? 
+                AND MONTH(a.date) = ? 
+                AND YEAR(a.date) = ?
+                ORDER BY a.date ASC`,
+                [payroll.employeeId, payroll.month, payroll.year]
+            );
+            attendance = attendanceRows;
+        } catch (attendanceError) {
+            console.error("Error fetching attendance records:", attendanceError);
+            // Continue without attendance records
+        }
+        
+        // Get time off details for this payroll period - safely handle errors
+        let timeOff = [];
+        try {
+            const [timeOffRows] = await connection.execute(
+                `SELECT 
+                  t.timeOffId,
+                  t.type,
+                  DATE_FORMAT(t.startDate, '%Y-%m-%d') as startDate,
+                  DATE_FORMAT(t.endDate, '%Y-%m-%d') as endDate,
+                  t.status,
+                  t.notes,
+                  DATEDIFF(t.endDate, t.startDate) + 1 as days
+                FROM timeoff t
+                WHERE t.employeeId = ? 
+                AND MONTH(t.startDate) = ? 
+                AND YEAR(t.startDate) = ?
+                AND t.status = 'Approved'
+                ORDER BY t.startDate ASC`,
+                [payroll.employeeId, payroll.month, payroll.year]
+            );
+            timeOff = timeOffRows;
+        } catch (timeOffError) {
+            console.error("Error fetching time off records:", timeOffError);
+            // Continue without time off records
+        }
+        
+        // Calculate summary statistics with fallbacks for missing data
+        const totalHoursWorked = attendance.length > 0 
+            ? attendance.reduce((sum, record) => sum + (parseFloat(record.hoursWorked) || 0), 0).toFixed(2)
+            : "0.00";
+            
+        const attendanceSummary = {
+            totalDays: attendance.length,
+            totalHoursWorked,
+            onTime: attendance.filter(a => a.status === 'On Time').length,
+            late: attendance.filter(a => a.status === 'Late').length,
+            absent: attendance.filter(a => a.status === 'Absent').length
+        };
+        
+        // Format the payroll object for response
+        const payslip = {
+            payrollId: payroll.payrollId,
+            employeeId: payroll.employeeId,
+            employeeName: payroll.employeeName || "Unknown Employee",
+            employeeEmail: payroll.employeeEmail || "",
+            department: payroll.departmentName || "Unknown Department",
+            payPeriod: `${payroll.month}/${payroll.year}`,
+            paymentDate: payroll.paymentDate || null,
+            baseSalary: parseFloat(payroll.baseSalary) || 0,
+            employeeCPF: parseFloat(payroll.employeeCPF) || 0,
+            employerCPF: parseFloat(payroll.employerCPF) || 0,
+            totalDeductions: deductions.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0),
+            netSalary: parseFloat(payroll.netSalary) || 0,
+            status: payroll.status || "Pending",
+            deductions,
+            attendance,
+            attendanceSummary,
+            timeOff,
+            generatedAt: new Date()
+        };
+        
+        console.log("Returning payslip data:", JSON.stringify(payslip));
+        return res.status(200).json(payslip);
+    } catch (error) {
+        console.error("Error fetching payslip details:", error);
+        return res.status(500).json({ error: "Failed to fetch payslip details." });
+    } finally {
+        if (connection) {
+            connection.release();
+        }
+    }
+};
+
 module.exports = {
     calculateMonthlyPayroll,
     recalculateMonthlyPayroll,
     getEmployeePayroll,
     getAllPayroll,
     updatePayrollStatus,
-    getPayrollStats
+    getPayrollStats,
+    getPayslipById
 }; 

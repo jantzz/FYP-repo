@@ -20,4 +20,7 @@ router.put('/status/:payrollId', payrollController.updatePayrollStatus);
 //get payroll statistics
 router.get('/stats', payrollController.getPayrollStats);
 
+//get detailed payslip by ID
+router.get('/payslip/:payrollId', payrollController.getPayslipById);
+
 module.exports = router; 

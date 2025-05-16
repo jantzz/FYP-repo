@@ -48,6 +48,6 @@ router.post('/log-attendance', logAttendance);
 //add a pending shift
 router.post('/add-pending', addPendingShift);
 
-// 推荐员工
+// Recommend employee
 router.post('/recommend-employee', recommendEmployee);
 module.exports = router;

@@ -17,6 +17,9 @@
     <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid/index.global.min.js'></script>
     <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PDF and CSV Export Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- Custom JavaScript -->
     <script src="js/dashboard.js" defer></script>
     <script src="js/reports.js" defer></script>
@@ -37,25 +40,25 @@
             overflow-x: hidden;
             position: relative;
         }
-        
+
         /* Styles for collapsed sidebar */
         .sidebar.collapsed {
             width: 60px;
         }
-        
+
         .sidebar.collapsed .nav-item {
             text-align: center;
             padding: 15px 0;
         }
-        
+
         .sidebar.collapsed .nav-item i {
             margin-right: 0;
         }
-        
+
         .sidebar.collapsed .nav-item span {
             display: none;
         }
-        
+
         /* Toggle button styles */
         .sidebar-toggle {
             position: absolute;
@@ -74,20 +77,20 @@
             z-index: 5;
             transition: all 0.3s ease;
         }
-        
+
         .sidebar-toggle:hover {
             background: #e9ecef;
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
-        
+
         /* Adjust main content when sidebar is collapsed */
         .sidebar.collapsed + .main-content {
             margin-left: 60px;
         }
     </style>
 </head>
-<body>      
+<body>
     <!-- Header -->
     <div class="header">
         <div class="logo">ShiftRoster</div>
@@ -139,10 +142,6 @@
                 <i class="fas fa-calendar-check"></i>
                 <span>Availability</span>
             </div>
-            <div class="nav-item manager-only" id="generate-shifts-nav">
-                <i class="fas fa-magic"></i>
-                <span>Generate Shifts</span>
-            </div>
             <div class="nav-item manager-only" id="approve-shifts-nav" onclick="window.location.href='approve-pending-shifts.html'">
                 <i class="fas fa-check"></i>
                 <span>Approve Shifts</span>
@@ -167,7 +166,7 @@
                 <i class="fas fa-money-bill-wave"></i>
                 <span>Payroll</span>
             </div>
-            
+
             <!-- Add sidebar toggle button -->
             <button class="sidebar-toggle" id="sidebarToggle">
                 <i class="fas fa-chevron-left"></i>
@@ -179,14 +178,15 @@
             <div class="content-header">
                 <h1>Master Roster</h1>
             </div>
-            
+
             <!-- Upcoming Shifts Section -->
             <div class="upcoming-shifts-section">
                 <h2>Upcoming Shifts</h2>
                 <div class="shifts-container">
                     <!-- Shifts will be added dynamically here -->
+
                 </div>
-                
+
                 <!-- Show More Button -->
                 <div class="show-more-container">
                     <button id="showMoreShifts" class="show-more-btn">
@@ -195,7 +195,7 @@
                     </button>
                 </div>
             </div>
-            
+
             <!-- Calendar Section -->
             <div class="calendar-section">
                 <div class="section-header">
@@ -210,55 +210,13 @@
                             <option value="all">All Departments</option>
                             <!-- Will be populated dynamically -->
                         </select>
+                        <select id="clinic-filter" class="clinic-filter">
+                            <option value="all">All Clinics</option>
+                            <!-- Will be populated dynamically -->
+                        </select>
                     </div>
                 </div>
                 <div id="calendar"></div>
-            </div>
-
-            <!-- Generate Shifts Section -->
-            <div class="generate-shifts-section" style="display: none;">
-                <div class="section-header">
-                    <h2>Generate Shifts</h2>
-                </div>
-                <div class="section-content">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Create Automatic Shift Schedule</h3>
-                            <p>Generate shifts based on employee availability and workload distribution across clinics..</p>
-                        </div>
-                        <div class="card-body">
-                            <form id="generateShiftsForm">
-                                <div class="form-group">
-                                    <label for="startDate">Start Date:</label>
-                                    <input type="date" id="startDate" name="startDate" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="endDate">End Date:</label>
-                                    <input type="date" id="endDate" name="endDate" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="clinicSelector">Clinic:</label>
-                                    <select id="clinicSelector" name="clinicSelector">
-                                        <option value="all">All Clinics</option>
-                                        <!-- Will be populated dynamically -->
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="departmentSelector">Department:</label>
-                                    <select id="departmentSelector" name="departmentSelector">
-                                        <option value="all">All Departments</option>
-                                        <!-- Will be populated dynamically -->
-                                    </select>
-                                </div>
-                                <div class="form-actions">
-                                    <button type="submit" class="btn-primary">
-                                        <i class="fas fa-magic"></i> Generate Shifts
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <div class="employee-section" style="display: none;">
@@ -277,6 +235,7 @@
                                 <th>Role</th>
                                 <th>Department</th>
                                 <th>Clinic</th>
+                                <th>Postal Code</th>
                                 <th>Salary</th>
                                 <th>Actions</th>
                             </tr>
@@ -296,7 +255,7 @@
                         <i class="fas fa-plus"></i> Request Time Off
                     </button>
                 </div>
-                
+
                 <div class="time-off-policies">
                     <h3>Time Off Policies</h3>
                     <div class="policy-cards">
@@ -318,7 +277,7 @@
                         <!-- More policy cards can be added here -->
                     </div>
                 </div>
-                
+
                 <div class="request-history">
                     <h3>Request History</h3>
                     <table class="time-off-table">
@@ -352,7 +311,7 @@
                         </select>
                     </div>
                 </div>
-                
+
                 <div class="pending-requests">
                     <table class="time-off-table">
                         <thead>
@@ -382,7 +341,7 @@
                         <i class="fas fa-plus"></i> Set Availability
                     </button>
                 </div>
-                
+
                 <div class="availability-list">
                     <table id="availabilityTable">
                         <thead>
@@ -441,18 +400,18 @@
                 <div class="section-header">
                     <h2>Schedule</h2>
                 </div>
-                
+
                 <div class="schedule-tabs">
                     <div class="tab active" data-tab="my-roster">My Roster</div>
                     <div class="tab" data-tab="replacement">Replacement</div>
                 </div>
-                
+
                 <div class="tab-content">
                     <!-- Roster Tab -->
                     <div class="tab-pane active" id="my-roster-tab">
                         <div id="employee-calendar"></div>
                     </div>
-                    
+
                     <!-- Replacement Tab -->
                     <div class="tab-pane" id="replacement-tab">
                         <div class="replacement-header">
@@ -461,7 +420,7 @@
                                 <i class="fas fa-exchange-alt"></i> Request Shift Swap
                             </button>
                         </div>
-                        
+
                         <div class="swap-requests-section">
                             <div class="filter-options">
                                 <select id="swap-status-filter">
@@ -548,54 +507,6 @@
                 </div>
             </div>
 
-            <div class="report-section" style="display: none;">
-                <div class="section-header">
-                    <h2>Analytics Dashboard</h2>
-                    <div class="export-buttons">
-                        <button class="btn-export" id="export-pdf">
-                            <i class="fas fa-file-pdf"></i> Export PDF
-                        </button>
-                        <button class="btn-export" id="export-csv">
-                            <i class="fas fa-file-csv"></i> Export CSV
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="report-grid">
-                    <div class="report-card performance-metrics">
-                        <h3>Performance Metrics</h3>
-                        <p>Track key performance indicators such as attendance consistency and task completion rates.</p>
-                        <div class="chart-container">
-                            <canvas id="performanceChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <div class="report-card feedback-integration">
-                        <h3>Feedback Integration</h3>
-                        <p>View aggregated feedback from peers and supervisors to understand employee performance qualitatively.</p>
-                        <div class="chart-container">
-                            <canvas id="feedbackChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <div class="report-card managerial-insights">
-                        <h3>Managerial Insights</h3>
-                        <p>Analyze trends to identify top performance and areas needing more training.</p>
-                        <div class="chart-container">
-                            <canvas id="trendsChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <div class="report-card goal-setting">
-                        <h3>Goal Setting and Progress Tracking</h3>
-                        <p>Set personal or team goals and track progress with visual indicators like progress bars.</p>
-                        <div class="chart-container">
-                            <canvas id="goalsChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Attendance Rate Section -->
             <div class="attendance-section" style="display: none;">
                 <div class="section-header">
@@ -609,7 +520,7 @@
                         </select>
                     </div>
                 </div>
-                
+
                 <!-- Clock In/Out Card -->
                 <div class="attendance-card attendance-actions">
                     <h3>Clock In/Out</h3>
@@ -637,40 +548,77 @@
                         <div class="loading-indicator">Loading your shifts...</div>
                     </div>
                 </div>
-                
+
+                <!-- Attendance Rate Overview -->
                 <div class="attendance-overview">
-                    <div class="attendance-card">
-                        <div class="attendance-rate">
-                            <div class="rate-circle">
-                                <svg viewBox="0 0 36 36" class="circular-chart">
-                                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                                    <path class="circle" stroke-dasharray="85, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                                    <text x="18" y="20.35" class="percentage">85%</text>
-                                </svg>
+                    <div class="attendance-chart">
+                        <svg viewBox="0 0 36 36" class="circular-chart">
+                            <path class="circle-bg" d="M18 2.0845
+                                a 15.9155 15.9155 0 0 1 0 31.831
+                                a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            <path class="circle" stroke-dasharray="75, 100" d="M18 2.0845
+                                a 15.9155 15.9155 0 0 1 0 31.831
+                                a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            <text x="18" y="20.35" class="percentage">75%</text>
+                        </svg>
+                        <p class="chart-label">Attendance Rate</p>
+                    </div>
+
+                    <div class="attendance-details">
+                        <div class="detail-item">
+                            <i class="fas fa-check-circle"></i>
+                            <div class="detail-info">
+                                <span class="label">On Time</span>
+                                <span class="value">0</span>
                             </div>
-                            <div class="rate-label">Overall Attendance Rate</div>
                         </div>
-                        <div class="attendance-details">
-                            <div class="detail-item">
-                                <span class="label">On-time Days:</span>
-                                <span class="value">17</span>
+                        <div class="detail-item">
+                            <i class="fas fa-clock"></i>
+                            <div class="detail-info">
+                                <span class="label">Late</span>
+                                <span class="value">0</span>
                             </div>
-                            <div class="detail-item">
-                                <span class="label">Late Arrivals:</span>
-                                <span class="value">2</span>
+                        </div>
+                        <div class="detail-item">
+                            <i class="fas fa-times-circle"></i>
+                            <div class="detail-info">
+                                <span class="label">Absent</span>
+                                <span class="value">0</span>
                             </div>
-                            <div class="detail-item">
-                                <span class="label">Absences:</span>
-                                <span class="value">1</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="label">Approved Leave:</span>
+                        </div>
+                        <div class="detail-item">
+                            <i class="fas fa-calendar-minus"></i>
+                            <div class="detail-info">
+                                <span class="label">Leave</span>
                                 <span class="value">0</span>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Work Hours Summary -->
+                    <div class="work-hours-summary">
+                        <div class="hours-header">
+                            <i class="fas fa-hourglass-half"></i>
+                            <h4>Monthly Work Hours</h4>
+                        </div>
+                        <div class="hours-content">
+                            <div class="hours-meter">
+                                <div class="meter-bar-container">
+                                    <div class="meter-bar" id="hours-meter-bar" style="width: 0%;"></div>
+                                </div>
+                                <div class="meter-labels">
+                                    <span>0</span>
+                                    <span id="hours-threshold">176 hrs</span>
+                                </div>
+                            </div>
+                            <div class="hours-details">
+                                <span id="total-work-hours">0 hrs</span>
+                                <span id="hours-status" class="hours-normal">Normal</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                
+
                 <!-- Attendance History Table -->
                 <div class="attendance-records">
                     <h3>Recent Attendance Records</h3>
@@ -694,24 +642,6 @@
                         </table>
                     </div>
                 </div>
-                
-                <div class="attendance-history">
-                    <h3>Attendance History</h3>
-                    <div class="chart-container attendance-chart-container">
-                        <canvas id="attendanceHistoryChart"></canvas>
-                    </div>
-                </div>
-                
-                <div class="attendance-trends">
-                    <div class="trend-cards">
-                        <div class="trend-card">
-                            <h4>Punctuality Trend</h4>
-                            <div class="chart-container trend-chart-container">
-                                <canvas id="punctualityChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- Payroll Section -->
@@ -719,7 +649,7 @@
                 <div class="section-header">
                     <h2>Payroll Management</h2>
                 </div>
-                
+
                 <!-- Employee Payroll View -->
                 <div id="employee-payroll-view" style="display: none;">
                     <h3>My Payroll Records</h3>
@@ -744,7 +674,7 @@
                         </table>
                     </div>
                 </div>
-                
+
                 <!-- Admin/Manager Payroll View -->
                 <div id="admin-payroll-view" style="display: none;">
                     <!-- Payroll Filters -->
@@ -764,18 +694,18 @@
                             <option value="11">November</option>
                             <option value="12">December</option>
                         </select>
-                        
+
                         <select id="payroll-year-filter">
                             <option value="all">All Years</option>
                             <!-- Will be populated dynamically -->
                         </select>
-                        
+
                         <select id="payroll-department-filter">
                             <option value="all">All Departments</option>
                             <!-- Will be populated dynamically -->
                         </select>
                     </div>
-                    
+
                     <!-- Calculate Payroll Card -->
                     <div class="calculate-payroll-card">
                         <h3>Calculate Monthly Payroll</h3>
@@ -784,7 +714,7 @@
                                 <option value="">Select Employee</option>
                                 <!-- Will be populated dynamically -->
                             </select>
-                            
+
                             <select id="calc-month" required>
                                 <option value="">Select Month</option>
                                 <option value="1">January</option>
@@ -800,14 +730,14 @@
                                 <option value="11">November</option>
                                 <option value="12">December</option>
                             </select>
-                            
+
                             <select id="calc-year" required>
                                 <option value="">Select Year</option>
                                 <option value="2023">2023</option>
                                 <option value="2024">2024</option>
                                 <option value="2025">2025</option>
                             </select>
-                            
+
                             <button type="submit" id="calculate-btn">
                                 <i class="fas fa-calculator"></i> Calculate
                             </button>
@@ -816,7 +746,7 @@
                             <p><i class="fas fa-info-circle"></i> Note: Each employee must have a base salary set in their profile before calculating payroll.</p>
                         </div>
                     </div>
-                    
+
                     <!-- Payroll Statistics -->
                     <div class="payroll-stats">
                         <h3>Payroll Statistics</h3>
@@ -850,7 +780,38 @@
                     </div>
                 </div>
             </div>
-            
+
+            <!-- Reports Section -->
+            <div class="report-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Analytics Dashboard</h2>
+                    <div class="export-buttons">
+                        <button class="btn-export" id="export-pdf">
+                            <i class="fas fa-file-pdf"></i> Export PDF
+                        </button>
+                        <button class="btn-export" id="export-csv">
+                            <i class="fas fa-file-csv"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Attendance History - Moved from attendance section -->
+                <div class="report-card attendance-history">
+                    <h3>Attendance History</h3>
+                    <div class="chart-container attendance-chart-container">
+                        <canvas id="attendanceHistoryChart" height="300"></canvas>
+                    </div>
+                </div>
+
+                <!-- Punctuality Trend - Moved from attendance section -->
+                <div class="report-card punctuality-trend">
+                    <h3>Punctuality Trend</h3>
+                    <div class="chart-container trend-chart-container">
+                        <canvas id="punctualityChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+
     <!-- Department Management Section -->
     <div class="department-management-section" style="display: none;">
         <div class="section-header">
@@ -859,7 +820,7 @@
                 <i class="fas fa-plus"></i> Add New Department
             </button>
         </div>
-        
+
         <div class="departments-container">
             <div class="table-container">
                 <table id="departments-table">
@@ -881,7 +842,7 @@
                     </div>
                 </div>
             </div>
-            
+
     <!-- Clinic Management Section -->
     <div class="clinic-management-section" style="display: none;">
         <div class="section-header">
@@ -890,7 +851,7 @@
                 <i class="fas fa-plus"></i> Add New Clinic
             </button>
         </div>
-        
+
         <div class="clinics-container">
             <div class="table-container">
                 <table id="clinics-table">
@@ -899,6 +860,7 @@
                             <th>ID</th>
                             <th>Clinic Name</th>
                             <th>Location</th>
+                            <th>Postal Code</th>
                             <th>Phone</th>
                             <th>Email</th>
                             <th>Description</th>
@@ -908,7 +870,7 @@
                     <tbody id="clinics-table-body">
                         <!-- Will be populated via JavaScript -->
                         <tr>
-                            <td colspan="7" class="loading-message">Loading clinics data...</td>
+                            <td colspan="8" class="loading-message">Loading clinics data...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -930,6 +892,10 @@
                 <div class="form-group">
                     <label for="clinic-location">Location*</label>
                     <input type="text" id="clinic-location" name="address" required>
+                </div>
+                <div class="form-group">
+                    <label for="clinic-postal-code">Postal Code*</label>
+                    <input type="text" id="clinic-postal-code" name="postalCode" required>
                 </div>
                 <div class="form-group">
                     <label for="clinic-phone">Phone*</label>
@@ -962,6 +928,10 @@
                 <div class="form-group">
                     <label for="edit-clinic-location">Location*</label>
                     <input type="text" id="edit-clinic-location" name="address" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-clinic-postal-code">Postal Code*</label>
+                    <input type="text" id="edit-clinic-postal-code" name="postalCode" required>
                 </div>
                 <div class="form-group">
                     <label for="edit-clinic-phone">Phone*</label>
@@ -1066,15 +1036,12 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="baseSalary">Base Salary</label>
-                    <input type="number" id="baseSalary" step="0.01" min="0">
+                    <label for="postalCode">Postal Code</label>
+                    <input type="text" id="postalCode" required>
                 </div>
                 <div class="form-group">
-                    <label for="clinic">Clinic</label>
-                    <select id="clinic">
-                        <option value="">Select Clinic</option>
-                        <!-- Will be populated dynamically -->
-                    </select>
+                    <label for="baseSalary">Base Salary</label>
+                    <input type="number" id="baseSalary" step="0.01" min="0">
                 </div>
                 <button type="submit" class="btn-primary">Create Employee</button>
             </form>
@@ -1316,7 +1283,7 @@
                         <!-- Populated by JavaScript -->
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="target-employee">Target Employee</label>
                     <select id="target-employee" required>
@@ -1324,7 +1291,7 @@
                         <!-- Populated by JavaScript -->
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="target-shift">Target Shift</label>
                     <select id="target-shift" required disabled>
@@ -1332,7 +1299,7 @@
                         <!-- Populated by JavaScript -->
                     </select>
                 </div>
-                
+
                 <button type="submit" class="btn-primary">Submit Request</button>
             </form>
         </div>
@@ -1345,7 +1312,7 @@
             document.getElementById('sidebarToggle').addEventListener('click', function() {
                 const sidebar = document.getElementById('sidebar');
                 sidebar.classList.toggle('collapsed');
-                
+
                 // Change the icon based on sidebar state
                 const icon = this.querySelector('i');
                 if (sidebar.classList.contains('collapsed')) {
@@ -1355,39 +1322,47 @@
                     icon.classList.remove('fa-chevron-right');
                     icon.classList.add('fa-chevron-left');
                 }
-                
+
                 // Save preference to localStorage
                 localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
             });
-            
+
             // Check if sidebar was collapsed previously
             if (localStorage.getItem('sidebarCollapsed') === 'true') {
                 const sidebar = document.getElementById('sidebar');
                 const toggleIcon = document.querySelector('#sidebarToggle i');
-                
+
                 sidebar.classList.add('collapsed');
                 toggleIcon.classList.remove('fa-chevron-left');
                 toggleIcon.classList.add('fa-chevron-right');
             }
-            
+
             // Set up event listeners for sidebar navigation
             document.querySelector('.nav-item:has(i.fa-clock)').addEventListener('click', showTimeOffSection);
             // Add event listener for Approve Time Off section
             document.getElementById('approve-timeoff-nav').addEventListener('click', showApproveTimeOffSection);
-            
+            // Add event listener for Availability section
+            document.querySelector('.nav-item:has(i.fa-calendar-check)').addEventListener('click', showAvailabilitySection);
+
             // Add event listener for show more button
             const showMoreBtn = document.getElementById('showMoreShifts');
             if (showMoreBtn) {
                 showMoreBtn.addEventListener('click', function() {
                     const shiftsContainer = document.querySelector('.shifts-container');
                     const buttonText = this.querySelector('.show-more-text');
-                    
+
                     shiftsContainer.classList.toggle('expanded');
                     this.classList.toggle('expanded');
-                    
+
                     if (shiftsContainer.classList.contains('expanded')) {
+                        document.querySelectorAll('.shift-card').forEach(card => {
+                            card.style.display = 'block';
+                        });
                         buttonText.textContent = 'Show Less';
                     } else {
+                        document.querySelectorAll('.shift-card').forEach(card => {
+                            card.style.display = 'none';
+                        });
                         buttonText.textContent = 'Show More';
                     }
                 });
@@ -1395,4 +1370,4 @@
         });
     </script>
 </body>
-</html> 
+</html>

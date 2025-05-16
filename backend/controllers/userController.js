@@ -85,20 +85,46 @@ const getUser = async (req, res) => {
 }
 
 const createUser = async (req, res) => {
-    const { name, email, password, role, birthday, gender, clinic, baseSalary } = req.body; //added baseSalary field
+    const { name, email, password, role, birthday, gender, baseSalary, postalCode } = req.body; 
 
     //for dep and assignedTasks check if there are values, if not set null 
     const department = req.body.department ? req.body.department: null; 
     const assignedTask = req.body.assignedTask ? req.body.assignedTask: null;
 
-    if(!name || ! email || !password || !role || !birthday || !clinic ) return res.status(400).json({error: "certain fields cannot be left empty"});
+    if(!name || !email || !password || !role || !birthday || !postalCode ) {
+        return res.status(400).json({error: "Name, email, password, role, birthday, and postal code are required fields"});
+    }
 
     let connection;
 
     try{
         connection = await db.getConnection();
+        
+        // Find clinic based on postal code first two digits
+        let clinicId = null;
+        
+        try {
+            // Load the postal code mapping
+            const singaporePostalMapping = require('../utils/singapore_postal_mapping_full.json');
+            const postalPrefix = postalCode.substring(0, 2);
+            
+            if (singaporePostalMapping[postalPrefix]) {
+                // Find a clinic with matching postal code prefix
+                const [clinics] = await connection.execute(
+                    "SELECT clinicId FROM clinics WHERE SUBSTRING(postalCode, 1, 2) = ? LIMIT 1",
+                    [postalPrefix]
+                );
+                
+                if (clinics.length > 0) {
+                    clinicId = clinics[0].clinicId;
+                }
+            }
+        } catch (err) {
+            console.error("Error assigning clinic by postal code:", err);
+            // Continue with user creation, but with null clinicId
+        }
     
-        const q = "INSERT INTO user (name, email, password, role, birthday, gender, department, clinicId, assignedTask, baseSalary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        const q = "INSERT INTO user (name, email, password, role, birthday, gender, department, clinicId, assignedTask, baseSalary, postalCode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         //generate salt and hash password 
         const salt = await bcrypt.genSalt(10);
@@ -106,7 +132,7 @@ const createUser = async (req, res) => {
         const hashed = await bcrypt.hash(password, salt);
 
         const data = [
-            name, email, hashed, role, birthday, gender, department, clinic, assignedTask, baseSalary || null
+            name, email, hashed, role, birthday, gender, department, clinicId, assignedTask, baseSalary || null, postalCode || null
         ];
 
         //command .execute is used over .query because we are handling async functions 
@@ -131,7 +157,6 @@ const updateUser = async (req, res) => {
         data = req.body.data;
     } else {
         email = req.body.email;
-        
         // extract all fields except email
         data = { ...req.body };
         delete data.email;
@@ -151,16 +176,13 @@ const updateUser = async (req, res) => {
         try {
             // check if it's a valid date
             const dateObj = new Date(data.birthday);
-            
             if (isNaN(dateObj.getTime())) {
                 return res.status(400).json({error: "Invalid birthday format. Use YYYY-MM-DD format"});
             }
-            
             // convert to MySQL date format (YYYY-MM-DD)
             const yyyy = dateObj.getFullYear();
             const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
             const dd = String(dateObj.getDate()).padStart(2, '0');
-            
             data.birthday = `${yyyy}-${mm}-${dd}`;
         } catch (e) {
             console.error('Error processing birthday:', e);
@@ -178,31 +200,45 @@ const updateUser = async (req, res) => {
             const salt = await bcrypt.genSalt(10);
             data.password = await bcrypt.hash(data.password, salt);
         }
-        
+
+        // If postalCode is being updated, find the nearest clinic and update clinicId
+        if (data.postalCode) {
+            const newPostalCode = data.postalCode;
+            // Get all clinics
+            const [clinics] = await connection.execute("SELECT clinicId, postalCode FROM clinics WHERE postalCode IS NOT NULL AND postalCode != ''");
+            let minDistance = Infinity;
+            let nearestClinicId = null;
+            clinics.forEach(clinic => {
+                if (clinic.postalCode && clinic.postalCode.length >= 6 && newPostalCode.length >= 6) {
+                    // Use absolute difference as proxy for distance
+                    const dist = Math.abs(parseInt(clinic.postalCode) - parseInt(newPostalCode));
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        nearestClinicId = clinic.clinicId;
+                    }
+                }
+            });
+            if (nearestClinicId) {
+                data.clinicId = nearestClinicId;
+            }
+        }
         //fields constructs it so that you get i.e. name = ?, password = ? etc.
         const fields = Object.keys(data).map(field => `${field} = ?`).join(", ");
         const values = Object.values(data); // get all the values into one array 
-
         values.push(email); //add in email for the last WHERE email = ? clause 
-
         const q = `UPDATE user SET ${fields} WHERE email = ?`;
-
         const [result] = await connection.execute(q, values); // execute and return for checking
-
         // check if any users were affected 
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: "User not found" });
         }
-
-        res.status(200).json({ message: "User updated successfully" });
-
+        res.status(200).json({ message: "User updated successfully. Clinic auto-assigned based on postal code." });
     }catch(err) {
         console.error(err);
         res.status(500).json({error: "Internal Server Error"});
     }finally {
         if(connection) connection.release();
     }
-
 }
 
 const getMe = async (req, res) => {
@@ -328,33 +364,34 @@ const updateUserBaseSalary = async (req, res) => {
         if (connection) connection.release();
     }
 };
-// 自动分配员工到诊所
-// 系统根据员工的邮编和诊所的邮编，自动分配到距离最近的诊所（数据库表里没有postalCode字段需要添加给user表和clinic表，varchar6 邮编六位数）
+// Automatically assign employees to clinics
+// System automatically assigns employees to the nearest clinic based on employee and clinic postal codes 
+// (need to add postalCode field to user and clinic tables, varchar(6) for 6-digit postal code)
 const assignUser = async (req, res) => {
 
-    // 获取诊所信息
+    // Get clinic information
     let connection;
     try {
         connection = await db.getConnection();
 
-        // 获取诊所列表
+        // Get list of clinics
         const [clinics] = await connection.execute(`
             SELECT clinicId, clinicName, location, email, phone, description, postalCode 
             FROM clinics`
         );
 
         for (const clinic of clinics) {
-            // 获取 postalCode 的前两位
+            // Get the first two digits of postalCode
             const clinicPostalCode = clinic.postalCode.substring(0, 2);
-            // 加载 utils/singapore_postal_mapping_full.json 文件 获取 key  等于 clinicPostalCode 的 value
+            // Load utils/singapore_postal_mapping_full.json file to get values where key equals clinicPostalCode
             const singaporePostalMapping = require('../utils/singapore_postal_mapping_full.json');
             const clinicPostalCodes = singaporePostalMapping[clinicPostalCode];
             if (!clinicPostalCodes || clinicPostalCodes.length === 0) {
-                continue; // 跳过没有匹配城市的诊所
+                continue; // Skip clinics without matching cities
             }
-            // clinicCity  是数组形式 如 [ '01', '04', '06', '07' ]
-            // 获取员工postalCode 以clinicCity 开始的员工
-            // 构建动态 LIKE 条件
+            // clinicCity is in array format like [ '01', '04', '06', '07' ]
+            // Find employees whose postalCode starts with values in clinicCity
+            // Build dynamic LIKE conditions
             const likeConditions = clinicPostalCodes.map(code => `postalCode LIKE '${code}%'`).join(' OR ');
 
             const [users] = await connection.execute(`SELECT userId, name, email, role, department, birthday, gender, baseSalary, postalCode
