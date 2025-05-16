@@ -664,36 +664,39 @@ async function loadAttendanceRecords() {
         const periodFilter = document.getElementById('attendance-period-filter');
         const selectedPeriod = periodFilter ? periodFilter.value : 'monthly';
         
-        // Use test data date in 2025 as reference instead of current date
-        const testReferenceDate = new Date('2025-05-15'); // Middle of May 2025
+        //updated to use current date
+        const now = new Date();
         let startDate, endDate;
         
-        // Set endDate to the end of May 2025 for all periods to show all test data
-        endDate = '2025-05-31';
-        
-        // Calculate date range based on selected period
+        //calculates date range from selcted period
         switch(selectedPeriod) {
             case 'weekly':
-                // Last 7 days from reference date
-                startDate = new Date(testReferenceDate);
-                startDate.setDate(testReferenceDate.getDate() - 7);
+                //last 7 days from today
+                startDate = new Date(now);
+                startDate.setDate(now.getDate() - 7);
+                endDate = now.toISOString().split('T')[0];
                 startDate = startDate.toISOString().split('T')[0];
                 break;
             case 'monthly':
-                // Current month (May 2025)
-                startDate = '2025-05-01';
+                //current month
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
                 break;
             case 'quarterly':
-                // Current quarter (Q2 2025: Apr-Jun)
-                startDate = '2025-04-01';
+                //current quarter
+                const quarter = Math.floor(now.getMonth() / 3);
+                startDate = new Date(now.getFullYear(), quarter * 3, 1).toISOString().split('T')[0];
+                endDate = new Date(now.getFullYear(), (quarter + 1) * 3, 0).toISOString().split('T')[0];
                 break;
             case 'yearly':
-                // Current year (2025)
-                startDate = '2025-01-01';
+                //current year
+                startDate = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+                endDate = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
                 break;
             default:
-                // Default to monthly
-                startDate = '2025-05-01';
+                //defaults to monthly
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
         }
         
         console.log(`Fetching attendance records from ${startDate} to ${endDate} (${selectedPeriod} view)`);
@@ -706,7 +709,7 @@ async function loadAttendanceRecords() {
             const records = await response.json();
             console.log('Retrieved attendance records:', records);
             
-            // Update the total work hours display
+            //update the total work hours display
             updateTotalWorkHours(records);
             
             if (records.length === 0) {
@@ -721,7 +724,7 @@ async function loadAttendanceRecords() {
             let html = '';
             
             records.forEach(record => {
-                // Format time and calculate duration
+                //format for time and calcula durationm
                 const date = new Date(record.date).toLocaleDateString('en-US');
                 
                 let clockIn = 'N/A';
@@ -736,14 +739,14 @@ async function loadAttendanceRecords() {
                         const clockOutDate = new Date(record.clockOutTime);
                         clockOut = clockOutDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                         
-                        // Calculate duration in hours
+                        //calculate duration in hours
                         const durationMs = clockOutDate - clockInDate;
                         const durationHours = (durationMs / (1000 * 60 * 60)).toFixed(2);
                         totalHours = `${durationHours} hrs`;
                     }
                 }
                 
-                // Create status badge with appropriate class
+                //create status badge 
                 const statusClass = record.status.toLowerCase();
                 
                 html += `
@@ -765,7 +768,7 @@ async function loadAttendanceRecords() {
                     <td colspan="5" class="error-message">Error loading attendance records.</td>
                 </tr>
             `;
-            // Reset work hours display on error
+            //reset work hours display on error
             updateTotalWorkHours([]);
         }
     } catch (error) {
@@ -775,7 +778,7 @@ async function loadAttendanceRecords() {
                 <td colspan="5" class="error-message">System error. Please try again.</td>
             </tr>
         `;
-        // Reset work hours display on error
+        //reset work hours display on error
         updateTotalWorkHours([]);
     }
 }
@@ -863,23 +866,26 @@ function destroyAttendanceCharts() {
 
 // Function to get formatted date range text based on period
 function getDateRangeText(period) {
-    const testReferenceDate = new Date('2025-05-15');
+    const now = new Date();
     let startDate, endDate;
-    endDate = new Date('2025-05-31');
     
     switch(period) {
         case 'weekly':
-            startDate = new Date(testReferenceDate);
-            startDate.setDate(testReferenceDate.getDate() - 7);
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - 7);
+            endDate = now;
             return `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
         case 'monthly':
-            return `May 2025`;
+            return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         case 'quarterly':
-            return `Q2 2025 (Apr-Jun)`;
+            const quarter = Math.floor(now.getMonth() / 3);
+            const quarterStart = new Date(now.getFullYear(), quarter * 3, 1);
+            const quarterEnd = new Date(now.getFullYear(), (quarter + 1) * 3, 0);
+            return `Q${quarter + 1} ${now.getFullYear()} (${quarterStart.toLocaleDateString('en-US', { month: 'short' })}-${quarterEnd.toLocaleDateString('en-US', { month: 'short' })})`;
         case 'yearly':
-            return `Year 2025`;
+            return `Year ${now.getFullYear()}`;
         default:
-            return `May 2025`;
+            return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     }
 }
 
@@ -917,37 +923,39 @@ async function updateAttendanceData(period) {
     updateDateRangeDisplay(period);
     
     try {
-        // Use test data date in 2025 as reference instead of current date
-        // This lets us filter the test data properly
-        const testReferenceDate = new Date('2025-05-15'); // Middle of May 2025
+        //use current date
+        const now = new Date();
         let startDate, endDate;
         
-        // Set endDate to the end of May 2025 for all periods to show all test data
-        endDate = '2025-05-31';
-        
-        // Calculate date range based on selected period
-    switch(period) {
-        case 'weekly':
-                // Last 7 days from reference date
-                startDate = new Date(testReferenceDate);
-                startDate.setDate(testReferenceDate.getDate() - 7);
+        //calculate date range based on selected period
+        switch(period) {
+            case 'weekly':
+                //last 7 days from today
+                startDate = new Date(now);
+                startDate.setDate(now.getDate() - 7);
+                endDate = now.toISOString().split('T')[0];
                 startDate = startDate.toISOString().split('T')[0];
-            break;
-        case 'monthly':
-                // Current month (May 2025)
-                startDate = '2025-05-01';
-            break;
-        case 'quarterly':
-                // Current quarter (Q2 2025: Apr-Jun)
-                startDate = '2025-04-01';
-            break;
-        case 'yearly':
-                // Current year (2025)
-                startDate = '2025-01-01';
-            break;
-        default:
-                // Default to monthly
-                startDate = '2025-05-01';
+                break;
+            case 'monthly':
+                //current month
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+                break;
+            case 'quarterly':
+                //current quarter
+                const quarter = Math.floor(now.getMonth() / 3);
+                startDate = new Date(now.getFullYear(), quarter * 3, 1).toISOString().split('T')[0];
+                endDate = new Date(now.getFullYear(), (quarter + 1) * 3, 0).toISOString().split('T')[0];
+                break;
+            case 'yearly':
+                //durrent year
+                startDate = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+                endDate = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
+                break;
+            default:
+                //default to monthly
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
         }
         
         console.log(`Fetching attendance stats from ${startDate} to ${endDate} (${period} view)`);
@@ -981,7 +989,7 @@ async function updateAttendanceData(period) {
             updateAttendanceUI(0, 0, 0, 0, 0);
             
             // Initialize charts with empty data
-    initializeAttendanceCharts(period);
+            initializeAttendanceCharts(period);
         }
     } catch (error) {
         console.error('Error updating attendance data:', error);
