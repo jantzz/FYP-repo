@@ -614,7 +614,7 @@ function updateTotalWorkHours(records) {
     
     if (records && records.length > 0) {
         records.forEach(record => {
-            if (record.clockInTime && record.clockOutTime) {
+            if (record.clockInTime && record.clockOutTime && record.status != 'Absent') {
                 const clockInDate = new Date(record.clockInTime);
                 const clockOutDate = new Date(record.clockOutTime);
                 
