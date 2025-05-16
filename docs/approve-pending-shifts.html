@@ -454,7 +454,7 @@
         }
         .status-badge.pending {
             background-color: #fff8e1;
-            color: #ff8f00;
+            color: #d76b00;
         }
         .status-badge.approved {
             background-color: #e8f5e9;
@@ -740,8 +740,12 @@
                 </div>
                 <input type="hidden" id="edit-shift-id">
                 <div class="form-actions">
-                    <button type="submit" class="btn-primary">Save Changes</button>
-                    <button type="button" class="btn-danger" onclick="closeEditModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                    <button type="button" class="btn-danger" onclick="closeEditModal()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
                 </div>
             </form>
         </div>
@@ -1164,6 +1168,12 @@
                     });
                 });
 
+                // Make the Edit button more visible and styled properly
+                document.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.style.display = 'inline-flex';
+                    btn.innerHTML = '<i class="fas fa-edit"></i> Edit';
+                });
+
                 shiftsTableContainer.style.display = 'block';
                 noShiftsMessage.style.display = 'none';
             }
@@ -1196,17 +1206,59 @@
             // Open edit modal for a shift
             function openEditModal(shiftId) {
                 const shift = allPendingShifts.find(s => s.pendingShiftId == shiftId);
-                if (!shift) return;
+                if (!shift) {
+                    console.error('Shift not found:', shiftId);
+                    showNotification('Error: Shift not found', 'error');
+                    return;
+                }
 
-                const startDate = new Date(shift.startDate);
-                const endDate = new Date(shift.endDate);
+                // Format dates properly
+                const shiftDate = new Date(shift.shiftDate);
+                let startDateTime, endDateTime;
+                
+                try {
+                    // Try to parse dates properly
+                    if (shift.startDate.includes('T')) {
+                        startDateTime = new Date(shift.startDate);
+                    } else {
+                        // If only time is provided (no date part)
+                        const timeParts = shift.startDate.split(':');
+                        startDateTime = new Date(shiftDate);
+                        startDateTime.setHours(parseInt(timeParts[0], 10));
+                        startDateTime.setMinutes(parseInt(timeParts[1], 10));
+                    }
+                    
+                    if (shift.endDate.includes('T')) {
+                        endDateTime = new Date(shift.endDate);
+                    } else {
+                        // If only time is provided (no date part)
+                        const timeParts = shift.endDate.split(':');
+                        endDateTime = new Date(shiftDate);
+                        endDateTime.setHours(parseInt(timeParts[0], 10));
+                        endDateTime.setMinutes(parseInt(timeParts[1], 10));
+                    }
+                } catch (e) {
+                    console.error('Error parsing dates:', e);
+                    startDateTime = new Date(shiftDate);
+                    endDateTime = new Date(shiftDate);
+                    endDateTime.setHours(endDateTime.getHours() + 8); // Default 8-hour shift
+                }
 
+                // Set form field values
                 document.getElementById('edit-shift-id').value = shift.pendingShiftId;
                 document.getElementById('edit-shift-title').value = shift.title || `${shift.department} Shift`;
                 document.getElementById('edit-shift-department').value = shift.department || '';
-                document.getElementById('edit-shift-date').value = startDate.toISOString().split('T')[0];
-                document.getElementById('edit-shift-start-time').value = startDate.toTimeString().slice(0, 5);
-                document.getElementById('edit-shift-end-time').value = endDate.toTimeString().slice(0, 5);
+                
+                // Format the date as YYYY-MM-DD for the date input
+                const dateStr = shiftDate.toISOString().split('T')[0];
+                document.getElementById('edit-shift-date').value = dateStr;
+                
+                // Format times as HH:MM for the time inputs
+                const startTimeStr = padZero(startDateTime.getHours()) + ':' + padZero(startDateTime.getMinutes());
+                const endTimeStr = padZero(endDateTime.getHours()) + ':' + padZero(endDateTime.getMinutes());
+                
+                document.getElementById('edit-shift-start-time').value = startTimeStr;
+                document.getElementById('edit-shift-end-time').value = endTimeStr;
 
                 // Populate employee dropdown
                 const employeeSelect = document.getElementById('edit-shift-employee');
@@ -1222,7 +1274,13 @@
                     employeeSelect.appendChild(option);
                 });
 
+                // Show the modal
                 editShiftModal.style.display = 'block';
+            }
+            
+            // Helper function to pad numbers with leading zero
+            function padZero(num) {
+                return num.toString().padStart(2, '0');
             }
 
             // Close edit modal
@@ -1241,9 +1299,27 @@
                 const startTime = document.getElementById('edit-shift-start-time').value;
                 const endTime = document.getElementById('edit-shift-end-time').value;
 
-                // Combine date and time
+                // Form validation
+                if (!date || !startTime || !endTime) {
+                    showNotification('Please fill in all date and time fields', 'error');
+                    return;
+                }
+
+                // Check if end time is after start time
+                if (startTime >= endTime) {
+                    showNotification('End time must be after start time', 'error');
+                    return;
+                }
+
+                // Combine date and time for API
                 const startDate = `${date}T${startTime}:00`;
                 const endDate = `${date}T${endTime}:00`;
+
+                // Show loading state on submit button
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalBtnText = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
                 try {
                     const token = localStorage.getItem('token');
@@ -1251,6 +1327,20 @@
                     if (!token) {
                         throw new Error('You need to be logged in');
                     }
+
+                    // Get the employee name for display
+                    const selectedEmployee = employees.find(emp => emp.userId == employeeId);
+                    const employeeName = selectedEmployee ? (selectedEmployee.name || selectedEmployee.email) : 'Unknown';
+
+                    console.log('Updating shift:', {
+                        shiftId,
+                        title,
+                        employeeId,
+                        employeeName,
+                        date,
+                        startDate,
+                        endDate
+                    });
 
                     const response = await fetch(`${API_BASE_URL}/shift/update-pending/${shiftId}`, {
                         method: 'PUT',
@@ -1261,30 +1351,31 @@
                         body: JSON.stringify({
                             title,
                             employeeId,
+                            shiftDate: date,  // Make sure we update the shift date
                             startDate,
                             endDate
                         })
                     });
 
                     if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || 'Failed to update shift');
+                        const errorData = await response.json().catch(() => ({ error: 'Unknown error occurred' }));
+                        throw new Error(errorData.error || `Failed to update shift: ${response.status} ${response.statusText}`);
                     }
 
-                    // Show success message
-                    resultDiv.className = 'success';
-                    resultDiv.textContent = 'Shift updated successfully!';
-                    resultDiv.style.display = 'block';
+                    // Show success notification
+                    showNotification('Shift updated successfully!', 'success');
 
                     // Close modal and refresh data
                     closeEditModal();
-                    fetchData();
+                    await fetchData();
 
                 } catch (error) {
                     console.error('Error updating shift:', error);
-                    resultDiv.className = 'error';
-                    resultDiv.textContent = `Error: ${error.message}`;
-                    resultDiv.style.display = 'block';
+                    showNotification(`Error: ${error.message}`, 'error');
+                } finally {
+                    // Reset button state
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
                 }
             });
 
@@ -1331,11 +1422,18 @@
                 window.location.href = 'index.html';
             }
 
+            // Expose functions to the window object for global access
             window.closeEditModal = closeEditModal;
+            window.openEditModal = openEditModal;
             window.toggleDropdown = toggleDropdown;
             window.bulkApproveShifts = bulkApproveShifts;
             window.closeConfirmDialog = closeConfirmDialog;
+            window.closeSigleConfirmDialog = closeSigleConfirmDialog;
+            window.approveShiftDialog = approveShiftDialog;
+            window.approveSingleShift = approveSingleShift;
             window.fetchData = fetchData;
+            window.showNotification = showNotification;
+            window.padZero = padZero;
 
             // Add event listeners for the confirmation dialog buttons
             document.getElementById('confirmApproveBtn').addEventListener('click', bulkApproveShifts);
