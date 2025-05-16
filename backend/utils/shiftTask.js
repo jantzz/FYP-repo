@@ -12,7 +12,7 @@ const job = new schedule.Job('monthlyShift', async function() {
         today.getMonth()+1 !== lastMondayDate.getMonth()+1 ||
         today.getDate() !== lastMondayDate.getDate()) {
         console.log(`Today ${today.toISOString()} is not the last Monday of the month ${lastMondayDate.toISOString()}`);
-        // return;
+        return;
     }
 
     let connection;

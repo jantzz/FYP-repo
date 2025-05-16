@@ -247,17 +247,7 @@ const getEmployeeAvailability = async (req, res) => {
     try {
         connection = await db.getConnection();
 
-        // Get current week's dates
-        const now = new Date();
-        const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
-        weekStart.setHours(0, 0, 0, 0);
-
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
-        weekEnd.setHours(23, 59, 59, 999);
-
-        // Get availability records for the current week
+        // Get all availability records for the employee without date filtering
         const [availability] = await connection.execute(
             `SELECT 
                 availabilityId,
@@ -267,13 +257,8 @@ const getEmployeeAvailability = async (req, res) => {
                 approvedBy
             FROM availability 
             WHERE employeeId = ? 
-            AND submittedAt BETWEEN ? AND ?
             ORDER BY submittedAt DESC`,
-            [
-                employeeId,
-                weekStart.toISOString().split('T')[0],
-                weekEnd.toISOString().split('T')[0]
-            ]
+            [employeeId]
         );
 
         // Return availability records

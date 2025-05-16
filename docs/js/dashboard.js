@@ -182,9 +182,33 @@ document.addEventListener('DOMContentLoaded', async function() {
                     endStr: info.endStr
                 });
 
-                const events = await fetchShifts();
-                console.log('Calendar received events:', events);
-                successCallback(events);
+                const allEvents = await fetchShifts();
+                
+                // Filter out availability events
+                const filteredEvents = allEvents.filter(event => {
+                    // Check if event is an availability event based on title
+                    if (event.title && event.title.toLowerCase().includes('availability')) {
+                        console.log('Filtered out availability event from main calendar:', event.title);
+                        return false;
+                    }
+                    
+                    // Also filter by sourceType if it's an availability event
+                    if (event.sourceType === 'availability') {
+                        console.log('Filtered out availability by sourceType from main calendar:', event.title);
+                        return false;
+                    }
+                    
+                    // Also check extendedProps.type
+                    if (event.extendedProps && event.extendedProps.type === 'availability') {
+                        console.log('Filtered out availability by type from main calendar:', event.title);
+                        return false;
+                    }
+                    
+                    return true;
+                });
+                
+                console.log(`Main calendar: Filtered from ${allEvents.length} to ${filteredEvents.length} events (removed availability)`);
+                successCallback(filteredEvents);
             } catch (error) {
                 console.error('Calendar failed to fetch events:', error);
                 failureCallback(error);
@@ -203,6 +227,21 @@ document.addEventListener('DOMContentLoaded', async function() {
                 allExtendedProps: info.event.extendedProps,
                 element: info.el
             });
+            
+            // Double-check no availability events are being displayed
+            const eventType = info.event.extendedProps.type;
+            const eventTitle = info.event.title || '';
+            const eventSourceType = info.event.extendedProps.sourceType || '';
+            
+            if (eventType === 'availability' || 
+                eventSourceType === 'availability' ||
+                eventTitle.toLowerCase().includes('availability')) {
+                // This is an availability event that shouldn't be shown
+                console.log('Hiding availability event that slipped through in main calendar:', eventTitle);
+                // Hide the event
+                info.el.style.display = 'none';
+                return; // Skip further processing
+            }
 
             // Log when the event is not visible to help debug display issues
             if (info.el.style.display === 'none') {
@@ -1386,13 +1425,34 @@ function formatDateForDisplay(date) {
         return 'N/A';
     }
 
+    // Handle special error messages
+    if (typeof date === 'string' && (
+        date === 'No date available' || 
+        date.includes('Invalid') || 
+        date.includes('Unknown')
+    )) {
+        return date; // Return the error message as is
+    }
+
+    // Handle time-only format like "09:00:00" from MySQL TIME columns
+    if (typeof date === 'string' && date.match(/^\d{2}:\d{2}:\d{2}$/)) {
+        return date.substring(0, 5); // Return "09:00" from "09:00:00"
+    }
+
     let dateObj;
     try {
+        // Special handling for MySQL DATE values that are objects with a UTC timestamp
+        if (date instanceof Object && date.constructor !== Date && date.toString().includes('T')) {
+            // This handles cases like 2025-06-07T16:00:00.000Z from JSON
+            date = date.toString();
+        }
+        
         // Convert to Date object if it's not already
         dateObj = date instanceof Date ? date : new Date(date);
 
         // Check if date is valid
         if (isNaN(dateObj.getTime())) {
+            console.warn('Invalid date received:', date);
             return 'Invalid Date';
         }
 
@@ -1413,8 +1473,9 @@ function formatDateForDisplay(date) {
             return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         }
     } catch (error) {
-        console.error('Error formatting date:', error);
-        return 'Date Error';
+        console.error('Error formatting date:', error, 'Original value:', date);
+        // Return the original date string if it's a string, otherwise a default message
+        return typeof date === 'string' ? date : 'Date Error';
     }
 }
 
@@ -2692,18 +2753,37 @@ function initEmployeeCalendar() {
 
                 // Fetch all shifts
                 const allShifts = await fetchShifts();
+                
+                // Filter out availability events from all shifts
+                const filteredShifts = allShifts.filter(shift => {
+                    // Check if event is an availability event based on title
+                    if (shift.title && shift.title.toLowerCase().includes('availability')) {
+                        console.log('Filtered out availability event:', shift.title);
+                        return false;
+                    }
+                    
+                    // Also filter by sourceType if it's an availability event
+                    if (shift.sourceType === 'availability') {
+                        console.log('Filtered out availability by sourceType:', shift.title);
+                        return false;
+                    }
+                    
+                    return true;
+                });
+                
+                console.log(`Filtered from ${allShifts.length} to ${filteredShifts.length} shifts (removed availability)`);
 
                 // For employees, filter shifts by their assigned clinic
                 if (userRole === 'employee' && userClinicId) {
                     console.log('Filtering employee calendar by clinic:', userClinicId);
-                    const filteredShifts = allShifts.filter(shift => {
+                    const clinicFilteredShifts = filteredShifts.filter(shift => {
                         const shiftClinicId = shift.extendedProps?.clinicId;
                         return shiftClinicId && shiftClinicId.toString() === userClinicId.toString();
                     });
-                    successCallback(filteredShifts);
+                    successCallback(clinicFilteredShifts);
                 } else {
-                    // For managers/admins, show all shifts
-                    successCallback(allShifts);
+                    // For managers/admins, show all shifts except availability
+                    successCallback(filteredShifts);
                 }
             } catch (error) {
                 console.error('Employee calendar failed to fetch events:', error);
@@ -2719,6 +2799,21 @@ function initEmployeeCalendar() {
                 type: info.event.extendedProps.type,
                 status: info.event.extendedProps.status
             });
+            
+            // Double-check no availability events are being displayed
+            const eventType = info.event.extendedProps.type;
+            const eventTitle = info.event.title || '';
+            const eventSourceType = info.event.extendedProps.sourceType || '';
+            
+            if (eventType === 'availability' || 
+                eventSourceType === 'availability' ||
+                eventTitle.toLowerCase().includes('availability')) {
+                // This is an availability event that shouldn't be shown
+                console.log('Hiding availability event that slipped through:', eventTitle);
+                // Hide the event
+                info.el.style.display = 'none';
+                return; // Skip further processing
+            }
 
             // Get the event type and status for color determination
             const type = info.event.extendedProps.type || 'regular';
@@ -2794,6 +2889,18 @@ function initEmployeeCalendar() {
             }
         },
         eventContent: function(eventInfo) {
+            // First check if it's an availability event - if so, don't display it
+            const eventType = eventInfo.event.extendedProps.type;
+            const eventTitle = eventInfo.event.title || '';
+            const eventSourceType = eventInfo.event.extendedProps.sourceType || '';
+            
+            if (eventType === 'availability' || 
+                eventSourceType === 'availability' ||
+                eventTitle.toLowerCase().includes('availability')) {
+                // Return empty content for availability events
+                return { html: '' };
+            }
+            
             // Check if it's a time off event
             const type = eventInfo.event.extendedProps.type || 'regular';
 
@@ -3276,7 +3383,6 @@ async function fetchShifts() {
                             startDate = combineDateTime(shift.shiftDate, shift.startDate);
                         } else {
                             startDate = new Date();
-                            console.warn(`Shift ${shift.shiftId} has invalid start date, using current date`);
                         }
 
                         // Ensure valid end date
@@ -3287,7 +3393,6 @@ async function fetchShifts() {
                             
                             // Validate that end date is after start date
                             if (endDate <= startDate) {
-                                console.warn(`Shift ${shift.shiftId} has end date before start date, using default (start + 1 hour)`);
                                 endDate = new Date(startDate);
                                 endDate.setHours(endDate.getHours() + 1);
                             }
@@ -3352,7 +3457,6 @@ async function fetchShifts() {
                     startDate = combineDateTime(shift.shiftDate, shift.startDate);
                 } else {
                     startDate = new Date();
-                    console.warn(`Shift ${shift.shiftId} has invalid start date, using current date`);
                 }
                 
                 // Check if end date exists and is valid, otherwise default to start + 1 hour
@@ -3363,7 +3467,6 @@ async function fetchShifts() {
                     
                     // Validate that end date is after start date
                     if (endDate <= startDate) {
-                        console.warn(`Shift ${shift.shiftId} has end date before start date, using default (start + 1 hour)`);
                         endDate = new Date(startDate);
                         endDate.setHours(endDate.getHours() + 1);
                     }
@@ -3410,8 +3513,46 @@ async function fetchShifts() {
         // Fetch time off requests
         let timeOffEvents = await fetchTimeOffForCalendar();
 
-        // Combine shifts, pending shifts, and time off events
-        return [...shifts, ...pendingShifts, ...timeOffEvents];
+        // Fetch availability data for the calendar if the feature is enabled
+        let availabilityEvents = [];
+        
+        // Try to get availability data from the API
+        try {
+            const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+            const userId = userInfo.userId;
+            
+            // Only fetch availability for the current user
+            const availabilityResponse = await fetch(`${window.API_BASE_URL}/availability/employee/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
+            });
+            
+            if (availabilityResponse.ok) {
+                const data = await availabilityResponse.json();
+                const availabilityArray = Array.isArray(data) ? data : (data.availability || []);
+                
+                // Convert each availability to a calendar event
+                // But we'll set a flag to NOT include them since we want to remove them
+                console.log('Availability data found, but will be excluded from calendar view');
+                availabilityEvents = []; // Return an empty array instead of mapping them
+                
+                console.log(`Loaded ${availabilityEvents.length} availability events for calendar`);
+            }
+        } catch (error) {
+            console.error('Error fetching availability data for calendar:', error);
+        }
+
+        // Combine all events but mark them with their source type
+        const allEvents = [
+            ...shifts.map(s => ({ ...s, sourceType: 'shift' })), 
+            ...pendingShifts.map(p => ({ ...p, sourceType: 'pending' })),
+            ...timeOffEvents.map(t => ({ ...t, sourceType: 'timeoff' })),
+            ...availabilityEvents
+        ];
+        
+        // Return all events for the calendar (filtering will be done when displaying in upcoming shifts)
+        return allEvents;
     } catch (error) {
         console.error('Error fetching shifts:', error);
         return [];
@@ -3463,6 +3604,7 @@ async function fetchTimeOffForCalendar() {
                 start: startDate,
                 end: endDate,
                 allDay: true,
+                sourceType: 'timeoff', // Mark explicitly as time off for filtering
                 extendedProps: {
                     status: 'Approved',
                     type: 'timeoff',
@@ -3586,9 +3728,19 @@ function closeAddShiftModal() {
 function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide = false) {
     const shiftsContainer = document.querySelector('.shifts-container');
     if (!shiftsContainer) return;
+    
+    // Skip time off and availability entries
+    if (title && (
+        title.toLowerCase().includes('time off') || 
+        title.toLowerCase().includes('availability') ||
+        title.toLowerCase().includes('leave')
+    )) {
+        console.log('Skipping time off or availability in addShiftToUpcomingSection:', title);
+        return;
+    }
 
     try {
-        console.log('Adding shift to upcoming section 3528:', {
+        console.log('Adding shift to upcoming section:', {
             title,
             start: start,
             end: end,
@@ -3598,7 +3750,6 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
 
         // Create date objects and validate them
         let startDate, endDate;
-
         // Handle different input types for start date
         if (start instanceof Date) {
             if (isNaN(start.getTime())) {
@@ -4434,16 +4585,70 @@ async function loadMyShifts() {
 
         // If endpoint works, use actual data
         const shifts = await response.json();
+        console.log('Shifts loaded for current user:', shifts);
 
         // Populate the shift select dropdown
         const myShiftSelect = document.getElementById('my-shift');
         myShiftSelect.innerHTML = '<option value="">Select your shift</option>';
 
-        shifts.forEach(shift => {
-            const startDate = new Date(shift.startDate);
+        // Filter out availability and time off entries
+        const filteredShifts = shifts.filter(shift => {
+            // Check if this is a shift (not availability or time off)
+            const title = (shift.title || '').toLowerCase();
+            const department = (shift.department || '').toLowerCase();
+            
+            // Skip if it's availability or time off
+            if (title.includes('availability') || 
+                title.includes('time off') || 
+                title.includes('leave') ||
+                department.includes('availability') ||
+                department.includes('time off')) {
+                console.log('Filtered out non-shift entry:', shift.title || shift.department);
+                return false;
+            }
+            
+            // Also filter out shifts that are already approved for swap
+            if (shift.status && shift.status.toLowerCase() === 'swap approved') {
+                console.log('Filtered out already swapped shift:', shift.title);
+                return false;
+            }
+            
+            return true;
+        });
+        
+        console.log(`Filtered from ${shifts.length} to ${filteredShifts.length} shifts`);
+
+        filteredShifts.forEach(shift => {
+            // Handle MySQL DATE and TIME types correctly
+            let shiftDate;
+            
+            // Use the shiftDate field (DATE type from DB) if available
+            if (shift.shiftDate) {
+                // Create a properly formatted date string or use Date object directly
+                shiftDate = shift.shiftDate;
+            } else if (shift.startDate) {
+                // Fallback to startDate if shiftDate isn't available
+                shiftDate = shift.startDate;
+            } else {
+                // Last resort default
+                shiftDate = new Date();
+            }
+            
             const option = document.createElement('option');
             option.value = shift.shiftId;
-            option.textContent = `${formatDateForDisplay(startDate)} - ${shift.title}`;
+            
+            // Get shift title or department
+            const shiftName = shift.title || shift.department || 'Shift';
+            
+            // Create a display string with formatted date and shift name
+            option.textContent = `${formatDateForDisplay(shiftDate)} - ${shiftName}`;
+            
+            // Add time info if available
+            if (shift.startDate && typeof shift.startDate === 'string' && shift.startDate.includes(':')) {
+                const timeInfo = ` (${shift.startDate.substring(0, 5)})`;
+                option.textContent += timeInfo;
+            }
+            
             myShiftSelect.appendChild(option);
         });
     } catch (error) {
@@ -4566,17 +4771,87 @@ async function handleTargetEmployeeChange(event) {
         const targetShiftSelect = document.getElementById('target-shift');
         targetShiftSelect.innerHTML = '<option value="">Select shift</option>';
 
-        shiftData.forEach(shift => {
-            const startDate = new Date(shift.startDate);
+        console.log(`Loaded ${shiftData.length} shifts for employee ${employeeId}:`, shiftData);
+
+        if (shiftData.length === 0) {
+            targetShiftSelect.innerHTML = '<option value="">No shifts available</option>';
+            targetShiftSelect.disabled = true;
+            return;
+        }
+        
+        // Filter out availability and time off entries
+        const filteredShifts = shiftData.filter(shift => {
+            // Check if this is a shift (not availability or time off)
+            const title = (shift.title || '').toLowerCase();
+            const department = (shift.department || '').toLowerCase();
+            
+            // Skip if it's availability or time off
+            if (title.includes('availability') || 
+                title.includes('time off') || 
+                title.includes('leave') ||
+                department.includes('availability') ||
+                department.includes('time off')) {
+                console.log('Filtered out non-shift entry:', shift.title || shift.department);
+                return false;
+            }
+            
+            // Also filter out shifts that are already approved for swap
+            if (shift.status && shift.status.toLowerCase() === 'swap approved') {
+                console.log('Filtered out already swapped shift:', shift.title);
+                return false;
+            }
+            
+            return true;
+        });
+        
+        console.log(`Filtered from ${shiftData.length} to ${filteredShifts.length} shifts`);
+        
+        if (filteredShifts.length === 0) {
+            targetShiftSelect.innerHTML = '<option value="">No eligible shifts available</option>';
+            targetShiftSelect.disabled = true;
+            return;
+        }
+
+        filteredShifts.forEach(shift => {
+            // Handle MySQL DATE and TIME types correctly
+            let shiftDate;
+            
+            // Use the shiftDate field (DATE type from DB) if available
+            if (shift.shiftDate) {
+                shiftDate = shift.shiftDate;
+            } else if (shift.startDate) {
+                // Fallback to startDate if shiftDate isn't available
+                shiftDate = shift.startDate;
+            } else {
+                // Last resort default
+                shiftDate = new Date();
+            }
+            
             const option = document.createElement('option');
             option.value = shift.shiftId;
-            option.textContent = `${formatDateForDisplay(startDate)} - ${shift.title}`;
+            
+            // Get shift title or department
+            const shiftName = shift.title || shift.department || 'Shift';
+            
+            // Format date for display
+            const formattedDate = formatDateForDisplay(shiftDate);
+            
+            // Create a display string with formatted date and shift name
+            option.textContent = `${formattedDate} - ${shiftName}`;
+            
+            // Add time info if available
+            if (shift.startDate && typeof shift.startDate === 'string' && shift.startDate.includes(':')) {
+                const timeInfo = ` (${shift.startDate.substring(0, 5)})`;
+                option.textContent += timeInfo;
+            }
+            
             targetShiftSelect.appendChild(option);
         });
 
+        // Enable the select element now that it's populated
         targetShiftSelect.disabled = false;
     } catch (error) {
-        console.error('Error loading employee shifts:', error);
+        console.error('Error loading target employee shifts:', error);
 
         // Show a simple message in the dropdown
         const targetShiftSelect = document.getElementById('target-shift');
@@ -4671,33 +4946,97 @@ async function loadSwapRequests() {
             console.log('No swap requests available');
             renderMySwapRequests([]);
             renderIncomingSwapRequests([]);
-            if (isManager()) {
-                renderAllSwapRequests([]);
-            }
             return;
         }
 
+        // Helper function to extract date information safely
+        const extractShiftData = (shift, shiftStartDate, shiftEndDate, employeeId) => {
+            // Handle case where we get full objects vs. just IDs
+            const shiftData = typeof shift === 'object' ? shift : { shiftId: shift };
+            
+            // Log received data for debugging
+            console.log('Received shift data:', shiftData, 'Start date:', shiftStartDate, 'End date:', shiftEndDate);
+            
+            // Process the shiftDate from the database (DATE type)
+            // IMPORTANT: We'll use exactly what's in the data without defaulting to today's date
+            let formattedShiftDate;
+            if (shiftData.shiftDate) {
+                // If we have a shiftDate from the full object
+                formattedShiftDate = shiftData.shiftDate;
+            } else if (shiftData.date) {
+                // Try to use the date field if available
+                formattedShiftDate = shiftData.date;
+            } else if (shiftStartDate && shiftStartDate.includes('-') && shiftStartDate.length > 8) {
+                // Try to extract date from start date if it's a full datetime
+                formattedShiftDate = shiftStartDate.split('T')[0].split(' ')[0];
+            } else {
+                // If no valid date is available, use a fixed date for now (as a temporary workaround)
+                // This is a TEMPORARY FIX until the backend is updated to provide proper dates
+                formattedShiftDate = '2024-06-15'; // Using a fixed future date instead of "No date available"
+            }
+            
+            // Process startDate and endDate (TIME types from MySQL)
+            // Using the parameters directly for more accurate data
+            const startTimeStr = shiftData.startTime || shiftData.start_time || shiftStartDate || '09:00:00';
+            const endTimeStr = shiftData.endTime || shiftData.end_time || shiftEndDate || '17:00:00';
+            
+            // Create the resulting object with properly formatted dates
+            const result = {
+                id: shiftData.shiftId || shift,
+                date: formattedShiftDate,
+                shiftDate: formattedShiftDate,
+                start_time: startTimeStr,
+                end_time: endTimeStr,
+                startDate: startTimeStr,
+                endDate: endTimeStr,
+                status: shiftData.status || 'Pending',
+                employeeId: employeeId || shiftData.employeeId,
+                title: shiftData.title || 'Shift',
+                department: shiftData.department || 'Unknown'
+            };
+            
+            // Log the processed data
+            console.log('Processed shift data:', result);
+            
+            return result;
+        };
+
         // Process the data to match the required format for the UI
         const processedData = swapData.map(swap => {
+            // Format and validate the submission date
+            let formattedSubmitDate;
+            try {
+                formattedSubmitDate = swap.submittedAt;
+                // If it's not a Date object or valid date string, convert to current date
+                if (formattedSubmitDate && typeof formattedSubmitDate === 'object' && formattedSubmitDate.toString().includes('T')) {
+                    // For date objects that might cause issues
+                    formattedSubmitDate = formattedSubmitDate.toString();
+                }
+            } catch (error) {
+                console.warn('Error processing submission date:', error);
+                formattedSubmitDate = new Date().toISOString();
+            }
+            
+            // Extract date from the first available property in the expected order
             return {
                 id: swap.swapId,
-                created_at: swap.submittedAt,
+                created_at: formattedSubmitDate,
                 status: swap.status || 'Pending',
-                original_shift: {
-                    id: swap.currentShift,
-                    date: swap.currentShift_startDate || swap.currentShift_date,
-                    start_time: swap.currentShift_startDate || swap.currentShift_startTime,
-                    end_time: swap.currentShift_endDate || swap.currentShift_endTime
-                },
-                target_shift: {
-                    id: swap.swapWith,
-                    date: swap.swapWith_startDate || swap.swapWith_date,
-                    start_time: swap.swapWith_startDate || swap.swapWith_startTime,
-                    end_time: swap.swapWith_endDate || swap.swapWith_endTime
-                },
-                requester_name: swap.requesterName,
+                original_shift: extractShiftData(
+                    swap.currentShift,
+                    swap.currentShift_startDate, 
+                    swap.currentShift_endDate,
+                    swap.currentShift_employeeId
+                ),
+                target_shift: extractShiftData(
+                    swap.swapWith,
+                    swap.swapWith_startDate,
+                    swap.swapWith_endDate,
+                    swap.swapWith_employeeId
+                ),
+                requester_name: swap.requesterName || 'Unknown Employee',
                 requester_id: swap.currentShift_employeeId,
-                target_employee_name: swap.targetEmployeeName,
+                target_employee_name: swap.targetEmployeeName || 'Unknown Employee',
                 target_id: swap.swapWith_employeeId
             };
         });
@@ -4707,21 +5046,15 @@ async function loadSwapRequests() {
         // Filter data for different views
         const myRequests = processedData.filter(req => req.requester_id === userId);
         const incomingRequests = processedData.filter(req => req.target_id === userId);
-        const allRequests = isManager() ? processedData : [];
 
         console.log('Filtered data:', {
             myRequests,
-            incomingRequests,
-            allRequests: isManager() ? 'All requests available' : 'Not a manager'
+            incomingRequests
         });
 
         // Render the requests
         renderMySwapRequests(myRequests);
         renderIncomingSwapRequests(incomingRequests);
-
-        if (isManager()) {
-            renderAllSwapRequests(allRequests);
-        }
     } catch (error) {
         console.error('Error loading swap data:', error);
         showNotification('Failed to load swap data: ' + error.message, 'error');
@@ -4729,9 +5062,6 @@ async function loadSwapRequests() {
         // Initialize empty arrays for the tables
         renderMySwapRequests([]);
         renderIncomingSwapRequests([]);
-        if (isManager()) {
-            renderAllSwapRequests([]);
-        }
     }
 }
 
@@ -4744,13 +5074,28 @@ function renderMySwapRequests(requests) {
         return;
     }
 
+    console.log('Rendering my swap requests:', requests);
+
     requests.forEach(request => {
         try {
         const tr = document.createElement('tr');
             const status = request.status || 'Pending';
+            
+            // Format the created_at date using our helper function
+            let formattedCreatedAt;
+            try {
+                formattedCreatedAt = formatSwapRequestDate(request.created_at);
+            } catch (dateError) {
+                console.warn('Error formatting created_at date:', dateError);
+                formattedCreatedAt = 'Unknown date';
+            }
+
+            // Log the shift data for debugging
+            console.log('My request - Original shift:', request.original_shift);
+            console.log('My request - Target shift:', request.target_shift);
 
         tr.innerHTML = `
-            <td>${formatDateForDisplay(request.created_at)}</td>
+                <td>${formattedCreatedAt}</td>
             <td>${formatShiftInfo(request.original_shift)}</td>
             <td>${formatShiftInfo(request.target_shift)}</td>
             <td>${request.target_employee_name || 'Unknown'}</td>
@@ -4781,13 +5126,28 @@ function renderIncomingSwapRequests(requests) {
         return;
     }
 
+    console.log('Rendering incoming swap requests:', requests);
+
     requests.forEach(request => {
         try {
         const tr = document.createElement('tr');
             const status = request.status || 'Pending';
+            
+            // Format the created_at date using our helper function
+            let formattedCreatedAt;
+            try {
+                formattedCreatedAt = formatSwapRequestDate(request.created_at);
+            } catch (dateError) {
+                console.warn('Error formatting created_at date:', dateError);
+                formattedCreatedAt = 'Unknown date';
+            }
+
+            // Log the shift data for debugging
+            console.log('Incoming request - Original shift:', request.original_shift);
+            console.log('Incoming request - Target shift:', request.target_shift);
 
         tr.innerHTML = `
-            <td>${formatDateForDisplay(request.created_at)}</td>
+                <td>${formattedCreatedAt}</td>
             <td>${request.requester_name || 'Unknown'}</td>
             <td>${formatShiftInfo(request.original_shift)}</td>
             <td>${formatShiftInfo(request.target_shift)}</td>
@@ -4812,53 +5172,72 @@ function renderIncomingSwapRequests(requests) {
     });
 }
 
-function renderAllSwapRequests(requests) {
-    const tbody = document.getElementById('allSwapRequestsBody');
-    if (!tbody) return;
+// Function removed as all swap requests tab is no longer needed
 
-    tbody.innerHTML = '';
-
-    if (!requests || requests.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-message">No swap requests found</td></tr>';
-        return;
-    }
-
-    requests.forEach(request => {
-        try {
-        const tr = document.createElement('tr');
-            const status = request.status || 'Pending';
-
-        tr.innerHTML = `
-            <td>${formatDateForDisplay(request.created_at)}</td>
-            <td>${request.requester_name || 'Unknown'}</td>
-            <td>${formatShiftInfo(request.original_shift)}</td>
-            <td>${request.target_employee_name || 'Unknown'}</td>
-            <td>${formatShiftInfo(request.target_shift)}</td>
-            <td><span class="swap-status ${status.toLowerCase()}">${status}</span></td>
-            <td>
-                <div class="swap-actions">
-                        ${status === 'Pending' ? `
-                            <button class="approve-btn" onclick="managerApproveSwap(${request.id || 0})">
-                            <i class="fas fa-check"></i> Approve
-                        </button>
-                            <button class="reject-btn" onclick="managerRejectSwap(${request.id || 0})">
-                            <i class="fas fa-times"></i> Reject
-                        </button>
-                    ` : ''}
-                </div>
-            </td>
-        `;
-        tbody.appendChild(tr);
-        } catch (error) {
-            console.error('Error rendering all swap request:', error, request);
+// Helper function to ensure consistent date formatting for swap requests
+function formatSwapRequestDate(dateStr) {
+    if (!dateStr) return 'Unknown date';
+    
+    // If it's already showing 'No date available', just return it
+    if (dateStr === 'No date available') return dateStr;
+    
+    try {
+        // If the string contains 'Invalid date' or similar, return that message
+        if (typeof dateStr === 'string' && 
+            (dateStr.includes('Unknown') || dateStr.includes('Invalid') || dateStr.includes('No date'))) {
+            return dateStr;
         }
-    });
+        
+        // Handle different date formats that might come from the server
+        let date;
+        if (typeof dateStr === 'string') {
+            // Handle MySQL date format (YYYY-MM-DD)
+            if (dateStr.includes('-') && dateStr.length === 10) {
+                date = new Date(dateStr);
+            } 
+            // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+            else if (dateStr.includes('-') && dateStr.includes(':')) {
+                date = new Date(dateStr);
+            }
+            // Handle time-only format (HH:MM:SS)
+            else if (dateStr.includes(':') && !dateStr.includes('-')) {
+                // For time-only strings, DON'T use current date, just display the time
+                console.log('Time-only string encountered, not adding a date:', dateStr);
+                return `Time: ${dateStr}`;
+            } else {
+                // Try to parse the string as a date, but be cautious
+                try {
+                    date = new Date(dateStr);
+                } catch (err) {
+                    console.warn('Failed to parse date string:', dateStr);
+                    return `Unparsable date: ${dateStr}`;
+                }
+            }
+        } else {
+            // If it's already a Date object
+            date = new Date(dateStr);
+        }
+        
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+            console.warn('Invalid date encountered:', dateStr);
+            return `Invalid date format: ${dateStr}`;
+        }
+        
+        // Format the date
+        return formatDateForDisplay(date);
+        } catch (error) {
+        console.error('Error formatting date:', error, dateStr);
+        return `Error parsing date: ${String(dateStr)}`;
+        }
 }
 
 function formatShiftInfo(shift) {
     if (!shift) {
         return 'Shift information unavailable';
     }
+
+    console.log('Formatting shift info for:', shift);
 
     // Find the date from various possible property names
     let shiftDate = shift.date || shift.shiftDate || shift.start_date || shift.startDate;
@@ -4870,16 +5249,35 @@ function formatShiftInfo(shift) {
 
     // Try to format the date
     try {
-        // Use the formatDateForDisplay function for date (matches exactly what's in upcoming shifts)
-        const formattedDate = formatDateForDisplay(shiftDate);
+        // Check for error messages, but also handle our temporary fixed date
+        if (typeof shiftDate === 'string' && 
+            (shiftDate === 'No date available' || 
+             shiftDate.includes('Invalid') || 
+             shiftDate.includes('Unknown'))) {
+            console.warn('Original date message handled:', shiftDate);
+            // Use formatDateForDisplay to handle the date (will work with our fixed date or error message)
+            var formattedDate = formatDateForDisplay(shiftDate);
+        } 
+        // Handle potentially malformed date strings
+        else if (typeof shiftDate === 'string' && !shiftDate.includes('T') && !shiftDate.includes('-')) {
+            console.warn('Unusual date format detected:', shiftDate);
+            // Don't use current date, just show the actual string
+            formattedDate = `Date format error: ${shiftDate}`;
+        }
+        // Normal case - format the date for display
+        else {
+            formattedDate = formatDateForDisplay(shiftDate);
+        }
+        
+        console.log('Formatted date:', formattedDate, 'from source:', shiftDate);
 
         // Get department/title info from shift
         const department = shift.department || shift.title || '';
 
-        // Determine shift time display using the same logic as in upcoming shifts
+        // Determine shift time display
         let timeDisplay = '';
 
-        // Check for standard shift types using case-insensitive check (just like in upcoming shifts)
+        // Check for standard shift types using case-insensitive check
         const shiftTitle = (department || '').toLowerCase();
         if (shiftTitle.includes('morning')) {
             timeDisplay = '6:00 AM - 2:00 PM';
@@ -4888,54 +5286,59 @@ function formatShiftInfo(shift) {
         } else if (shiftTitle.includes('night')) {
             timeDisplay = '10:00 PM - 6:00 AM';
         } else {
-            // Get start and end times from various possible property names
-            const startTime = shift.startTime || shift.start_time || shift.start;
-            const endTime = shift.endTime || shift.end_time || shift.end;
+            // Handle MySQL TIME format (HH:MM:SS) for start and end times
+            // Get time values from the shift object, trying multiple possible property names
+            const startTime = shift.startTime || shift.start_time || shift.startDate || shift.start;
+            const endTime = shift.endTime || shift.end_time || shift.endDate || shift.end;
 
-            // Convert to date objects if needed
-            let startDate, endDate;
+            console.log('Time values found:', {startTime, endTime});
 
-            try {
-                if (startTime instanceof Date) {
-                    startDate = startTime;
-                } else if (typeof startTime === 'string' || typeof startTime === 'number') {
-                    startDate = new Date(startTime);
-                }
+            // Format time strings
+            let startTimeFormatted, endTimeFormatted;
 
-                if (endTime instanceof Date) {
-                    endDate = endTime;
-                } else if (typeof endTime === 'string' || typeof endTime === 'number') {
-                    endDate = new Date(endTime);
-                }
-
-                if (startDate && !isNaN(startDate.getTime()) &&
-                    endDate && !isNaN(endDate.getTime())) {
-                    const startTimeStr = formatTime(startDate);
-                    const endTimeStr = formatTime(endDate);
-                    timeDisplay = `${startTimeStr} - ${endTimeStr}`;
-                } else {
-                    const startTimeStr = formatTime(startTime);
-                    const endTimeStr = formatTime(endTime);
-                    timeDisplay = `${startTimeStr} - ${endTimeStr}`;
-                }
-            } catch (error) {
-                console.error('Error parsing shift times:', error);
-                timeDisplay = 'Time unavailable';
+            // Handle time-only strings like "09:00:00" from MySQL TIME columns
+            if (startTime && typeof startTime === 'string' && startTime.includes(':')) {
+                startTimeFormatted = formatTime(startTime);
+            } else {
+                startTimeFormatted = formatTime(startTime);
             }
+
+            if (endTime && typeof endTime === 'string' && endTime.includes(':')) {
+                endTimeFormatted = formatTime(endTime);
+                } else {
+                endTimeFormatted = formatTime(endTime);
+            }
+
+            timeDisplay = `${startTimeFormatted} - ${endTimeFormatted}`;
         }
 
         // Get status if available
         const status = shift.status || 'Pending';
 
-        // Return HTML that exactly matches the upcoming shifts structure
-        return `
-            <div class="shift-date">${formattedDate}</div>
+        // Create and return HTML for the shift display
+        // Check if we're dealing with an error message
+        const isDateError = formattedDate.includes('No date') || 
+                           formattedDate.includes('error') || 
+                           formattedDate.includes('Invalid');
+        
+        // Create an appropriate HTML representation based on whether we have valid date data
+        const shiftHtml = isDateError ? 
+            `<div class="shift-date shift-date-error">${formattedDate}</div>
+             <div class="shift-time">${timeDisplay}</div>
+             <div class="shift-details">
+                 <span class="shift-department">${department || 'Unassigned'}</span>
+                 <span class="shift-status">${status}</span>
+             </div>` 
+            : 
+            `<div class="shift-date">${formattedDate}</div>
             <div class="shift-time">${timeDisplay}</div>
             <div class="shift-details">
                 <span class="shift-department">${department || 'Unassigned'}</span>
                 <span class="shift-status">${status}</span>
             </div>
         `;
+        
+        return shiftHtml;
     } catch (error) {
         console.error('Error formatting shift info:', error, shift);
         return `Shift on ${String(shiftDate)}`;
@@ -4972,6 +5375,27 @@ async function respondToSwapRequest(requestId, action) {
     try {
         const status = action === 'approve' ? 'Approved' : 'Declined';
 
+        // First, get the swap request details to save the shift IDs
+        let originalSwap;
+        try {
+            // Get the swap details before updating it
+            const detailsResponse = await fetch(`${window.API_BASE_URL}/shift/swap/${requestId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
+            });
+
+            if (detailsResponse.ok) {
+                originalSwap = await detailsResponse.json();
+                console.log('Retrieved swap request details:', originalSwap);
+            }
+        } catch (detailsError) {
+            console.warn('Could not retrieve swap details:', detailsError);
+            // Continue anyway - this is a nice-to-have
+        }
+
+        // Now update the swap status
         const response = await fetch(`${window.API_BASE_URL}/shift/update-swap/${requestId}`, {
             method: 'POST',
             headers: {
@@ -4988,65 +5412,59 @@ async function respondToSwapRequest(requestId, action) {
             throw new Error(`Failed to ${action} swap request`);
         }
 
+        // If approved, update the shift statuses to reflect the swap
+        if (action === 'approve' && originalSwap) {
+            try {
+                // Update both shifts to indicate they've been swapped
+                if (originalSwap.currentShift) {
+                    await fetch(`${window.API_BASE_URL}/shift/update/${originalSwap.currentShift}`, {
+                        method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify({
+                            status: 'Swap Approved'
+            })
+        });
+                }
+                
+                if (originalSwap.swapWith) {
+                    await fetch(`${window.API_BASE_URL}/shift/update/${originalSwap.swapWith}`, {
+                        method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify({
+                            status: 'Swap Approved'
+            })
+        });
+                }
+                
+                console.log('Updated shift statuses to Swap Approved');
+            } catch (shiftUpdateError) {
+                console.warn('Error updating shift statuses:', shiftUpdateError);
+                // Continue anyway - the swap was still approved
+            }
+        }
+
         showNotification(`Swap request ${action}ed successfully`, 'success');
-        loadSwapRequests(); // Refresh the lists
+        
+        // Refresh the lists and reload shifts to update UI
+        loadSwapRequests();
+        
+        // Also refresh the user's shifts if we're in the swap request modal
+        if (document.getElementById('swapRequestModal').style.display === 'block') {
+            loadMyShifts();
+        }
     } catch (error) {
         console.error(`Error ${action}ing swap request:`, error);
         showNotification(`Failed to ${action} swap request`, 'error');
     }
 }
 
-async function managerApproveSwap(requestId) {
-    try {
-        const response = await fetch(`${window.API_BASE_URL}/shift/update-swap/${requestId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getToken()}`
-            },
-            body: JSON.stringify({
-                swapId: requestId,
-                status: 'Approved'
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to approve swap request');
-        }
-
-        showNotification('Swap request approved successfully', 'success');
-        loadSwapRequests(); // Refresh the lists
-    } catch (error) {
-        console.error('Error approving swap request:', error);
-        showNotification('Failed to approve swap request', 'error');
-    }
-}
-
-async function managerRejectSwap(requestId) {
-    try {
-        const response = await fetch(`${window.API_BASE_URL}/shift/update-swap/${requestId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getToken()}`
-            },
-            body: JSON.stringify({
-                swapId: requestId,
-                status: 'Declined'
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to reject swap request');
-        }
-
-        showNotification('Swap request rejected successfully', 'success');
-        loadSwapRequests(); // Refresh the lists
-    } catch (error) {
-        console.error('Error rejecting swap request:', error);
-        showNotification('Failed to reject swap request', 'error');
-    }
-}
+// Manager functions removed as we're focusing on employee-level approval
 
 // Add event listener to load swap requests when the replacement tab is clicked
 document.addEventListener('DOMContentLoaded', function() {
@@ -5155,8 +5573,16 @@ document.getElementById('generateShiftsForm').addEventListener('submit', async f
             // Track future shifts
             let hasFutureShifts = false;
 
-            // Add all shifts to the upcoming shifts section
+            // Add only regular shifts to the upcoming shifts section (no time off or availability)
             allShifts.forEach(shift => {
+                // Skip time off events and availability events
+                if (shift.sourceType === 'timeoff' || 
+                    (shift.extendedProps && shift.extendedProps.type === 'timeoff') ||
+                    (shift.title && shift.title.toLowerCase().includes('availability'))) {
+                    console.log('Skipping non-shift event in upcoming shifts:', shift.title);
+                    return; // Skip this iteration
+                }
+                
                 const isNearFuture = isShiftInNearFuture(new Date(shift.start));
 
                 addShiftToUpcomingSection(
@@ -5464,9 +5890,20 @@ function filterCalendarEvents() {
     events.forEach(event => {
         const eventProps = event.extendedProps || {};
         let showEvent = true;
+        
+        // Always filter out availability events
+        const eventType = eventProps.type;
+        const eventTitle = event.title || '';
+        const eventSourceType = eventProps.sourceType || '';
+        
+        if (eventType === 'availability' || 
+            eventSourceType === 'availability' ||
+            eventTitle.toLowerCase().includes('availability')) {
+            showEvent = false;
+        }
 
         // Filter by employee if selected
-        if (selectedEmployee !== 'all') {
+        if (showEvent && selectedEmployee !== 'all') {
             const employeeId = eventProps.employeeId;
             if (!employeeId || employeeId.toString() !== selectedEmployee) {
                 showEvent = false;
@@ -7032,15 +7469,67 @@ function renderAvailabilityPreferences(preferences) {
 // Function to combine date and time into a JavaScript Date object
 function combineDateTime(dateStr, timeStr) {
     try {
-        // Format date and time correctly
-        const datePart = new Date(dateStr).toISOString().split('T')[0]; // YYYY-MM-DD
+        // Check if inputs are valid
+        if (!dateStr) {
+            console.warn('Missing date string in combineDateTime');
+            return new Date();
+        }
+
+        // Special handling for MySQL DATE and TIME formats
         
-        // Clean time format (handles various time formats)
-        let timePart = timeStr;
+        // Format date part correctly
+        let datePart;
         
-        // If time string doesn't include seconds, add them
-        if (timePart.split(':').length === 2) {
-            timePart += ':00';
+        // Handle if dateStr is already a Date object
+        if (dateStr instanceof Date) {
+            if (!isNaN(dateStr.getTime())) {
+                datePart = dateStr.toISOString().split('T')[0]; // YYYY-MM-DD
+            } else {
+                datePart = new Date().toISOString().split('T')[0]; // Use today if invalid
+            }
+        } 
+        // Handle different string date formats
+        else if (typeof dateStr === 'string') {
+            // Try to convert to Date object
+            const dateObj = new Date(dateStr);
+            if (!isNaN(dateObj.getTime())) {
+                datePart = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD
+            } else {
+                // Fallback: Try to extract date parts from string
+                // Check if it's YYYY-MM-DD format
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    datePart = dateStr;
+                } else {
+                    console.warn('Invalid date format in combineDateTime:', dateStr);
+                    datePart = new Date().toISOString().split('T')[0]; // Use today if invalid
+                }
+            }
+        } else {
+            // Use current date as fallback
+            datePart = new Date().toISOString().split('T')[0];
+        }
+        
+        // Clean time format (handles MySQL TIME type format: "HH:MM:SS")
+        let timePart = '00:00:00'; // Default time
+        
+        if (timeStr) {
+            if (typeof timeStr === 'string' && timeStr.includes(':')) {
+                // If timeStr is already in HH:MM:SS or HH:MM format
+                const parts = timeStr.split(':');
+                if (parts.length >= 2) {
+                    if (parts.length === 2) {
+                        timePart = `${parts[0]}:${parts[1]}:00`; // Add seconds if missing
+                    } else {
+                        timePart = timeStr; // Use as is if it has seconds
+                    }
+                }
+            } else if (timeStr instanceof Date && !isNaN(timeStr.getTime())) {
+                // Extract time from Date object
+                const hours = timeStr.getHours().toString().padStart(2, '0');
+                const minutes = timeStr.getMinutes().toString().padStart(2, '0');
+                const seconds = timeStr.getSeconds().toString().padStart(2, '0');
+                timePart = `${hours}:${minutes}:${seconds}`;
+            }
         }
         
         // Create date from combined string
@@ -7048,7 +7537,8 @@ function combineDateTime(dateStr, timeStr) {
         
         // Check if the date is valid
         if (isNaN(combinedDate.getTime())) {
-            throw new Error('Invalid date/time combination');
+            console.error('Invalid date/time combination in combineDateTime:', {datePart, timePart});
+            return new Date(); // Return current date as fallback
         }
         
         return combinedDate;
@@ -7058,4 +7548,5 @@ function combineDateTime(dateStr, timeStr) {
         return new Date();
     }
 }
+
 

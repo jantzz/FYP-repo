@@ -754,14 +754,28 @@ const getSwaps = async (req, res) => {
             }
 
         // Format dates for consistency
-            const formattedSwaps = enhancedSwaps.map(swap => ({
+            const formattedSwaps = enhancedSwaps.map(swap => {
+            // Create a safe version that handles null or invalid dates
+            const safeISOString = (value) => {
+                if (!value) return null;
+                try {
+                    const date = new Date(value);
+                    return date instanceof Date && !isNaN(date) ? date.toISOString() : null;
+                } catch (error) {
+                    console.log('Date formatting error:', error, 'for value:', value);
+                    return null;
+                }
+            };
+            
+            return {
             ...swap,
-            submittedAt: swap.submittedAt ? new Date(swap.submittedAt).toISOString() : null,
-            currentShift_startDate: swap.currentShift_startDate ? new Date(swap.currentShift_startDate).toISOString() : null,
-            currentShift_endDate: swap.currentShift_endDate ? new Date(swap.currentShift_endDate).toISOString() : null,
-            swapWith_startDate: swap.swapWith_startDate ? new Date(swap.swapWith_startDate).toISOString() : null,
-            swapWith_endDate: swap.swapWith_endDate ? new Date(swap.swapWith_endDate).toISOString() : null
-        }));
+                submittedAt: safeISOString(swap.submittedAt),
+                currentShift_startDate: safeISOString(swap.currentShift_startDate),
+                currentShift_endDate: safeISOString(swap.currentShift_endDate),
+                swapWith_startDate: safeISOString(swap.swapWith_startDate),
+                swapWith_endDate: safeISOString(swap.swapWith_endDate)
+            };
+        });
 
         return res.status(200).json(formattedSwaps);
 
