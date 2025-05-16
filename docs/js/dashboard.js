@@ -1580,12 +1580,18 @@ async function loadTimeOffHistory() {
             statusClass = 'status-pending';
         }
 
+        // Add conflict indicator if there are schedule conflicts
+        const conflictIndicator = request.hasScheduleConflicts ?
+            `<span class="conflict-indicator" title="This request conflicts with existing shifts">
+                <i class="fas fa-exclamation-triangle"></i>
+            </span>` : '';
+
         row.innerHTML = `
             <td>${dateRequested}</td>
             <td>${request.type}</td>
             <td>${startDate}</td>
             <td>${endDate}</td>
-            <td><span class="request-status ${statusClass}">${request.status}</span></td>
+            <td><span class="request-status ${statusClass}">${request.status}</span> ${conflictIndicator}</td>
             <td class="request-actions">
                     <button class="action-btn view-btn" onclick="viewTimeOffRequest(${request.timeOffId})">
                     <i class="fas fa-eye"></i>
@@ -3263,11 +3269,39 @@ async function fetchShifts() {
                             title = `${shift.employeeName} - ${title}`;
                         }
 
+                        // Ensure valid start date
+                        let startDate;
+                        if (shift.shiftDate && shift.startDate) {
+                            // Combine date and time parts
+                            startDate = combineDateTime(shift.shiftDate, shift.startDate);
+                        } else {
+                            startDate = new Date();
+                            console.warn(`Shift ${shift.shiftId} has invalid start date, using current date`);
+                        }
+
+                        // Ensure valid end date
+                        let endDate;
+                        if (shift.shiftDate && shift.endDate) {
+                            // Combine date and time parts
+                            endDate = combineDateTime(shift.shiftDate, shift.endDate);
+                            
+                            // Validate that end date is after start date
+                            if (endDate <= startDate) {
+                                console.warn(`Shift ${shift.shiftId} has end date before start date, using default (start + 1 hour)`);
+                                endDate = new Date(startDate);
+                                endDate.setHours(endDate.getHours() + 1);
+                            }
+                        } else {
+                            console.warn(`Shift ${shift.shiftId} has invalid or missing end date, using default (start + 1 hour)`);
+                            endDate = new Date(startDate);
+                            endDate.setHours(endDate.getHours() + 1);
+                        }
+
                         return {
                             id: shift.shiftId,
                             title: title,
-                            start: new Date(shift.shiftDate + ' ' + shift.startDate),
-                            end: new Date(shift.shiftDate + ' ' + shift.endDate),
+                            start: startDate,
+                            end: endDate,
                             extendedProps: {
                                 status: shift.status || 'Pending',
                                 type: 'regular',
@@ -3311,11 +3345,39 @@ async function fetchShifts() {
                 let title = shift.title || `${shift.department || 'Unknown'} Shift`;
                 let status = shift.status || 'Pending';
 
+                // Ensure valid start date
+                let startDate;
+                if (shift.shiftDate && shift.startDate) {
+                    // Combine date and time parts
+                    startDate = combineDateTime(shift.shiftDate, shift.startDate);
+                } else {
+                    startDate = new Date();
+                    console.warn(`Shift ${shift.shiftId} has invalid start date, using current date`);
+                }
+                
+                // Check if end date exists and is valid, otherwise default to start + 1 hour
+                let endDate;
+                if (shift.shiftDate && shift.endDate) {
+                    // Combine date and time parts
+                    endDate = combineDateTime(shift.shiftDate, shift.endDate);
+                    
+                    // Validate that end date is after start date
+                    if (endDate <= startDate) {
+                        console.warn(`Shift ${shift.shiftId} has end date before start date, using default (start + 1 hour)`);
+                        endDate = new Date(startDate);
+                        endDate.setHours(endDate.getHours() + 1);
+                    }
+                } else {
+                    console.warn(`Shift ${shift.shiftId} has invalid end date, using default (start + 1 hour)`);
+                    endDate = new Date(startDate);
+                    endDate.setHours(endDate.getHours() + 1);
+                }
+
                 return {
                 id: shift.shiftId,
                     title: title,
-                    start: new Date(shift.startDate),
-                    end: new Date(shift.endDate),
+                    start: startDate,
+                    end: endDate,
                 extendedProps: {
                         status: status,
                         type: 'regular',
@@ -5930,7 +5992,7 @@ async function loadPendingTimeOffRequests() {
 
             // Add conflict indicator if there are schedule conflicts
             const conflictIndicator = request.hasScheduleConflicts ?
-                `<span class="conflict-indicator" title="This request has schedule conflicts">
+                `<span class="conflict-indicator" title="This request conflicts with existing shifts">
                     <i class="fas fa-exclamation-triangle"></i>
                 </span>` : '';
 
@@ -6965,5 +7027,35 @@ function renderAvailabilityPreferences(preferences) {
         
         tableBody.appendChild(row);
     });
+}
+
+// Function to combine date and time into a JavaScript Date object
+function combineDateTime(dateStr, timeStr) {
+    try {
+        // Format date and time correctly
+        const datePart = new Date(dateStr).toISOString().split('T')[0]; // YYYY-MM-DD
+        
+        // Clean time format (handles various time formats)
+        let timePart = timeStr;
+        
+        // If time string doesn't include seconds, add them
+        if (timePart.split(':').length === 2) {
+            timePart += ':00';
+        }
+        
+        // Create date from combined string
+        const combinedDate = new Date(`${datePart}T${timePart}`);
+        
+        // Check if the date is valid
+        if (isNaN(combinedDate.getTime())) {
+            throw new Error('Invalid date/time combination');
+        }
+        
+        return combinedDate;
+    } catch (error) {
+        console.error('Error combining date and time:', error, {dateStr, timeStr});
+        // Return current date as fallback
+        return new Date();
+    }
 }
 

@@ -1,72 +1,6 @@
 const db = require('../database/db');
 
 /**
- * Function to extract shift start time from a shift object
- */
-function extractShiftTime(shift) {
-    // All shifts should have their own start time
-    let startHour = null;
-    let startMinute = null;
-    
-    // Parse the time from the shift title
-    if (shift.title) {
-        try {
-            // Try to find a time pattern in the title
-            let timeMatch = null;
-            let isPM = false;
-            
-            // Check for 12-hour format with AM/PM
-            const ampmPattern = /(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/i;
-            const ampmMatch = shift.title.match(ampmPattern);
-            
-            if (ampmMatch) {
-                timeMatch = ampmMatch;
-                isPM = ampmMatch[3].toUpperCase() === 'PM';
-                console.log(`Found 12-hour format: ${timeMatch[1]}:${timeMatch[2]} ${isPM ? 'PM' : 'AM'}`);
-            } else {
-                // Try standard 24-hour format
-                const timePattern = /(\d{1,2}):(\d{2})/;
-                timeMatch = shift.title.match(timePattern);
-                
-                if (timeMatch) {
-                    console.log(`Found 24-hour format: ${timeMatch[1]}:${timeMatch[2]}`);
-                }
-            }
-            
-            if (timeMatch) {
-                startHour = parseInt(timeMatch[1], 10);
-                startMinute = parseInt(timeMatch[2], 10);
-                
-                // Adjust for 12-hour format with PM
-                if (isPM && startHour !== 12) {
-                    startHour += 12; // Convert to 24-hour format (e.g., 1 PM → 13)
-                }
-                // Adjust for 12-hour format with AM and 12 AM (midnight)
-                else if (!isPM && startHour === 12) {
-                    startHour = 0; // 12 AM is actually 0 in 24-hour format
-                }
-            } else {
-                console.error('No time pattern found in shift title:', shift.title);
-                throw new Error('Could not determine shift start time');
-            }
-        } catch (error) {
-            console.error('Error parsing shift time:', error);
-            throw new Error('Could not determine shift start time');
-        }
-    } else {
-        console.error('Shift has no title with time information:', shift);
-        throw new Error('Shift missing time information');
-    }
-    
-    if (startHour === null || startMinute === null) {
-        console.error('Failed to extract time from shift:', shift);
-        throw new Error('Could not determine shift start time');
-    }
-    
-    return { startHour, startMinute };
-}
-
-/**
  * Record attendance (clock in)
  */
 const clockIn = async (req, res) => {
@@ -94,8 +28,8 @@ const clockIn = async (req, res) => {
         const now = new Date();
         
         // Check if it's actually the day of the shift
-        if (today < shift.startDate || today > shift.endDate) {
-            return res.status(400).json({ error: "Cannot clock in: today is not within the shift dates." });
+        if (today !== shift.shiftDate) {
+            return res.status(400).json({ error: "Cannot clock in: today is not the scheduled shift date." });
         }
 
         // Check if already clocked in today
@@ -111,12 +45,14 @@ const clockIn = async (req, res) => {
         // If late, add a note about how many minutes late
         if (status === 'Late') {
             try {
-                // Get the shift start time using the helper function
-                const { startHour, startMinute } = extractShiftTime(shift);
+                // Parse the shift time (HH:MM:SS format)
+                const timeParts = shift.startDate.split(':');
+                const startHour = parseInt(timeParts[0], 10);
+                const startMinute = parseInt(timeParts[1], 10);
                 
-                // Set the expected start time
-                const shiftStartDate = new Date(shift.startDate);
-                const expectedStartTime = new Date(shiftStartDate);
+                // Set the expected start time by combining shift date with start time
+                const shiftDate = new Date(shift.shiftDate);
+                const expectedStartTime = new Date(shiftDate);
                 expectedStartTime.setHours(startHour, startMinute, 0, 0);
                 
                 const minutesLate = Math.floor((now - expectedStartTime) / (1000 * 60));
@@ -427,22 +363,25 @@ const getAttendanceStats = async (req, res) => {
  * Helper function to determine attendance status based on clock-in time
  */
 function determineStatus(clockInTime, shift) {
-    // Parse the shift dates
-    const shiftStartDate = new Date(shift.startDate);
+    // Get the shift date and time
+    const shiftDate = new Date(shift.shiftDate);
     
     try {
-        // Get shift start time using the helper function
-        const { startHour, startMinute } = extractShiftTime(shift);
+        // Parse the shift time (HH:MM:SS format)
+        const timeParts = shift.startDate.split(':');
+        const startHour = parseInt(timeParts[0], 10);
+        const startMinute = parseInt(timeParts[1], 10);
         
-        // Set the expected start time
-        const expectedStartTime = new Date(shiftStartDate);
+        // Set the expected start time by combining shift date with start time
+        const expectedStartTime = new Date(shiftDate);
         expectedStartTime.setHours(startHour, startMinute, 0, 0);
         
         console.log('Determining status:', {
             clockInTime: clockInTime.toISOString(),
             expectedStartTime: expectedStartTime.toISOString(),
             shift: shift.title,
-            parsedTime: `${startHour}:${startMinute.toString().padStart(2, '0')}`
+            shiftDate: shift.shiftDate,
+            startTime: shift.startDate
         });
         
         // Calculate time difference in minutes
@@ -517,8 +456,8 @@ const syncTimeOffWithAttendance = async (req, res) => {
                 // Get employee's default shift
                 // First try to get a shift that covers this specific date
                 const [dateShifts] = await connection.execute(
-                    "SELECT * FROM shift WHERE employeeId = ? AND startDate <= ? AND endDate >= ? LIMIT 1",
-                    [employeeId, date, date]
+                    "SELECT * FROM shift WHERE employeeId = ? AND shiftDate = ? LIMIT 1",
+                    [employeeId, date]
                 );
                 
                 let shiftId;

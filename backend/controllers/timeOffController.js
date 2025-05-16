@@ -16,28 +16,24 @@ const requestTimeOff = async (req, res) => {
 
         // Check if employee has existing shifts during the requested period
         const [existingShifts] = await connection.execute(
-            `SELECT *, DATE_FORMAT(startDate, '%Y-%m-%d') as formattedStartDate, 
-                     DATE_FORMAT(endDate, '%Y-%m-%d') as formattedEndDate 
-             FROM shift 
-             WHERE employeeId = ? 
-             AND ((startDate <= ? AND endDate >= ?) OR 
-                  (startDate <= ? AND endDate >= ?) OR
-                  (startDate >= ? AND endDate <= ?))`,
-            [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+            `SELECT s.*, u.name as employeeName,
+                    DATE_FORMAT(s.shiftDate, '%Y-%m-%d') as formattedShiftDate
+             FROM shift s
+             JOIN user u ON s.employeeId = u.userId
+             WHERE s.employeeId = ? 
+             AND s.shiftDate BETWEEN ? AND ?`,
+            [employeeId, startDate, endDate]
         );
 
         // Check for pending shifts
         const [pendingShifts] = await connection.execute(
             `SELECT ps.*, u.name as employeeName,
-                     DATE_FORMAT(ps.startDate, '%Y-%m-%d') as formattedStartDate, 
-                     DATE_FORMAT(ps.endDate, '%Y-%m-%d') as formattedEndDate
+                    DATE_FORMAT(ps.shiftDate, '%Y-%m-%d') as formattedShiftDate
              FROM pendingShift ps
              JOIN user u ON ps.employeeId = u.userId
              WHERE ps.employeeId = ? 
-             AND ((ps.startDate <= ? AND ps.endDate >= ?) OR 
-                  (ps.startDate <= ? AND ps.endDate >= ?) OR
-                  (ps.startDate >= ? AND ps.endDate <= ?))`,
-            [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+             AND ps.shiftDate BETWEEN ? AND ?`,
+            [employeeId, startDate, endDate]
         );
 
         // Format conflicts for notification purposes
@@ -47,7 +43,8 @@ const requestTimeOff = async (req, res) => {
         if (existingShifts.length > 0) {
             existingShifts.forEach(shift => {
                 conflictDetails.push({
-                    date: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
+                    date: new Date(shift.shiftDate).toLocaleDateString(),
+                    times: `${shift.startDate} - ${shift.endDate}`,
                     title: shift.title || 'Assigned Shift',
                     status: shift.status
             });
@@ -57,7 +54,8 @@ const requestTimeOff = async (req, res) => {
         if (pendingShifts.length > 0) {
             pendingShifts.forEach(shift => {
                 conflictDetails.push({
-                    date: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
+                    date: new Date(shift.shiftDate).toLocaleDateString(),
+                    times: `${shift.startDate} - ${shift.endDate}`,
                     title: shift.title || 'Pending Assignment',
                     status: 'Pending'
             });
@@ -128,29 +126,23 @@ const updateTimeOffStatus = async (req, res) => {
             // Check for existing shifts
             const [existingShifts] = await connection.execute(
                 `SELECT s.*, u.name as employeeName,
-                         DATE_FORMAT(s.startDate, '%Y-%m-%d') as formattedStartDate, 
-                         DATE_FORMAT(s.endDate, '%Y-%m-%d') as formattedEndDate
+                        DATE_FORMAT(s.shiftDate, '%Y-%m-%d') as formattedShiftDate
                  FROM shift s
                  JOIN user u ON s.employeeId = u.userId
                  WHERE s.employeeId = ? 
-                 AND ((s.startDate <= ? AND s.endDate >= ?) OR 
-                      (s.startDate <= ? AND s.endDate >= ?) OR
-                      (s.startDate >= ? AND s.endDate <= ?))`,
-                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+                 AND s.shiftDate BETWEEN ? AND ?`,
+                [employeeId, startDate, endDate]
             );
 
             // Check for pending shifts
             const [pendingShifts] = await connection.execute(
                 `SELECT ps.*, u.name as employeeName,
-                         DATE_FORMAT(ps.startDate, '%Y-%m-%d') as formattedStartDate, 
-                         DATE_FORMAT(ps.endDate, '%Y-%m-%d') as formattedEndDate
+                        DATE_FORMAT(ps.shiftDate, '%Y-%m-%d') as formattedShiftDate
                  FROM pendingShift ps
                  JOIN user u ON ps.employeeId = u.userId
                  WHERE ps.employeeId = ? 
-                 AND ((ps.startDate <= ? AND ps.endDate >= ?) OR 
-                      (ps.startDate <= ? AND ps.endDate >= ?) OR
-                      (ps.startDate >= ? AND ps.endDate <= ?))`,
-                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+                 AND ps.shiftDate BETWEEN ? AND ?`,
+                [employeeId, startDate, endDate]
             );
 
             // Format conflicts for better readability
@@ -158,7 +150,8 @@ const updateTimeOffStatus = async (req, res) => {
                 return shifts.map(shift => {
                     return {
                     id: type === 'Existing' ? shift.shiftId : shift.pendingShiftId,
-                        date: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
+                        date: new Date(shift.shiftDate).toLocaleDateString(),
+                        times: `${shift.startDate} - ${shift.endDate}`,
                         title: shift.title || `${type} Shift`,
                     status: shift.status,
                     shiftType: type
@@ -189,37 +182,20 @@ const updateTimeOffStatus = async (req, res) => {
                      AND NOT EXISTS (
                          SELECT 1 FROM shift s
                          WHERE s.employeeId = u.userId
-                         AND ((s.startDate <= ? AND s.endDate >= ?) OR 
-                              (s.startDate <= ? AND s.endDate >= ?) OR
-                              (s.startDate >= ? AND s.endDate <= ?))
+                         AND s.shiftDate = ?
                      )
                      AND NOT EXISTS (
                          SELECT 1 FROM pendingShift ps
                          WHERE ps.employeeId = u.userId
-                         AND ((ps.startDate <= ? AND ps.endDate >= ?) OR 
-                              (ps.startDate <= ? AND ps.endDate >= ?) OR
-                              (ps.startDate >= ? AND ps.endDate <= ?))
+                         AND ps.shiftDate = ?
                      )
                      AND NOT EXISTS (
                          SELECT 1 FROM timeoff t
                          WHERE t.employeeId = u.userId
                          AND t.status = 'Approved'
-                         AND ((t.startDate <= ? AND t.endDate >= ?) OR 
-                              (t.startDate <= ? AND t.endDate >= ?) OR
-                              (t.startDate >= ? AND t.endDate <= ?))
+                         AND ? BETWEEN t.startDate AND t.endDate
                      )`,
-                    [
-                        employeeId, department,
-                        shift.startDate, shift.startDate,
-                        shift.endDate, shift.endDate,
-                        shift.startDate, shift.endDate,
-                        shift.startDate, shift.startDate,
-                        shift.endDate, shift.endDate,
-                        shift.startDate, shift.endDate,
-                        shift.startDate, shift.startDate,
-                        shift.endDate, shift.endDate,
-                        shift.startDate, shift.endDate
-                    ]
+                    [employeeId, department, shift.shiftDate, shift.shiftDate, shift.shiftDate]
                 );
                 
                 const shiftId = shift.shiftId || shift.pendingShiftId;
@@ -271,12 +247,22 @@ const updateTimeOffStatus = async (req, res) => {
             [numberOfDays, employeeId]
         );
 
-            //adds the timeoff period into shift table
-            const shiftQuery = `INSERT INTO shift (employeeId, startDate, endDate, title, status)
-                                VALUES (?, ?, ?, ?, ?)`;
-            const shiftData = [employeeId, startDate, endDate, `${type} Leave`, `${type} Leave`];
+            //adds the timeoff period into shift table as blocked time
+            // For each day in the time off period, create a full-day shift record
+            const timeOffStart = new Date(startDate);
+            const timeOffEnd = new Date(endDate);
+            
+            // Loop through each day in the time off period
+            for (let day = new Date(timeOffStart); day <= timeOffEnd; day.setDate(day.getDate() + 1)) {
+                const formattedDay = day.toISOString().split('T')[0]; // YYYY-MM-DD
+                
+                const shiftQuery = `INSERT INTO shift (employeeId, shiftDate, startDate, endDate, title, status)
+                                   VALUES (?, ?, ?, ?, ?, ?)`;
+                // Use 00:00 to 23:59 to block the entire day                   
+                const shiftData = [employeeId, formattedDay, '00:00:00', '23:59:59', `${type} Leave`, `${type} Leave`];
 
             await connection.execute(shiftQuery, shiftData);
+            }
             
             // If shifts exist, return them with a warning but don't block the approval
             if (hasConflicts) {
@@ -356,10 +342,8 @@ const getAllTimeOff = async (req, res) => {
                 `SELECT COUNT(*) as count
                  FROM shift
                  WHERE employeeId = ? 
-                 AND ((startDate <= ? AND endDate >= ?) OR 
-                      (startDate <= ? AND endDate >= ?) OR
-                      (startDate >= ? AND endDate <= ?))`,
-                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+                 AND shiftDate BETWEEN ? AND ?`,
+                [employeeId, startDate, endDate]
             );
             
             // Check for pending shifts
@@ -367,10 +351,8 @@ const getAllTimeOff = async (req, res) => {
                 `SELECT COUNT(*) as count
                  FROM pendingShift
                  WHERE employeeId = ? 
-                 AND ((startDate <= ? AND endDate >= ?) OR 
-                      (startDate <= ? AND endDate >= ?) OR
-                      (startDate >= ? AND endDate <= ?))`,
-                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+                 AND shiftDate BETWEEN ? AND ?`,
+                [employeeId, startDate, endDate]
             );
             
             const hasConflicts = existingShifts[0].count > 0 || pendingShifts[0].count > 0;
@@ -427,10 +409,8 @@ const getEmployeeTimeOff = async (req, res) => {
                 `SELECT COUNT(*) as count
                  FROM shift
                  WHERE employeeId = ? 
-                 AND ((startDate <= ? AND endDate >= ?) OR 
-                      (startDate <= ? AND endDate >= ?) OR
-                      (startDate >= ? AND endDate <= ?))`,
-                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+                 AND shiftDate BETWEEN ? AND ?`,
+                [employeeId, startDate, endDate]
             );
             
             // Check for pending shifts
@@ -438,10 +418,8 @@ const getEmployeeTimeOff = async (req, res) => {
                 `SELECT COUNT(*) as count
                  FROM pendingShift
                  WHERE employeeId = ? 
-                 AND ((startDate <= ? AND endDate >= ?) OR 
-                      (startDate <= ? AND endDate >= ?) OR
-                      (startDate >= ? AND endDate <= ?))`,
-                [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+                 AND shiftDate BETWEEN ? AND ?`,
+                [employeeId, startDate, endDate]
             );
             
             const hasConflicts = existingShifts[0].count > 0 || pendingShifts[0].count > 0;
@@ -498,29 +476,23 @@ const getTimeOffById = async (req, res) => {
         // Check for existing shifts during the time off period
         const [existingShifts] = await connection.execute(
             `SELECT s.*, u.name as employeeName,
-                     DATE_FORMAT(s.startDate, '%Y-%m-%d') as formattedStartDate, 
-                     DATE_FORMAT(s.endDate, '%Y-%m-%d') as formattedEndDate
+                    DATE_FORMAT(s.shiftDate, '%Y-%m-%d') as formattedShiftDate
              FROM shift s
              JOIN user u ON s.employeeId = u.userId
              WHERE s.employeeId = ? 
-             AND ((s.startDate <= ? AND s.endDate >= ?) OR 
-                  (s.startDate <= ? AND s.endDate >= ?) OR
-                  (s.startDate >= ? AND s.endDate <= ?))`,
-            [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+             AND s.shiftDate BETWEEN ? AND ?`,
+            [employeeId, startDate, endDate]
         );
 
         // Check for pending shifts
         const [pendingShifts] = await connection.execute(
             `SELECT ps.*, u.name as employeeName,
-                     DATE_FORMAT(ps.startDate, '%Y-%m-%d') as formattedStartDate, 
-                     DATE_FORMAT(ps.endDate, '%Y-%m-%d') as formattedEndDate
+                    DATE_FORMAT(ps.shiftDate, '%Y-%m-%d') as formattedShiftDate
              FROM pendingShift ps
              JOIN user u ON ps.employeeId = u.userId
              WHERE ps.employeeId = ? 
-             AND ((ps.startDate <= ? AND ps.endDate >= ?) OR 
-                  (ps.startDate <= ? AND ps.endDate >= ?) OR
-                  (ps.startDate >= ? AND ps.endDate <= ?))`,
-            [employeeId, startDate, startDate, endDate, endDate, startDate, endDate]
+             AND ps.shiftDate BETWEEN ? AND ?`,
+            [employeeId, startDate, endDate]
         );
 
         // Format conflicts for better readability
@@ -528,7 +500,8 @@ const getTimeOffById = async (req, res) => {
             return shifts.map(shift => {
                 return {
                     id: type === 'Existing' ? shift.shiftId : shift.pendingShiftId,
-                    date: `${new Date(shift.startDate).toLocaleDateString()} to ${new Date(shift.endDate).toLocaleDateString()}`,
+                    date: new Date(shift.shiftDate).toLocaleDateString(),
+                    times: `${shift.startDate} - ${shift.endDate}`,
                     title: shift.title || `${type} Shift`,
                     status: shift.status,
                     shiftType: type
@@ -559,37 +532,20 @@ const getTimeOffById = async (req, res) => {
                      AND NOT EXISTS (
                          SELECT 1 FROM shift s
                          WHERE s.employeeId = u.userId
-                         AND ((s.startDate <= ? AND s.endDate >= ?) OR 
-                              (s.startDate <= ? AND s.endDate >= ?) OR
-                              (s.startDate >= ? AND s.endDate <= ?))
+                         AND s.shiftDate = ?
                      )
                      AND NOT EXISTS (
                          SELECT 1 FROM pendingShift ps
                          WHERE ps.employeeId = u.userId
-                         AND ((ps.startDate <= ? AND ps.endDate >= ?) OR 
-                              (ps.startDate <= ? AND ps.endDate >= ?) OR
-                              (ps.startDate >= ? AND ps.endDate <= ?))
+                         AND ps.shiftDate = ?
                      )
                      AND NOT EXISTS (
                          SELECT 1 FROM timeoff t
                          WHERE t.employeeId = u.userId
                          AND t.status = 'Approved'
-                         AND ((t.startDate <= ? AND t.endDate >= ?) OR 
-                              (t.startDate <= ? AND t.endDate >= ?) OR
-                              (t.startDate >= ? AND t.endDate <= ?))
+                         AND ? BETWEEN t.startDate AND t.endDate
                      )`,
-                    [
-                        employeeId, department,
-                        shift.startDate, shift.startDate,
-                        shift.endDate, shift.endDate,
-                        shift.startDate, shift.endDate,
-                        shift.startDate, shift.startDate,
-                        shift.endDate, shift.endDate,
-                        shift.startDate, shift.endDate,
-                        shift.startDate, shift.startDate,
-                        shift.endDate, shift.endDate,
-                        shift.startDate, shift.endDate
-                    ]
+                    [employeeId, department, shift.shiftDate, shift.shiftDate, shift.shiftDate]
                 );
                 
                 const shiftId = shift.shiftId || shift.pendingShiftId;
