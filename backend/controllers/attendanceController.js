@@ -299,7 +299,9 @@ const getEmployeeAttendance = async (req, res) => {
  * Get all attendance records (for admin/managers)
  */
 const getAllAttendance = async (req, res) => {
-    const { startDate, endDate, department } = req.query;
+    const { startDate, endDate, department, clinicId } = req.query;
+    
+    console.log('Getting all attendance records with params:', { startDate, endDate, department, clinicId });
     
     let connection;
     try {
@@ -307,10 +309,11 @@ const getAllAttendance = async (req, res) => {
         
         let query = `
             SELECT a.*, s.startDate as shiftStartDate, s.endDate as shiftEndDate, s.title as shiftTitle, 
-                   u.name as employeeName, u.department
+                   u.name as employeeName, u.department, u.clinicId, c.clinicName
             FROM attendance a
             LEFT JOIN shift s ON a.shiftId = s.shiftId
             JOIN user u ON a.employeeId = u.userId
+            LEFT JOIN clinics c ON u.clinicId = c.clinicId
             WHERE 1=1
         `;
         
@@ -326,13 +329,23 @@ const getAllAttendance = async (req, res) => {
             params.push(department);
         }
         
+        if (clinicId) {
+            query += " AND u.clinicId = ?";
+            params.push(clinicId);
+        }
+        
         query += " ORDER BY a.date DESC, u.name ASC";
+        
+        console.log('Executing query:', query);
+        console.log('With params:', params);
         
         const [attendanceRecords] = await connection.execute(query, params);
         
+        console.log(`Found ${attendanceRecords.length} attendance records`);
+        
         return res.status(200).json(attendanceRecords);
     } catch (err) {
-        console.error(err);
+        console.error('Error in getAllAttendance:', err);
         return res.status(500).json({ error: "Internal Server Error." });
     } finally {
         if (connection) connection.release();

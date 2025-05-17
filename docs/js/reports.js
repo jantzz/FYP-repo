@@ -50,95 +50,119 @@ function initializeReports() {
     }
 }
 
-// Function to fetch real attendance data from the API
+//fetch and populate clinics for the report filter
+async function populateClinicFilter() {
+    const clinicFilter = document.getElementById('report-clinic-filter');
+    if (!clinicFilter) return;
+    
+    // Clear existing options except 'All Clinics'
+    clinicFilter.innerHTML = '<option value="all">All Clinics</option>';
+    try {
+        const token = localStorage.getItem('token');
+        const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+        const response = await fetch(`${API_BASE_URL}/clinic/getClinics`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+            const clinics = await response.json();
+            clinics.forEach(clinic => {
+                const option = document.createElement('option');
+                option.value = clinic.clinicId;
+                option.textContent = clinic.clinicName;
+                clinicFilter.appendChild(option);
+            });
+        }
+    } catch (err) { /* ignore */ }
+}
+
+//fetch attendance for all employees, filtered by clinic if selected
 async function fetchAttendanceReportData(period = 'yearly') {
     try {
-        // Get the current user info and token
-        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const token = localStorage.getItem('token');
-        
-        if (!userInfo.userId || !token) {
-            renderChartsWithMockData();
-            return;
+        if (!token) { 
+            console.error('No authentication token found');
+            renderChartsWithMockData(); 
+            return; 
         }
         
-        // Set up date range based on period
+        //get selected clinic
+        const clinicFilter = document.getElementById('report-clinic-filter');
+        const selectedClinicId = clinicFilter ? clinicFilter.value : 'all';
+        
+        //set up date range based on period
         const today = new Date();
         let startDate, endDate = today.toISOString().split('T')[0];
-        
-        // Calculate start date based on selected period
         switch (period) {
             case 'weekly':
-                const oneWeekAgo = new Date(today);
-                oneWeekAgo.setDate(today.getDate() - 7);
-                startDate = oneWeekAgo.toISOString().split('T')[0];
-                break;
+                const oneWeekAgo = new Date(today); oneWeekAgo.setDate(today.getDate() - 7);
+                startDate = oneWeekAgo.toISOString().split('T')[0]; break;
             case 'monthly':
-                const oneMonthAgo = new Date(today);
-                oneMonthAgo.setMonth(today.getMonth() - 1);
-                startDate = oneMonthAgo.toISOString().split('T')[0];
-                break;
+                const oneMonthAgo = new Date(today); oneMonthAgo.setMonth(today.getMonth() - 1);
+                startDate = oneMonthAgo.toISOString().split('T')[0]; break;
             case 'quarterly':
-                const threeMonthsAgo = new Date(today);
-                threeMonthsAgo.setMonth(today.getMonth() - 3);
-                startDate = threeMonthsAgo.toISOString().split('T')[0];
-                break;
+                const threeMonthsAgo = new Date(today); threeMonthsAgo.setMonth(today.getMonth() - 3);
+                startDate = threeMonthsAgo.toISOString().split('T')[0]; break;
             case 'yearly':
-                const oneYearAgo = new Date(today);
-                oneYearAgo.setFullYear(today.getFullYear() - 1);
-                startDate = oneYearAgo.toISOString().split('T')[0];
-                break;
+                const oneYearAgo = new Date(today); oneYearAgo.setFullYear(today.getFullYear() - 1);
+                startDate = oneYearAgo.toISOString().split('T')[0]; break;
             default:
-                // Default to yearly view
-                const defaultOneYearAgo = new Date(today);
-                defaultOneYearAgo.setFullYear(today.getFullYear() - 1);
+                const defaultOneYearAgo = new Date(today); defaultOneYearAgo.setFullYear(today.getFullYear() - 1);
                 startDate = defaultOneYearAgo.toISOString().split('T')[0];
         }
-        
-        // Use the API_BASE_URL from window or fallback to localhost
         const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+        //build query for all attendance
+        let url = `${API_BASE_URL}/attendance/all?startDate=${startDate}&endDate=${endDate}`;
+        if (selectedClinicId && selectedClinicId !== 'all') {
+            url += `&clinicId=${selectedClinicId}`;
+        }
         
-        // Fetch attendance statistics from the API
-        const response = await fetch(`${API_BASE_URL}/attendance/stats?employeeId=${userInfo.userId}&startDate=${startDate}&endDate=${endDate}`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
+        console.log('Fetching attendance data from:', url);
+        
+        //fetch all attendance records
+        const response = await fetch(url, { 
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
             }
         });
         
         if (response.ok) {
             const data = await response.json();
-            
-            // Render charts with real data
-            renderAttendanceHistoryChart(data);
-            renderPunctualityTrendChart(data);
-            
-            // Also fetch time off details if possible to show breakdown by type
-            try {
-                // Get time off data for the same period
-                const timeOffResponse = await fetch(`${API_BASE_URL}/timeoff/employee/${userInfo.userId}?startDate=${startDate}&endDate=${endDate}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (timeOffResponse.ok) {
-                    const timeOffData = await timeOffResponse.json();
-                    
-                    // Add a time off breakdown chart if the canvas exists
-                    const timeOffCanvas = document.getElementById('timeoffBreakdownChart');
-                    if (timeOffCanvas) {
-                        renderTimeOffBreakdownChart(timeOffData);
-                    }
-                }
-            } catch (err) {
-                // Error handling remains in place
-            }
+            console.log('Successfully fetched attendance data:', data);
+            //render charts with data
+            renderAttendanceHistoryChart(aggregateAttendanceData(data));
+            renderPunctualityTrendChart(aggregateAttendanceData(data), period);
         } else {
+            const errorText = await response.text();
+            console.error('Error fetching attendance data:', {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorText
+            });
             renderChartsWithMockData();
         }
     } catch (error) {
+        console.error('Exception while fetching attendance data:', error);
         renderChartsWithMockData();
     }
+}
+
+//raw attendance records into dailyBreakdown for chart rendering
+function aggregateAttendanceData(records) {
+    //group by date
+    const breakdownMap = {};
+    records.forEach(rec => {
+        const date = rec.date;
+        if (!breakdownMap[date]) {
+            breakdownMap[date] = { date, presentCount: 0, lateCount: 0, absentCount: 0, leaveCount: 0, totalCount: 0 };
+        }
+        if (rec.status === 'Present') breakdownMap[date].presentCount++;
+        else if (rec.status === 'Late') breakdownMap[date].lateCount++;
+        else if (rec.status === 'Absent') breakdownMap[date].absentCount++;
+        else if (rec.status === 'Leave') breakdownMap[date].leaveCount++;
+        breakdownMap[date].totalCount++;
+    });
+    return { dailyBreakdown: Object.values(breakdownMap) };
 }
 
 // Function to render charts with mock data when API fails
@@ -427,118 +451,106 @@ function renderAttendanceHistoryChart(apiData = null) {
 }
 
 // Function to render punctuality trend chart
-function renderPunctualityTrendChart(apiData = null) {
+function renderPunctualityTrendChart(apiData = null, period = 'yearly') {
     try {
         const chartCanvas = document.getElementById('punctualityChart');
-        if (!chartCanvas) {
-            return;
-        }
-        
-        // Force cleanup any existing chart on this canvas
+        if (!chartCanvas) return;
+
         safeDestroyChart('punctualityChart');
-        
         const ctx = chartCanvas.getContext('2d');
-        
+
         if (apiData && apiData.dailyBreakdown && apiData.dailyBreakdown.length > 0) {
-            // Use API data
             const breakdown = apiData.dailyBreakdown;
-            
-            // Sort data by date to ensure chronological order
-            breakdown.sort((a, b) => new Date(a.date) - new Date(b.date));
-            
-            // Group data by month for a yearly report
-            const months = {};
+
+            //group by month or by day depending on period
+            const groupKey = period === 'monthly'
+                ? (item) => item.date // group by day
+                : (item) => {
+                    const date = new Date(item.date);
+                    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                };
+
+            const grouped = {};
             breakdown.forEach(item => {
-                const date = new Date(item.date);
-                const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                
-                if (!months[monthKey]) {
-                    months[monthKey] = {
-                        presentCount: 0,
-                        lateCount: 0,
-                        totalCount: 0
-                    };
+                const key = groupKey(item);
+                if (!grouped[key]) {
+                    grouped[key] = { present: 0, late: 0, absent: 0, leave: 0 };
                 }
-                
-                months[monthKey].presentCount += item.presentCount;
-                months[monthKey].lateCount += item.lateCount;
-                months[monthKey].totalCount += (item.presentCount + item.lateCount);
+                grouped[key].present += item.presentCount;
+                grouped[key].late += item.lateCount;
+                grouped[key].absent += item.absentCount;
+                grouped[key].leave += item.leaveCount;
             });
-            
-            // Convert months object to arrays for chart
-            const labels = Object.keys(months);
-            
-            // Calculate on-time percentage for each month
-            const onTimePercentages = labels.map(month => {
-                if (months[month].totalCount === 0) return 0;
-                return ((months[month].presentCount / months[month].totalCount) * 100).toFixed(1);
-            });
-            
-            // Create new chart
+
+            const labels = Object.keys(grouped).sort((a, b) => new Date(a) - new Date(b));
+            const presentData = labels.map(label => grouped[label].present);
+            const lateData = labels.map(label => grouped[label].late);
+            const absentData = labels.map(label => grouped[label].absent);
+            const leaveData = labels.map(label => grouped[label].leave);
+
             reportChartInstances.punctualityChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
-                    datasets: [{
-                        label: 'On Time %',
-                        backgroundColor: 'rgba(76, 175, 80, 0.2)',
-                        borderColor: '#4CAF50',
-                        borderWidth: 2,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#4CAF50',
-                        data: onTimePercentages
-                    }]
+                    datasets: [
+                        {
+                            label: 'Present',
+                            data: presentData,
+                            borderColor: '#4CAF50',
+                            backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                            fill: false,
+                            tension: 0.2
+                        },
+                        {
+                            label: 'Late',
+                            data: lateData,
+                            borderColor: '#FF9800',
+                            backgroundColor: 'rgba(255, 152, 0, 0.2)',
+                            fill: false,
+                            tension: 0.2
+                        },
+                        {
+                            label: 'Absent',
+                            data: absentData,
+                            borderColor: '#F44336',
+                            backgroundColor: 'rgba(244, 67, 54, 0.2)',
+                            fill: false,
+                            tension: 0.2
+                        },
+                        {
+                            label: 'Time Off',
+                            data: leaveData,
+                            borderColor: '#2196F3',
+                            backgroundColor: 'rgba(33, 150, 243, 0.2)',
+                            fill: false,
+                            tension: 0.2
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: period === 'monthly'
+                                ? 'Daily Attendance Trend (Selected Month)'
+                                : 'Monthly Attendance Trend (Yearly View)'
+                        }
+                    },
                     scales: {
                         y: {
-                            min: 0,
-                            max: 100,
-                            title: {
-                                display: true,
-                                text: 'On-Time Percentage (%)'
-                            }
+                            beginAtZero: true,
+                            title: { display: true, text: 'Number of Days' }
                         },
                         x: {
-                            title: {
-                                display: true,
-                                text: 'Month'
-                            }
+                            title: { display: true, text: period === 'monthly' ? 'Day' : 'Month' }
                         }
                     }
                 }
             });
         } else {
-            // Use mock data if no API data is available
-            
-            // Create new chart with mock data
-            reportChartInstances.punctualityChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-                    datasets: [{
-                        label: 'On Time %',
-                        backgroundColor: 'rgba(76, 175, 80, 0.2)',
-                        borderColor: '#4CAF50',
-                        borderWidth: 2,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#4CAF50',
-                        data: [90, 85, 95, 90, 82, 87, 95, 91, 86, 83, 87, 0]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            min: 50,
-                            max: 100
-                        }
-                    }
-                }
-            });
+            // Fallback: show empty or mock data
         }
     } catch (error) {
         // Error handling remains in place
@@ -891,3 +903,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // Error handling remains in place
     }
 });
+
+//on DOMContentLoaded populate clinic filter and set up event
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupReportsClinicFilter);
+} else {
+    setupReportsClinicFilter();
+}
+function setupReportsClinicFilter() {
+    populateClinicFilter();
+    const clinicFilter = document.getElementById('report-clinic-filter');
+    if (clinicFilter) {
+        clinicFilter.addEventListener('change', function() {
+            fetchAttendanceReportData();
+        });
+    }
+}

@@ -765,6 +765,13 @@
             <div class="report-section" style="display: none;">
                 <div class="section-header">
                     <h2>Analytics Dashboard</h2>
+                    <div class="filter-row" style="margin-bottom: 16px;">
+                        <label for="report-clinic-filter" style="margin-right: 8px;">Clinic:</label>
+                        <select id="report-clinic-filter" class="clinic-filter">
+                            <option value="all">All Clinics</option>
+                            <!-- updated to be dynamically populated -->
+                        </select>
+                    </div>
                     <div class="export-buttons">
                         <button class="btn-export" id="export-pdf">
                             <i class="fas fa-file-pdf"></i> Export PDF
