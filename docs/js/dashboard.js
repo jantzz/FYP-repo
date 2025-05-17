@@ -3417,7 +3417,7 @@ async function fetchShifts() {
                             // Validate that end date is after start date
                             if (endDate <= startDate) {
                                 endDate = new Date(startDate);
-                                endDate.setHours(endDate.getHours() + 1);
+                                endDate.setHours(endDate.getHours());
                             }
                         } else {
                             console.warn(`Shift ${shift.shiftId} has invalid or missing end date, using default (start + 1 hour)`);
