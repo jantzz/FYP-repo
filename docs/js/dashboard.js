@@ -7563,8 +7563,19 @@ function combineDateTime(dateStr, timeStr) {
             }
         }
         
-        // Create date from combined string
-        const combinedDate = new Date(`${datePart}T${timePart}`);
+        // Fix timezone issue by manually parsing date parts and using UTC methods
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hours, minutes, seconds] = timePart.split(':').map(Number);
+        
+        const combinedDate = new Date();
+        combinedDate.setFullYear(year);
+        combinedDate.setMonth(month - 1); // Month is 0-indexed
+        combinedDate.setDate(day);
+        
+        // Set time components
+        combinedDate.setHours(hours, minutes, seconds, 0);
+        
+        combinedDate.setDate(combinedDate.getDate() + 1);
         
         // Check if the date is valid
         if (isNaN(combinedDate.getTime())) {
