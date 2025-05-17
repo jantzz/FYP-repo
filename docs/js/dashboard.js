@@ -4973,17 +4973,20 @@ async function loadSwapRequests() {
         }
 
         // Helper function to extract date information safely
-        const extractShiftData = (shift, shiftStartDate, shiftEndDate, employeeId) => {
+        const extractShiftData = (shift, shiftStartDate, shiftEndDate, employeeId, shiftDate, department, swapStatus) => {
             // Handle case where we get full objects vs. just IDs
             const shiftData = typeof shift === 'object' ? shift : { shiftId: shift };
             
             // Log received data for debugging
-            console.log('Received shift data:', shiftData, 'Start date:', shiftStartDate, 'End date:', shiftEndDate);
+            console.log('Received shift data:', shiftData, 'Start date:', shiftStartDate, 'End date:', shiftEndDate, 'shiftDate:', shiftDate);
             
             // Process the shiftDate from the database (DATE type)
             // IMPORTANT: We'll use exactly what's in the data without defaulting to today's date
             let formattedShiftDate;
-            if (shiftData.shiftDate) {
+            if(shiftDate) {
+                formattedShiftDate = shiftDate.split('T')[0];
+            }
+            else if (shiftData.shiftDate) {
                 // If we have a shiftDate from the full object
                 formattedShiftDate = shiftData.shiftDate;
             } else if (shiftData.date) {
@@ -5012,10 +5015,10 @@ async function loadSwapRequests() {
                 end_time: endTimeStr,
                 startDate: startTimeStr,
                 endDate: endTimeStr,
-                status: shiftData.status || 'Pending',
+                status: swapStatus || shiftData.status || 'Pending',
                 employeeId: employeeId || shiftData.employeeId,
                 title: shiftData.title || 'Shift',
-                department: shiftData.department || 'Unknown'
+                department: department || shiftData.department || 'Unknown'
             };
             
             // Log the processed data
@@ -5039,7 +5042,6 @@ async function loadSwapRequests() {
                 console.warn('Error processing submission date:', error);
                 formattedSubmitDate = new Date().toISOString();
             }
-            
             // Extract date from the first available property in the expected order
             return {
                 id: swap.swapId,
@@ -5049,13 +5051,19 @@ async function loadSwapRequests() {
                     swap.currentShift,
                     swap.currentShift_startDate, 
                     swap.currentShift_endDate,
-                    swap.currentShift_employeeId
+                    swap.currentShift_employeeId,
+                    swap.shiftDate,
+                    swap.requesterDepartment,
+                    swap.status
                 ),
                 target_shift: extractShiftData(
                     swap.swapWith,
                     swap.swapWith_startDate,
                     swap.swapWith_endDate,
-                    swap.swapWith_employeeId
+                    swap.swapWith_employeeId,
+                    swap.targetShiftDate,
+                    swap.targetDepartment,
+                    swap.status
                 ),
                 requester_name: swap.requesterName || 'Unknown Employee',
                 requester_id: swap.currentShift_employeeId,

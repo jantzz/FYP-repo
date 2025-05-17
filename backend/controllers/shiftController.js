@@ -722,7 +722,7 @@ const getSwaps = async (req, res) => {
                 try {
                     // Get current shift info
                     const [currentShiftData] = await connection.execute(
-                        'SELECT s.*, u.name as employeeName FROM shift s LEFT JOIN user u ON s.employeeId = u.userId WHERE s.shiftId = ?',
+                        'SELECT s.*, u.name as employeeName, u.department FROM shift s LEFT JOIN user u ON s.employeeId = u.userId WHERE s.shiftId = ?',
                         [swap.currentShift]
                     );
 
@@ -731,11 +731,13 @@ const getSwaps = async (req, res) => {
                         enhancedSwap.currentShift_endDate = currentShiftData[0].endDate;
                         enhancedSwap.currentShift_employeeId = currentShiftData[0].employeeId;
                         enhancedSwap.requesterName = currentShiftData[0].employeeName;
+                        enhancedSwap.shiftDate = currentShiftData[0].shiftDate;
+                        enhancedSwap.requesterDepartment = currentShiftData[0].department;
                     }
 
                     // Get swap with info
                     const [swapWithData] = await connection.execute(
-                        'SELECT s.*, u.name as employeeName FROM shift s LEFT JOIN user u ON s.employeeId = u.userId WHERE s.shiftId = ?',
+                        'SELECT s.*, u.name as employeeName, u.department FROM shift s LEFT JOIN user u ON s.employeeId = u.userId WHERE s.shiftId = ?',
                         [swap.swapWith]
                     );
 
@@ -744,6 +746,8 @@ const getSwaps = async (req, res) => {
                         enhancedSwap.swapWith_endDate = swapWithData[0].endDate;
                         enhancedSwap.swapWith_employeeId = swapWithData[0].employeeId;
                         enhancedSwap.targetEmployeeName = swapWithData[0].employeeName;
+                        enhancedSwap.targetShiftDate = swapWithData[0].shiftDate;
+                        enhancedSwap.targetDepartment = swapWithData[0].department;
                     }
                 } catch (error) {
                     console.error(`Error enhancing swap data for swap ID ${swap.swapId}:`, error);
@@ -753,11 +757,14 @@ const getSwaps = async (req, res) => {
                 enhancedSwaps.push(enhancedSwap);
             }
 
+            console.log('Enhanced swap data:', enhancedSwaps);
+
         // Format dates for consistency
             const formattedSwaps = enhancedSwaps.map(swap => {
             // Create a safe version that handles null or invalid dates
             const safeISOString = (value) => {
                 if (!value) return null;
+                if (/^\d{2}:\d{2}:\d{2}$/.test(value)) return value; // If it's a time string, return it as is
                 try {
                     const date = new Date(value);
                     return date instanceof Date && !isNaN(date) ? date.toISOString() : null;
@@ -776,6 +783,8 @@ const getSwaps = async (req, res) => {
                 swapWith_endDate: safeISOString(swap.swapWith_endDate)
             };
         });
+
+        console.log('Formatted swap data:', formattedSwaps);
 
         return res.status(200).json(formattedSwaps);
 
