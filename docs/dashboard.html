@@ -797,6 +797,39 @@
                         <canvas id="punctualityChart" height="300"></canvas>
                     </div>
                 </div>
+                
+                <!-- Working Hours Report Section -->
+                <div class="working-hours-report report-card">
+                    <h3>Employee Working Hours Report</h3>
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label for="working-hours-month">Month:</label>
+                            <select id="working-hours-month" class="month-filter"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="working-hours-clinic-filter">Clinic:</label>
+                            <select id="working-hours-clinic-filter" class="clinic-filter">
+                                <option value="all">All Clinics</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="working-hours-table">
+                            <thead>
+                                <tr>
+                                    <th>Employee Name</th>
+                                    <th>Department</th>
+                                    <th>Total Hours</th>
+                                </tr>
+                            </thead>
+                            <tbody id="working-hours-table-body">
+                                <tr>
+                                    <td colspan="3" class="loading-message">Loading working hours data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
     <!-- Department Management Section -->

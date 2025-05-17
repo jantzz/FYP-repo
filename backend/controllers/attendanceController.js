@@ -637,11 +637,122 @@ const syncTimeOffWithAttendance = async (req, res) => {
     }
 };
 
+/**
+ * Get working hours for all employees for admin/manager reports
+ */
+const getEmployeeWorkingHours = async (req, res) => {
+    const { month, year, clinicId } = req.query;
+    
+    // Validate month and year
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
+    
+    const targetMonth = parseInt(month) || currentMonth;
+    const targetYear = parseInt(year) || currentYear;
+    
+    let connection;
+    try {
+        connection = await db.getConnection();
+        
+        // Set up date range for the selected month
+        const startDate = new Date(targetYear, targetMonth - 1, 1);
+        const endDate = new Date(targetYear, targetMonth, 0); // Last day of month
+        
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
+        
+        // Build simplified query - avoid complex joins for now
+        let query = `
+            SELECT 
+                u.userId, 
+                u.name, 
+                u.department,
+                u.role,
+                a.date, 
+                a.clockInTime, 
+                a.clockOutTime
+            FROM user u
+            LEFT JOIN attendance a ON u.userId = a.employeeId 
+                AND a.date BETWEEN ? AND ?
+            WHERE u.role != 'Admin'
+        `;
+        
+        const params = [startDateStr, endDateStr];
+        
+        // Add clinic filter if specified
+        if (clinicId && clinicId !== 'all') {
+            // Check if the clinicId column exists in user table
+            query += " AND u.clinicId = ?";
+            params.push(clinicId);
+        }
+        
+        query += " ORDER BY u.name, a.date";
+        
+        console.log('Executing query:', query);
+        console.log('With params:', params);
+        
+        const [records] = await connection.execute(query, params);
+        console.log(`Found ${records.length} records`);
+        
+        // Process records to calculate hours for each employee
+        const employeeMap = {};
+        
+        records.forEach(record => {
+            const employeeId = record.userId;
+            
+            if (!employeeMap[employeeId]) {
+                employeeMap[employeeId] = {
+                    employeeId: employeeId,
+                    name: record.name,
+                    department: record.department || 'Not Assigned',
+                    totalHours: 0,
+                    workDays: 0
+                };
+            }
+            
+            // Calculate hours if clock in and out times exist
+            if (record.clockInTime && record.clockOutTime) {
+                const clockIn = new Date(record.clockInTime);
+                const clockOut = new Date(record.clockOutTime);
+                
+                // Calculate hours worked for this day
+                const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
+                
+                // Add to employee's total hours
+                employeeMap[employeeId].totalHours += hoursWorked;
+                employeeMap[employeeId].workDays += 1;
+            }
+        });
+        
+        // Convert map to array
+        const employeeHours = Object.values(employeeMap);
+        
+        // Round hour values to 2 decimal places for more precision in HH:MM conversion
+        employeeHours.forEach(emp => {
+            emp.totalHours = parseFloat(emp.totalHours.toFixed(2));
+        });
+        
+        return res.status(200).json({
+            month: targetMonth,
+            year: targetYear,
+            employees: employeeHours
+        });
+        
+    } catch (err) {
+        console.error('Error fetching working hours:', err);
+        return res.status(500).json({ error: "Internal Server Error: " + err.message });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 module.exports = {
     clockIn,
     clockOut,
     getEmployeeAttendance,
     getAllAttendance,
     getAttendanceStats,
-    syncTimeOffWithAttendance
+    syncTimeOffWithAttendance,
+    getEmployeeWorkingHours
 }; 

@@ -6,7 +6,8 @@ const {
     getEmployeeAttendance, 
     getAllAttendance, 
     getAttendanceStats,
-    syncTimeOffWithAttendance
+    syncTimeOffWithAttendance,
+    getEmployeeWorkingHours
 } = require('../controllers/attendanceController');
 
 // Clock in/out endpoints
@@ -19,6 +20,9 @@ router.get('/all', getAllAttendance);
 
 // Get attendance statistics
 router.get('/stats', getAttendanceStats);
+
+// Get working hours for all employees (admin/manager only)
+router.get('/working-hours', getEmployeeWorkingHours);
 
 // Sync time off with attendance records
 router.post('/sync-timeoff', syncTimeOffWithAttendance);

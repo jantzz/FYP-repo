@@ -5,12 +5,24 @@ const reportChartInstances = {
     timeOffBreakdownChart: null
 };
 
+// Keep track of initialization status
+let reportsInitialized = false;
+let clinicFilterPopulated = false;
+
 // Initialize Reports functionality
 function initializeReports() {
     try {
+        // Prevent duplicate initialization
+        if (reportsInitialized) {
+            console.log('Reports already initialized, skipping...');
+            return;
+        }
+        reportsInitialized = true; // Set flag earlier
+
         // Check if Chart.js is available
         if (typeof Chart === 'undefined') {
             showNotification('Error loading charts: Chart.js library is missing', 'error');
+            reportsInitialized = false; // Reset flag
             return;
         }
         
@@ -20,6 +32,11 @@ function initializeReports() {
         // Small delay to ensure DOM is updated after chart destruction
         setTimeout(() => {
             try {
+                // Get user info to determine role
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                const userRole = (userInfo.role || '').toLowerCase();
+                const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+                
                 // Fetch real attendance data
                 fetchAttendanceReportData();
                 
@@ -41,17 +58,36 @@ function initializeReports() {
                         fetchAttendanceReportData(this.value);
                     });
                 }
+                
+                // Initialize working hours section for admin/manager
+                if (isAdminOrManager) {
+                    initializeWorkingHoursReport();
+                } else {
+                    // Hide working hours section for employees
+                    const workingHoursSection = document.querySelector('.working-hours-report');
+                    if (workingHoursSection) {
+                        workingHoursSection.style.display = 'none';
+                    }
+                }
             } catch (err) {
-                // Error handling remains in place
+                reportsInitialized = false; // Reset flag on error in async part
+                console.error('Error in reports initialization inner block:', err);
             }
         }, 50);
     } catch (error) {
-        // Error handling remains in place
+        reportsInitialized = false; // Reset flag on error in sync part
+        console.error('Error in reports initialization:', error);
     }
 }
 
 //fetch and populate clinics for the report filter
 async function populateClinicFilter() {
+    // Prevent duplicate population
+    if (clinicFilterPopulated) {
+        console.log('Clinic filter already populated, skipping...');
+        return;
+    }
+    
     const clinicFilter = document.getElementById('report-clinic-filter');
     if (!clinicFilter) return;
     
@@ -71,6 +107,8 @@ async function populateClinicFilter() {
                 option.textContent = clinic.clinicName;
                 clinicFilter.appendChild(option);
             });
+            // Mark as populated
+            clinicFilterPopulated = true;
         }
     } catch (err) { /* ignore */ }
 }
@@ -84,6 +122,12 @@ async function fetchAttendanceReportData(period = 'yearly') {
             renderChartsWithMockData(); 
             return; 
         }
+        
+        // Get user info to determine role
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const userRole = (userInfo.role || '').toLowerCase();
+        const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+        const userId = userInfo.userId;
         
         //get selected clinic
         const clinicFilter = document.getElementById('report-clinic-filter');
@@ -110,15 +154,26 @@ async function fetchAttendanceReportData(period = 'yearly') {
                 startDate = defaultOneYearAgo.toISOString().split('T')[0];
         }
         const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+        
+        let url;
+        // For admin and managers - show all attendance data
+        if (isAdminOrManager) {
         //build query for all attendance
-        let url = `${API_BASE_URL}/attendance/all?startDate=${startDate}&endDate=${endDate}`;
+            url = `${API_BASE_URL}/attendance/all?startDate=${startDate}&endDate=${endDate}`;
         if (selectedClinicId && selectedClinicId !== 'all') {
             url += `&clinicId=${selectedClinicId}`;
         }
         
-        console.log('Fetching attendance data from:', url);
+            console.log('Admin/Manager: Fetching all attendance data from:', url);
+        } 
+        // For employees - show only their own data
+        else {
+            // Use the employee-specific endpoint with their userId
+            url = `${API_BASE_URL}/attendance/employee/${userId}?startDate=${startDate}&endDate=${endDate}`;
+            console.log('Employee: Fetching personal attendance data from:', url);
+        }
         
-        //fetch all attendance records
+        //fetch attendance records
         const response = await fetch(url, { 
             headers: { 
                 'Authorization': `Bearer ${token}`,
@@ -130,8 +185,8 @@ async function fetchAttendanceReportData(period = 'yearly') {
             const data = await response.json();
             console.log('Successfully fetched attendance data:', data);
             //render charts with data
-            renderAttendanceHistoryChart(aggregateAttendanceData(data));
-            renderPunctualityTrendChart(aggregateAttendanceData(data), period);
+            renderAttendanceHistoryChart(aggregateAttendanceData(data), isAdminOrManager);
+            renderPunctualityTrendChart(aggregateAttendanceData(data), period, isAdminOrManager);
         } else {
             const errorText = await response.text();
             console.error('Error fetching attendance data:', {
@@ -227,7 +282,7 @@ function destroyReportCharts() {
 }
 
 // Function to render attendance history chart
-function renderAttendanceHistoryChart(apiData = null) {
+function renderAttendanceHistoryChart(apiData = null, isAdminOrManager = false) {
     try {
         const chartCanvas = document.getElementById('attendanceHistoryChart');
         if (!chartCanvas) {
@@ -372,7 +427,7 @@ function renderAttendanceHistoryChart(apiData = null) {
                         },
                         title: {
                             display: true,
-                            text: 'Monthly Attendance Breakdown',
+                            text: isAdminOrManager ? 'Organization Monthly Attendance Breakdown' : 'Personal Monthly Attendance Breakdown',
                             font: {
                                 size: 16
                             }
@@ -436,7 +491,7 @@ function renderAttendanceHistoryChart(apiData = null) {
                         },
                         title: {
                             display: true,
-                            text: 'Monthly Attendance Breakdown (Sample Data)',
+                            text: isAdminOrManager ? 'Organization Monthly Attendance Breakdown (Sample Data)' : 'Personal Monthly Attendance Breakdown (Sample Data)',
                             font: {
                                 size: 16
                             }
@@ -451,7 +506,7 @@ function renderAttendanceHistoryChart(apiData = null) {
 }
 
 // Function to render punctuality trend chart
-function renderPunctualityTrendChart(apiData = null, period = 'yearly') {
+function renderPunctualityTrendChart(apiData = null, period = 'yearly', isAdminOrManager = false) {
     try {
         const chartCanvas = document.getElementById('punctualityChart');
         if (!chartCanvas) return;
@@ -534,8 +589,11 @@ function renderPunctualityTrendChart(apiData = null, period = 'yearly') {
                         title: {
                             display: true,
                             text: period === 'monthly'
-                                ? 'Daily Attendance Trend (Selected Month)'
-                                : 'Monthly Attendance Trend (Yearly View)'
+                                ? (isAdminOrManager ? 'Organization Daily Attendance Trend' : 'Personal Daily Attendance Trend')
+                                : (isAdminOrManager ? 'Organization Monthly Attendance Trend' : 'Personal Monthly Attendance Trend'),
+                            font: {
+                                size: 16
+                            }
                         }
                     },
                     scales: {
@@ -550,7 +608,50 @@ function renderPunctualityTrendChart(apiData = null, period = 'yearly') {
                 }
             });
         } else {
-            // Fallback: show empty or mock data
+            // Fallback: show empty or mock data with appropriate title
+            reportChartInstances.punctualityChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [
+                        {
+                            label: 'Present',
+                            data: [20, 18, 22, 21, 19, 20, 22, 21, 18, 19, 20, 0],
+                            borderColor: '#4CAF50',
+                            backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                            fill: false,
+                            tension: 0.2
+                        },
+                        {
+                            label: 'Late',
+                            data: [2, 3, 1, 2, 4, 3, 1, 2, 3, 4, 3, 0],
+                            borderColor: '#FF9800',
+                            backgroundColor: 'rgba(255, 152, 0, 0.2)',
+                            fill: false,
+                            tension: 0.2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: isAdminOrManager ? 'Organization Attendance Trend (Sample Data)' : 'Personal Attendance Trend (Sample Data)',
+                            font: {
+                                size: 16
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Number of Days' }
+                        }
+                    }
+                }
+            });
         }
     } catch (error) {
         // Error handling remains in place
@@ -911,11 +1012,289 @@ if (document.readyState === 'loading') {
     setupReportsClinicFilter();
 }
 function setupReportsClinicFilter() {
+    // Get user info to determine role
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const userRole = (userInfo.role || '').toLowerCase();
+    const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+    
+    // Hide clinic filter for employees
+    const filterRow = document.querySelector('.filter-row:has(#report-clinic-filter)');
+    if (filterRow) {
+        filterRow.style.display = isAdminOrManager ? 'flex' : 'none';
+    }
+    
+    // Only populate if not already done and user is admin/manager
+    if (!clinicFilterPopulated && isAdminOrManager) {
     populateClinicFilter();
+    }
+    
     const clinicFilter = document.getElementById('report-clinic-filter');
-    if (clinicFilter) {
+    if (clinicFilter && isAdminOrManager) {
+        // Check if event listener is already added
+        if (!clinicFilter.hasAttribute('data-event-attached')) {
         clinicFilter.addEventListener('change', function() {
             fetchAttendanceReportData();
+                // Also update working hours if we're an admin/manager
+                if (isAdminOrManager) {
+                    fetchWorkingHoursData();
+                }
+            });
+            // Mark that event listener has been attached
+            clinicFilter.setAttribute('data-event-attached', 'true');
+        }
+    }
+}
+
+// Initialize working hours report
+function initializeWorkingHoursReport() {
+    // Check user role - only show for admin/manager
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const userRole = (userInfo.role || '').toLowerCase();
+    const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+    
+    if (!isAdminOrManager) {
+        // Hide the working hours section if not admin/manager
+        const workingHoursSection = document.querySelector('.working-hours-report');
+        if (workingHoursSection) {
+            workingHoursSection.style.display = 'none';
+        }
+        return;
+    }
+    
+    // Show the working hours section
+    const workingHoursSection = document.querySelector('.working-hours-report');
+    if (workingHoursSection) {
+        workingHoursSection.style.display = 'block';
+    }
+    
+    // Initialize clinic filter for working hours
+    populateWorkingHoursClinicFilter();
+    
+    // Initialize month selector
+    initializeMonthSelector();
+    
+    // Fetch working hours data for current month
+    fetchWorkingHoursData();
+}
+
+// Keep track of working hours filter initialization
+let workingHoursClinicFilterPopulated = false;
+
+// Populate clinic filter for working hours section
+async function populateWorkingHoursClinicFilter() {
+    // Prevent duplicate population
+    if (workingHoursClinicFilterPopulated) {
+        console.log('Working hours clinic filter already populated, skipping...');
+        return;
+    }
+    workingHoursClinicFilterPopulated = true;
+    
+    const clinicFilter = document.getElementById('working-hours-clinic-filter');
+    if (!clinicFilter) {
+        workingHoursClinicFilterPopulated = false; // Reset if element not found
+        console.error('Working hours clinic filter element not found.');
+        return;
+    }
+    
+    // Clear existing options except 'All Clinics'
+    clinicFilter.innerHTML = '<option value="all">All Clinics</option>';
+    
+    try {
+        const token = localStorage.getItem('token');
+        const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+        const response = await fetch(`${API_BASE_URL}/clinic/getClinics`, {
+            headers: { 'Authorization': `Bearer ${token}` }
         });
+        
+        if (response.ok) {
+            const clinics = await response.json();
+            clinics.forEach(clinic => {
+                const option = document.createElement('option');
+                option.value = clinic.clinicId;
+                option.textContent = clinic.clinicName;
+                clinicFilter.appendChild(option);
+            });
+            
+            // Add event listener for clinic filter change
+            if (!clinicFilter.hasAttribute('data-event-attached')) {
+                clinicFilter.addEventListener('change', function() {
+                    fetchWorkingHoursData();
+                });
+                clinicFilter.setAttribute('data-event-attached', 'true');
+            }
+            // Successfully populated, workingHoursClinicFilterPopulated remains true.
+        } else {
+            workingHoursClinicFilterPopulated = false; // Reset flag on fetch failure
+            console.error('Failed to load clinics for working hours filter. Status:', response.status);
+        }
+    } catch (err) { 
+        workingHoursClinicFilterPopulated = false; // Reset flag on exception
+        console.error('Error loading clinics for filter:', err);
+    }
+}
+
+// Initialize month selector with months from the past year
+function initializeMonthSelector() {
+    const monthSelect = document.getElementById('working-hours-month');
+    if (!monthSelect) return;
+    
+    // Clear existing options
+    monthSelect.innerHTML = '';
+    
+    // Get current date
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Add options for the current month and past 11 months
+    for (let i = 0; i < 12; i++) {
+        const monthIndex = (currentMonth - i + 12) % 12;
+        const year = currentYear - (monthIndex > currentMonth ? 1 : 0);
+        
+        const option = document.createElement('option');
+        option.value = `${monthIndex + 1},${year}`;
+        
+        // Format month name
+        const monthName = new Date(year, monthIndex, 1).toLocaleString('default', { month: 'long' });
+        option.textContent = `${monthName} ${year}`;
+        
+        // Select current month by default
+        if (i === 0) {
+            option.selected = true;
+        }
+        
+        monthSelect.appendChild(option);
+    }
+    
+    // Add event listener for month change
+    monthSelect.addEventListener('change', function() {
+        fetchWorkingHoursData();
+    });
+}
+
+// Fetch working hours data from the API
+async function fetchWorkingHoursData() {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            console.error('No authentication token found');
+            showNoDataMessage('You must be logged in to view this report.');
+            return;
+        }
+        
+        console.log('Fetching working hours data...');
+        
+        // Get selected month and year
+        const monthSelect = document.getElementById('working-hours-month');
+        if (!monthSelect) {
+            console.error('Month select element not found in DOM');
+            showNoDataMessage('Error: Could not find month selector.');
+            return;
+        }
+        
+        const [month, year] = monthSelect.value.split(',');
+        console.log(`Selected month: ${month}, year: ${year}`);
+        
+        // Get selected clinic
+        const clinicFilter = document.getElementById('working-hours-clinic-filter');
+        const clinicId = clinicFilter ? clinicFilter.value : 'all';
+        console.log(`Selected clinic: ${clinicId}`);
+        
+        // Show loading message
+        const tableBody = document.getElementById('working-hours-table-body');
+        if (tableBody) {
+            tableBody.innerHTML = '<tr><td colspan="3" class="loading-message">Loading working hours data...</td></tr>';
+        } else {
+            console.error('Working hours table body not found in DOM');
+        }
+        
+        const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+        const url = `${API_BASE_URL}/attendance/working-hours?month=${month}&year=${year}&clinicId=${clinicId}`;
+        console.log(`Fetching from URL: ${url}`);
+        
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Successfully fetched working hours data:', data);
+            renderWorkingHoursTable(data);
+        } else {
+            const errorText = await response.text();
+            console.error('Error fetching working hours data:', {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorText
+            });
+            showNoDataMessage('Error loading data. Please try again later.');
+        }
+    } catch (error) {
+        console.error('Exception while fetching working hours data:', error);
+        showNoDataMessage('Error loading data. Please try again later.');
+    }
+}
+
+// Render working hours data in table
+function renderWorkingHoursTable(data) {
+    const tableBody = document.getElementById('working-hours-table-body');
+    if (!tableBody) return;
+    
+    if (!data.employees || data.employees.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="3" class="no-records-message">No working hours data found for the selected period.</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    data.employees.forEach(employee => {
+        // Format hours in HH:MM format
+        const totalHours = formatHoursToHHMM(employee.totalHours);
+        
+        html += `
+            <tr>
+                <td>${employee.name}</td>
+                <td>${employee.department || 'Not Assigned'}</td>
+                <td>${totalHours}</td>
+            </tr>
+        `;
+    });
+    
+    tableBody.innerHTML = html;
+}
+
+// Format decimal hours to "HH hours MM minutes" format
+function formatHoursToHHMM(decimalHours) {
+    // Calculate hours and minutes
+    let hours = Math.floor(decimalHours);
+    let minutes = Math.round((decimalHours - hours) * 60);
+    
+    // Handle case where minutes round up to 60
+    if (minutes === 60) {
+        hours += 1;
+        minutes = 0;
+    }
+    
+    // Format with proper unit labels
+    const hourLabel = hours === 1 ? 'hour' : 'hours';
+    const minuteLabel = minutes === 1 ? 'minute' : 'minutes';
+    
+    // Format with proper pluralization
+    if (minutes === 0) {
+        return `${hours} ${hourLabel}`;
+    } else if (hours === 0) {
+        return `${minutes} ${minuteLabel}`;
+    } else {
+        return `${hours} ${hourLabel} ${minutes} ${minuteLabel}`;
+    }
+}
+
+// Show no data message in table
+function showNoDataMessage(message) {
+    const tableBody = document.getElementById('working-hours-table-body');
+    if (tableBody) {
+        tableBody.innerHTML = `<tr><td colspan="3" class="no-records-message">${message}</td></tr>`;
     }
 }

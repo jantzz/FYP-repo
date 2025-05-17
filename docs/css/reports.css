@@ -92,3 +92,110 @@
     padding: 10px;
 }
 
+/* Working Hours Report Table */
+.working-hours-report {
+}
+
+
+
+.working-hours-report .filter-row {
+    width: 100%;
+    display: flex;
+    justify-content: center; /* Centers the filter groups */
+    align-items: center;
+    margin-bottom: 25px !important; /* Retained for spacing */
+    gap: 25px; /* Added for spacing between filter groups */
+}
+
+.working-hours-report .filter-group {
+    display: flex;
+    align-items: center;
+}
+
+.working-hours-report .filter-row label {
+    color: #495057;
+    margin-right: 8px;
+    font-weight: 500; /* Slightly bolder label */
+}
+
+.working-hours-report .table-container {
+    width: 100%; /* Table container spans full width of the card's content area */
+    max-width: none;
+    margin: 0 auto; /* Center if there was a max-width, but with 100% it's not strictly needed for centering itself */
+    margin-top: 20px; /* Spacing above the table */
+}
+
+.working-hours-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    /* margin-top: 15px; */ /* Moved to .table-container for overall spacing */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.working-hours-table th {
+    background-color: #f4f6f8;
+    padding: 15px 20px;
+    text-align: center;
+    font-weight: 600;
+    border-bottom: 2px solid #e9ecef;
+    color: #495057;
+}
+
+.working-hours-table td {
+    padding: 12px 20px;
+    border-bottom: 1px solid #e9ecef;
+    color: #333;
+    text-align: center;
+}
+
+.working-hours-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.working-hours-table tbody tr:hover {
+    background-color: rgba(0,0,0,0.02);
+}
+
+.working-hours-table .loading-message {
+    text-align: center;
+    color: #6c757d;
+    padding: 30px;
+}
+
+.working-hours-table .status {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.working-hours-table .status-normal {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.working-hours-table .status-overtime {
+    background-color: #fff8e1;
+    color: #ff8f00;
+}
+
+.working-hours-table .status-undertime {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+.month-filter, .clinic-filter {
+    padding: 8px 12px; /* Adjusted padding */
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px; /* Adjusted font size */
+    min-width: 160px; /* Adjusted min-width */
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    color: #333;
+}
+
