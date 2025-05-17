@@ -96,9 +96,11 @@ async function generateShift(connection, clinicId) {
     const roles = ['Nurse', 'Doctor', 'Receptionist'];
     const roleCounts = { 'Nurse': 2, 'Doctor': 2, 'Receptionist': 1 };
 
+
     // 6. Generate shifts for each day of the month
     for (let d = startOfMonth; d <= endOfMonth; d.setDate(d.getDate() + 1)) {
         const currentDt = new Date(parseTime(new Date(d)));
+        const dailyAssigned = {};
         for (let session = 0; session < 2; session++) { // 两个班次
             const shift = {
                 shiftDate: currentDt,
@@ -111,16 +113,23 @@ async function generateShift(connection, clinicId) {
                 const eligibleEmployees = categorizedEmployees[role];
                 let selectedEmployees = [];
                 if(eligibleEmployees.length < shifts.length*roleCounts[role]-1+roleCounts[role])eligibleEmployees.push(...eligibleEmployees);
-                if(shifts.length === 0){
-                    selectedEmployees = eligibleEmployees.slice(0, roleCounts[role]);
-                }else{
-                    selectedEmployees = eligibleEmployees.slice(shifts.length*roleCounts[role]-1, shifts.length*roleCounts[role]-1+roleCounts[role]);
+                selectedEmployees = [];
+                for (const empId of eligibleEmployees) {
+
+                    const maxReached = (shiftCounts[empId] || 0) >= 22; // 22 shifts/month
+
+                    const empDateKey = `${empId}_${currentDt.toISOString().split('T')[0]}`;
+                    if (!maxReached && !dailyAssigned[empDateKey]) {
+                        selectedEmployees.push(empId);
+                        shiftCounts[empId] = (shiftCounts[empId] || 0) + 1;
+                        dailyAssigned[empDateKey] = true;  // Mark employee as assigned today
+                    }
+
+                    if (selectedEmployees.length >= roleCounts[role]) break;
                 }
                 shift.employees.push(...selectedEmployees);
                 // Update the number of shifts
-                selectedEmployees.forEach(employeeId => {
-                    shiftCounts[employeeId] = (shiftCounts[employeeId] || 0) + 1;
-                });
+                
             }
             shifts.push(shift);
         }
