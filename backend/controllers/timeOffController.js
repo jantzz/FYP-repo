@@ -668,6 +668,42 @@ const getLeaveBalances = async (req, res) => {
 
         const [results] = await connection.execute(query, params);
 
+        // If no leave balance is found but employeeId is specified,
+        // check if the user exists and create a leave balance record for them
+        if (results.length === 0 && employeeId) {
+            // Check if the user exists
+            const [userExists] = await connection.execute(
+                "SELECT userId, name, department FROM user WHERE userId = ?",
+                [employeeId]
+            );
+
+            if (userExists.length === 0) {
+                return res.status(404).json({ error: "Employee not found" });
+            }
+
+            // User exists but has no leave balance - create one with default values
+            await connection.execute(
+                "INSERT INTO leave_balance (employeeId, Paid, Unpaid, Medical) VALUES (?, 10, 5, 14)",
+                [employeeId]
+            );
+
+            // Return the newly created leave balance
+            const newBalance = {
+                employeeId: parseInt(employeeId),
+                employeeName: userExists[0].name,
+                department: userExists[0].department,
+                Paid: 10,
+                Unpaid: 5,
+                Medical: 14
+            };
+
+            return res.status(200).json({
+                message: `Leave balance for employee ID ${employeeId} created and retrieved`,
+                count: 1,
+                data: [newBalance]
+            });
+        }
+
         if (results.length === 0) {
             return res.status(404).json({ error: "No leave balance data found" });
         }
