@@ -57,11 +57,26 @@ async function generateShift(connection, clinicId) {
     );
     console.log('Previous shift records deleted');
 
+    function getDayAbbreviation(date) {
+        const dayMap = ['SN', 'M', 'T', 'W', 'TH', 'F', 'S']; // Sunday = 0
+        return dayMap[date.getDay()];
+    }
+
     // 2. Get all employees of the clinic
     const [employees] = await connection.execute(
         "SELECT userId, department FROM user WHERE clinicId = ? AND department IN ('Doctor', 'Nurse', 'Receptionist')",
         [clinicId]
     );
+
+    const [availabilities] = await connection.execute(
+            "SELECT employeeId, preferredDates FROM availability WHERE status = 'Approved'"
+        );
+        const employeeAvailability = {};
+        for (const row of availabilities) {
+            const days = row.preferredDates.split(',').map(d => d.trim().toUpperCase());
+            employeeAvailability[row.employeeId] = new Set(days); 
+        }
+
     if (!employees.length) {
         console.log('No employees found for this clinic');
         return;
@@ -115,15 +130,23 @@ async function generateShift(connection, clinicId) {
                 if(eligibleEmployees.length < shifts.length*roleCounts[role]-1+roleCounts[role])eligibleEmployees.push(...eligibleEmployees);
                 selectedEmployees = [];
                 for (const empId of eligibleEmployees) {
-
-                    const maxReached = (shiftCounts[empId] || 0) >= 22; // 22 shifts/month
-
+                    const maxReached = (shiftCounts[empId] || 0) >= 22;
                     const empDateKey = `${empId}_${currentDt.toISOString().split('T')[0]}`;
-                    if (!maxReached && !dailyAssigned[empDateKey]) {
-                        selectedEmployees.push(empId);
-                        shiftCounts[empId] = (shiftCounts[empId] || 0) + 1;
-                        dailyAssigned[empDateKey] = true;  // Mark employee as assigned today
-                    }
+                    const dayLetter = currentDt.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()[0];
+
+                    const hasAvailability = employeeAvailability[empId];
+                    const isPreferredDay = hasAvailability?.has(dayLetter); 
+
+                    //If the employee has availability and it's not a preferred day, skip
+                    if (hasAvailability && !isPreferredDay) continue;
+
+                    //If max shift reached or already assigned that day, skip
+                    if (maxReached || dailyAssigned[empDateKey]) continue;
+
+                    //Assign employee
+                    selectedEmployees.push(empId);
+                    shiftCounts[empId] = (shiftCounts[empId] || 0) + 1;
+                    dailyAssigned[empDateKey] = true;
 
                     if (selectedEmployees.length >= roleCounts[role]) break;
                 }
