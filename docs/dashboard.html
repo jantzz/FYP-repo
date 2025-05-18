@@ -347,7 +347,7 @@
                         <thead>
                             <tr>
                                 <th>Preferred Days</th>
-                                <th>Status</th>
+                                <th>Preferred Shift</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -387,6 +387,18 @@
                                 </label>
                                 <label class="day-checkbox">
                                     <input type="checkbox" name="preferredDays" value="SN"> Sunday
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Preferred Shift</label>
+                            <div class="shift-radio-options">
+                                <label class="shift-radio">
+                                    <input type="radio" name="preferredShift" value="9am-5pm" required> Day Shift (9:00 AM - 5:00 PM)
+                                </label>
+                                <label class="shift-radio">
+                                    <input type="radio" name="preferredShift" value="5pm-1am"> Evening Shift (5:00 PM - 1:00 AM)
                                 </label>
                             </div>
                         </div>

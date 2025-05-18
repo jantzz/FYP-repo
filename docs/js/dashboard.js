@@ -3112,46 +3112,15 @@ function createDefaultAvailabilityDisplay() {
     tableBody.appendChild(noteRow);
 
     // Create sample data with hardcoded times - limit to just 1 of each type
-    const defaultItems = [
-        {
-            id: 1,
-            date: todayStr,
-            type: 'Morning Shift',
-            note: 'Sample morning shift',
-            status: 'Approved'
-        },
-        {
-            id: 2,
-            date: todayStr,
-            type: 'Afternoon Shift',
-            note: 'Sample afternoon shift',
-            status: 'Approved'
-        },
-        {
-            id: 3,
-            date: todayStr,
-            type: 'Night Shift',
-            note: 'Sample night shift',
-            status: 'Approved'
-        }
-    ];
+    // No default items - using real data only
+    const defaultItems = [];
 
     defaultItems.forEach(item => {
         const row = document.createElement('tr');
 
-        // Determine status class and time display based on shift type
-        let statusClass, timeDisplay;
-
-        if (item.type === 'Morning Shift') {
-            statusClass = 'status-morning';
-            timeDisplay = '6:00 AM - 2:00 PM';
-        } else if (item.type === 'Afternoon Shift') {
-            statusClass = 'status-afternoon';
-            timeDisplay = '2:00 PM - 10:00 PM';
-        } else if (item.type === 'Night Shift') {
-            statusClass = 'status-night';
-            timeDisplay = '10:00 PM - 6:00 AM';
-        }
+        // Empty placeholder for compatibility
+        let statusClass = '';
+        let timeDisplay = '';
 
         row.innerHTML = `
             <td>${item.date}</td>
@@ -6245,7 +6214,7 @@ async function loadAvailabilityPreferences() {
                         <div class="no-data-content">
                             <i class="fas fa-calendar-times"></i>
                             <p>No availability preferences found</p>
-                            <p class="help-text">Use the "Set Availability" button above to add your preferred working days.</p>
+                            <p class="help-text">Use the "Set Availability" button above to add your preferred working days and shifts.</p>
                         </div>
                     </td>
                 </tr>`;
@@ -6256,9 +6225,11 @@ async function loadAvailabilityPreferences() {
             const row = document.createElement('tr');
             const preferredDates = pref.preferredDates ? formatPreferredDates(pref.preferredDates) : 'Not specified';
 
+            const shiftDisplay = pref.preferredShiftTimes ? getShiftName(pref.preferredShiftTimes) : 'Not specified';
+
             row.innerHTML = `
                 <td>${preferredDates}</td>
-                <td><span class="status-badge approved">Approved</span></td>
+                <td>${shiftDisplay}</td>
                 <td>
                     <button class="action-btn delete-btn" onclick="deleteAvailabilityPreference(${pref.availabilityId})">
                         <i class="fas fa-trash"></i>
@@ -6299,9 +6270,8 @@ function formatPreferredDates(preferredDates) {
 // Helper function to convert shift code to readable name
 function getShiftName(shiftCode) {
     const shiftMap = {
-        'MORNING': 'Morning Shift (6:00 AM - 2:00 PM)',
-        'AFTERNOON': 'Afternoon Shift (2:00 PM - 10:00 PM)',
-        'NIGHT': 'Night Shift (10:00 PM - 6:00 AM)'
+        '9am-5pm': 'Day Shift (9:00 AM - 5:00 PM)',
+        '5pm-1am': 'Evening Shift (5:00 PM - 1:00 AM)'
     };
 
     return shiftMap[shiftCode] || shiftCode;
@@ -6338,9 +6308,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('API URL:', window.API_BASE_URL);
                 console.log('Selected days:', selectedDays);
                 
+                // Get preferred shift from radio buttons
+                const preferredShiftRadio = document.querySelector('input[name="preferredShift"]:checked');
+                const preferredShift = preferredShiftRadio ? preferredShiftRadio.value : null;
+                
+                if (!preferredShift) {
+                    showNotification('Please select a preferred shift', 'error');
+                    return;
+                }
+                
                 const requestData = {
                     employeeId: userInfo.userId,
-                    preferredDates: selectedDays
+                    preferredDates: selectedDays,
+                    preferredShift: preferredShift,
+                    preferredShiftTimes: preferredShift // Use the shift value as preferredShiftTimes
                 };
                 
                 console.log('Request data:', requestData);
@@ -7404,6 +7385,14 @@ function submitAvailabilityPreference() {
         alert('Please select at least one preferred day');
         return;
     }
+    
+    // Get preferred shift
+    const preferredShiftRadio = document.querySelector('input[name="preferredShift"]:checked');
+    if (!preferredShiftRadio) {
+        alert('Please select a preferred shift');
+        return;
+    }
+    const preferredShift = preferredShiftRadio.value;
 
     // Show loading state
     submitButton.disabled = true;
@@ -7429,7 +7418,9 @@ function submitAvailabilityPreference() {
         },
         body: JSON.stringify({
             employeeId: userInfo.userId,
-            preferredDates: selectedDays
+            preferredDates: selectedDays,
+            preferredShift: preferredShift,
+            preferredShiftTimes: preferredShift // Send the shift value as preferredShiftTimes for the backend
         })
     })
     .then(response => {
@@ -7525,7 +7516,7 @@ function renderAvailabilityPreferences(preferences) {
     }
     
     if (!preferences || preferences.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="3">No availability preferences found</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="4">No availability preferences found</td></tr>';
         return;
     }
     
@@ -7533,6 +7524,10 @@ function renderAvailabilityPreferences(preferences) {
     
     preferences.forEach(pref => {
         const preferredDates = formatPreferredDates(pref.preferredDates);
+        
+        // Use preferredShiftTimes if available, otherwise fall back to preferredShift
+        let shiftToDisplay = pref.preferredShiftTimes || pref.preferredShift;
+        const preferredShift = shiftToDisplay ? getShiftName(shiftToDisplay) : 'Not specified';
         
         const row = document.createElement('tr');
         row.id = `availability-item-${pref.availabilityId}`; // Add ID for targeting during deletion
@@ -7543,7 +7538,7 @@ function renderAvailabilityPreferences(preferences) {
         
         row.innerHTML = `
             <td>${preferredDates}</td>
-            <td><span class="status-badge ${statusClass}">${pref.status}</span></td>
+            <td>${pref.preferredShiftTimes ? getShiftName(pref.preferredShiftTimes) : 'Not specified'}</td>
             <td>
                 <button class="action-btn delete-btn" onclick="deleteAvailabilityPreference(${pref.availabilityId})">
                     <i class="fas fa-trash"></i>

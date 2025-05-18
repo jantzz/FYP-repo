@@ -1,22 +1,16 @@
 // Shift types and their time ranges
 const SHIFT_TYPES = {
-    MORNING: {
-        name: 'Morning Shift',
-        defaultStart: '06:00',
-        defaultEnd: '14:00',
-        displayTime: '6:00 AM - 2:00 PM'
+    '9am-5pm': {
+        name: 'Day Shift',
+        defaultStart: '09:00',
+        defaultEnd: '17:00',
+        displayTime: '9:00 AM - 5:00 PM'
     },
-    AFTERNOON: {
-        name: 'Afternoon Shift',
-        defaultStart: '14:00',
-        defaultEnd: '22:00',
-        displayTime: '2:00 PM - 10:00 PM'
-    },
-    NIGHT: {
-        name: 'Night Shift',
-        defaultStart: '22:00',
-        defaultEnd: '06:00',
-        displayTime: '10:00 PM - 6:00 AM'
+    '5pm-1am': {
+        name: 'Evening Shift',
+        defaultStart: '17:00',
+        defaultEnd: '01:00',
+        displayTime: '5:00 PM - 1:00 AM'
     }
 };
 
@@ -260,6 +254,9 @@ function updateAvailabilityDisplay() {
         const availabilityHTML = employeeAvailability.availability.map(item => {
             const preferredDatesDisplay = getPreferredDatesDisplay(item.preferredDates);
             
+            // Display shift times if available
+            const shiftTimes = item.preferredShiftTimes ? ` (${item.preferredShiftTimes})` : '';
+            
             // Determine a status badge class
             const statusClass = item.status === 'Approved' ? 'status-approved' : 
                                item.status === 'Declined' ? 'status-declined' : 'status-pending';
@@ -267,7 +264,7 @@ function updateAvailabilityDisplay() {
             return `
                 <div class="availability-item">
                     <div class="availability-details">
-                        <h3>${preferredDatesDisplay}</h3>
+                        <h3>${preferredDatesDisplay}${shiftTimes}</h3>
                         <p>Submitted: ${new Date(item.submittedAt).toLocaleString()}</p>
                         <span class="status-badge ${statusClass}">${item.status}</span>
                     </div>

@@ -2572,6 +2572,39 @@ body.admin-visible .admin-only {
     height: 16px;
 }
 
+/* Shift radio buttons for shift preference */
+.shift-radio-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.shift-radio {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.shift-radio:hover {
+    background-color: #e0e0e0;
+}
+
+.shift-radio input[type="radio"] {
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+.shift-radio input[type="radio"]:checked + .shift-radio {
+    background-color: #e1f5fe;
+    border: 1px solid #4fc3f7;
+}
+
 /* Pending badge for calendar events */
 .pending-badge {
     display: inline-block;

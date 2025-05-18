@@ -2,7 +2,7 @@ const db = require('../database/db');
 // TODO: other availability functions for User Story 8
 //function to let an employee submit availability details
 const submitAvailability = async (req, res) => {
-    const { employeeId, preferredDates } = req.body;
+    const { employeeId, preferredDates, preferredShiftTimes } = req.body;
 
     if (!employeeId || !preferredDates) {
         return res.status(400).json({ error: "Employee ID and preferred dates are required." });
@@ -14,65 +14,28 @@ const submitAvailability = async (req, res) => {
 
         // Insert availability record - automatically set to Approved (no manager approval needed)
         const query = `
-            INSERT INTO availability (employeeId, preferredDates, status) 
-            VALUES (?, ?, 'Approved')
+            INSERT INTO availability (employeeId, preferredDates, preferredShiftTimes, status) 
+            VALUES (?, ?, ?, 'Approved')
         `;
 
         await connection.execute(query, [
             employeeId,
-            preferredDates
+            preferredDates,
+            preferredShiftTimes || null
         ]);
 
-        // Create a pending shift that requires manager approval
-        const daysString = preferredDates || 'No specific days';
-
-        // Get current date for the start date and end date (using fixed 8 hours shift)
-        const now = new Date();
-        const start = new Date(now);
-        const end = new Date(now);
-        end.setHours(end.getHours() + 8); // Default 8 hour shift
-
-        // Format dates for MySQL
-        const formattedStartDate = start.toISOString().slice(0, 19).replace('T', ' ');
-        const formattedEndDate = end.toISOString().slice(0, 19).replace('T', ' ');
-
-        // Insert into pendingShift table
-        const shiftQuery = `
-            INSERT INTO pendingShift (employeeId, startDate, endDate, title, status)
-            VALUES (?, ?, ?, ?, ?)
-        `;
-
-        await connection.execute(shiftQuery, [
-            employeeId,
-            formattedStartDate,
-            formattedEndDate,
-            `Availability for ${daysString}`,
-            "Pending"
-        ]);
-
-        console.log('Created pending shift with data:', {
-            startDate: formattedStartDate,
-            endDate: formattedEndDate,
-            employeeId,
-            daysString
-        });
-
-        // Send notification about pending shift if socket.io is available
+        // Send notification if socket.io is available
         const io = req.app.get('io');
         if (io && employeeId) {
-            io.to(`user_${employeeId}`).emit('pending_shift_created', {
-                message: `Your availability has been submitted and a shift is pending manager approval.`,
-                type: 'shift',
-                shiftDetails: {
-                    start: formattedStartDate,
-                    end: formattedEndDate,
-                    title: `Availability for ${daysString}`,
-                }
+            io.to(`user_${employeeId}`).emit('availability_updated', {
+                message: `Your availability preference has been saved successfully.`,
+                preferredDates,
+                preferredShiftTimes
             });
         }
 
         return res.status(201).json({
-            message: "Availability submitted successfully and pending shift created."
+            message: "Availability submitted successfully."
         });
     } catch (err) {
         console.error('Error submitting availability:', err);
@@ -127,59 +90,7 @@ const updateAvailabilityStatus = async (req, res) => {
             return res.status(404).json({ error: "Availability request not found." });
         }
 
-        const { employeeId, preferredDates } = availabilityCheck[0];
-
-        //if the availability is approved, adds it to shift table
-        if (status === "Approved") {
-            // For shift table, we need to create a generic entry using the preferredDates
-            // This is a simplified version where we just store the days in the title
-            const daysString = preferredDates || 'No specific days';
-
-            // Get current date for the start date
-            const now = new Date();
-            const start = new Date(now);
-            const end = new Date(now);
-            end.setHours(end.getHours() + 8); // Default 8 hour shift
-
-            // Format dates for MySQL
-            const formattedStartDate = start.toISOString().slice(0, 19).replace('T', ' ');
-            const formattedEndDate = end.toISOString().slice(0, 19).replace('T', ' ');
-
-            // Insert into shift table with available information
-            const shiftQuery = `
-                INSERT INTO shift (employeeId, startDate, endDate, title, status)
-                VALUES (?, ?, ?, ?, ?)
-            `;
-
-            await connection.execute(shiftQuery, [
-                employeeId,
-                formattedStartDate,
-                formattedEndDate,
-                `Availability for ${daysString}`,
-                "Scheduled"
-            ]);
-
-            console.log('Created shift with data:', {
-                startDate: formattedStartDate,
-                endDate: formattedEndDate,
-                employeeId,
-                daysString
-            });
-
-            //send socket notification for new shift
-            const io = req.app.get('io');
-            if (io && employeeId) {
-                io.to(`user_${employeeId}`).emit('shift_added', {
-                    message: `You have a new shift approved for days: ${daysString}.`,
-                    type: 'shift',
-                    shiftDetails: {
-                        start: formattedStartDate,
-                        end: formattedEndDate,
-                        title: `Availability for ${daysString}`,
-                    }
-                });
-            }
-        }
+        const { employeeId, preferredDates, preferredShiftTimes } = availabilityCheck[0];
 
         //updates availability status
         const query = `
@@ -199,9 +110,10 @@ const updateAvailabilityStatus = async (req, res) => {
        }
 
         const employeeName = employee[0].name;
+        const availabilityDetails = preferredDates + (preferredShiftTimes ? ` (${preferredShiftTimes})` : '');
 
         // Create notification based on the new schema
-        const availabilityMessage = `${employeeName}, your availability request for ${preferredDates || 'your preferred days'} has been ${status.toLowerCase()}.`;
+        const availabilityMessage = `${employeeName}, your availability request for ${availabilityDetails || 'your preferred days'} has been ${status.toLowerCase()}.`;
 
         //insert the notification into the database
         const insertNotificationQuery = "INSERT INTO notifications (userId, message) VALUES (?, ?)";
@@ -218,7 +130,8 @@ const updateAvailabilityStatus = async (req, res) => {
             io.to(`user_${employeeId}`).emit("availability_updated", {
                 message: availabilityMessage,
                 status,
-                preferredDates
+                preferredDates,
+                preferredShiftTimes
             });
         }
 
@@ -252,6 +165,7 @@ const getEmployeeAvailability = async (req, res) => {
             `SELECT 
                 availabilityId,
                 preferredDates,
+                preferredShiftTimes,
                 status,
                 submittedAt,
                 approvedBy
@@ -283,7 +197,7 @@ const deleteAvailabilityPreference = async (req, res) => {
 
         // First, get the availability info to have employeeId for notification
         const [availabilityInfo] = await connection.execute(
-            'SELECT employeeId, preferredDates FROM availability WHERE availabilityId = ?',
+            'SELECT employeeId, preferredDates, preferredShiftTimes FROM availability WHERE availabilityId = ?',
             [id]
         );
 
@@ -291,7 +205,8 @@ const deleteAvailabilityPreference = async (req, res) => {
             return res.status(404).json({ message: 'Availability preference not found' });
         }
 
-        const { employeeId, preferredDates } = availabilityInfo[0];
+        const { employeeId, preferredDates, preferredShiftTimes } = availabilityInfo[0];
+        const availabilityDetails = preferredDates + (preferredShiftTimes ? ` (${preferredShiftTimes})` : '');
 
         // Now delete the availability preference
         const [result] = await connection.execute(
@@ -307,7 +222,7 @@ const deleteAvailabilityPreference = async (req, res) => {
         const io = req.app.get('io');
         if (io && employeeId) {
             io.to(`user_${employeeId}`).emit('availability_deleted', {
-                message: `Your availability preference for ${preferredDates} has been deleted.`,
+                message: `Your availability preference for ${availabilityDetails} has been deleted.`,
                 deletedId: id
             });
         }
