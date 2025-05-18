@@ -35,7 +35,8 @@ function initializeReports() {
                 // Get user info to determine role
                 const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
                 const userRole = (userInfo.role || '').toLowerCase();
-                const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+                const isAdmin = userRole === 'admin';
+                const isManager = userRole === 'manager';
                 
                 // Fetch real attendance data
                 fetchAttendanceReportData();
@@ -59,8 +60,8 @@ function initializeReports() {
                     });
                 }
                 
-                // Initialize working hours section for admin/manager
-                if (isAdminOrManager) {
+                // Initialize working hours section for both admin and manager
+                if (isAdmin || isManager) {
                     initializeWorkingHoursReport();
                 } else {
                     // Hide working hours section for employees
@@ -126,7 +127,8 @@ async function fetchAttendanceReportData(period = 'yearly') {
         // Get user info to determine role
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const userRole = (userInfo.role || '').toLowerCase();
-        const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+        const isAdmin = userRole === 'admin';
+        const isManager = userRole === 'manager';
         const userId = userInfo.userId;
         
         //get selected clinic
@@ -156,8 +158,8 @@ async function fetchAttendanceReportData(period = 'yearly') {
         const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
         
         let url;
-        // For admin and managers - show all attendance data
-        if (isAdminOrManager) {
+        // For both admin and managers - show all attendance data
+        if (isAdmin || isManager) {
         //build query for all attendance
             url = `${API_BASE_URL}/attendance/all?startDate=${startDate}&endDate=${endDate}`;
         if (selectedClinicId && selectedClinicId !== 'all') {
@@ -185,8 +187,8 @@ async function fetchAttendanceReportData(period = 'yearly') {
             const data = await response.json();
             console.log('Successfully fetched attendance data:', data);
             //render charts with data
-            renderAttendanceHistoryChart(aggregateAttendanceData(data), isAdminOrManager);
-            renderPunctualityTrendChart(aggregateAttendanceData(data), period, isAdminOrManager);
+            renderAttendanceHistoryChart(aggregateAttendanceData(data), isAdmin || isManager);
+            renderPunctualityTrendChart(aggregateAttendanceData(data), period, isAdmin || isManager);
         } else {
             const errorText = await response.text();
             console.error('Error fetching attendance data:', {
@@ -1015,27 +1017,28 @@ function setupReportsClinicFilter() {
     // Get user info to determine role
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const userRole = (userInfo.role || '').toLowerCase();
-    const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+    const isAdmin = userRole === 'admin';
+    const isManager = userRole === 'manager';
     
     // Hide clinic filter for employees
     const filterRow = document.querySelector('.filter-row:has(#report-clinic-filter)');
     if (filterRow) {
-        filterRow.style.display = isAdminOrManager ? 'flex' : 'none';
+        filterRow.style.display = (isAdmin || isManager) ? 'flex' : 'none';
     }
     
     // Only populate if not already done and user is admin/manager
-    if (!clinicFilterPopulated && isAdminOrManager) {
+    if (!clinicFilterPopulated && (isAdmin || isManager)) {
     populateClinicFilter();
     }
     
     const clinicFilter = document.getElementById('report-clinic-filter');
-    if (clinicFilter && isAdminOrManager) {
+    if (clinicFilter && (isAdmin || isManager)) {
         // Check if event listener is already added
         if (!clinicFilter.hasAttribute('data-event-attached')) {
         clinicFilter.addEventListener('change', function() {
             fetchAttendanceReportData();
                 // Also update working hours if we're an admin/manager
-                if (isAdminOrManager) {
+                if (isAdmin || isManager) {
                     fetchWorkingHoursData();
                 }
             });
@@ -1050,9 +1053,10 @@ function initializeWorkingHoursReport() {
     // Check user role - only show for admin/manager
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const userRole = (userInfo.role || '').toLowerCase();
-    const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+    const isAdmin = userRole === 'admin';
+    const isManager = userRole === 'manager';
     
-    if (!isAdminOrManager) {
+    if (!isAdmin && !isManager) {
         // Hide the working hours section if not admin/manager
         const workingHoursSection = document.querySelector('.working-hours-report');
         if (workingHoursSection) {

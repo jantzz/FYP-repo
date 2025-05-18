@@ -882,8 +882,14 @@ textarea {
     display: none !important;
 }
 
+/* Only show manager-only content for users with manager role */
 body.manager-visible .manager-only {
     display: flex !important;
+}
+
+/* Do not show manager-only items for admin users */
+body.admin-visible:not(.manager-visible) .manager-only {
+    display: none !important;
 }
 
 /* Clinic Management Styles - Enhanced Design */

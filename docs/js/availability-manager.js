@@ -4,14 +4,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const userRole = (userInfo.role || '').toLowerCase();
 
-    // Add manager-visible class to body if user is manager or admin
-    if (userRole === 'manager' || userRole === 'admin') {
+    // Reset manager visibility
+    document.body.classList.remove('manager-visible');
+    
+    // For managers only (not admin), add manager-visible class
+    if (userRole === 'manager') {
         document.body.classList.add('manager-visible');
         
         // Set up tab switching
         setupTabSwitching();
-    } else {
-        // Hide manager sections if not a manager
+    } 
+    // For admins, don't add manager visibility
+    else if (userRole === 'admin') {
+        // Do not add manager-visible class
+        // Admin should only see employee, department, and clinic management
+    } 
+    // Regular employee
+    else {
+        // Hide manager sections
         document.body.classList.remove('manager-visible');
     }
 });

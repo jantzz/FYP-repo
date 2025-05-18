@@ -575,31 +575,35 @@
                 <i class="fas fa-hospital"></i>
                 <span>Clinic Management</span>
             </div>
-            <div class="nav-item" id="schedule">
+            <div class="nav-item manager-only" id="schedule">
                 <i class="fas fa-calendar-alt"></i>
                 <span>Schedule</span>
             </div>
-            <div class="nav-item" id="availability">
+            <div class="nav-item manager-only" id="availability">
                 <i class="fas fa-calendar-check"></i>
                 <span>Availability</span>
             </div>
             <div class="nav-item manager-only active" id="approve-shifts-nav">
                 <i class="fas fa-check"></i>
-                <span>Approve All Shifts</span>
+                <span>Approve Shifts</span>
             </div>
-            <div class="nav-item" id="time-off">
-                <i class="fas fa-clock"></i>
-                <span>Time Off</span>
-            </div>
-            <div class="nav-item" id="reports">
-                <i class="fas fa-chart-bar"></i>
-                <span>Reports</span>
-            </div>
-            <div class="nav-item" id="attendance">
+            <div class="nav-item manager-only" id="attendance">
                 <i class="fas fa-check-circle"></i>
                 <span>Attendance Rate</span>
             </div>
-            <div class="nav-item" id="payroll">
+            <div class="nav-item manager-only" id="time-off">
+                <i class="fas fa-clock"></i>
+                <span>Time Off</span>
+            </div>
+            <div class="nav-item manager-only" id="approve-time-off">
+                <i class="fas fa-calendar-check"></i>
+                <span>Approve Time Off</span>
+            </div>
+            <div class="nav-item manager-only" id="reports">
+                <i class="fas fa-chart-bar"></i>
+                <span>Reports</span>
+            </div>
+            <div class="nav-item manager-only" id="payroll">
                 <i class="fas fa-money-bill-wave"></i>
                 <span>Payroll</span>
             </div>
@@ -905,27 +909,62 @@
 
                 // Check if user is admin or manager
                 const isAdmin = userRole === 'admin';
-                const isManager = userRole === 'admin' || userRole === 'manager';
+                const isManager = userRole === 'manager';
 
                 console.log('User role:', userRole, 'Is admin:', isAdmin, 'Is manager:', isManager);
+                
+                // Reset all classes first
+                document.body.classList.remove('admin-visible');
+                document.body.classList.remove('manager-visible');
 
-                // Add classes to body if user is admin/manager for CSS targeting
+                // For admin, only allow employee, department, and clinic management
                 if (isAdmin) {
                     document.body.classList.add('admin-visible');
+                    
+                    // First, hide all nav items that are not admin-specific
+                    document.querySelectorAll('.nav-item:not(#employee-management):not(#department-management-nav):not(#clinic-management-nav)').forEach(item => {
+                        item.style.display = 'none';
+                    });
+                    
+                    // Show admin-only elements (employee, department, and clinic management)
+                    document.querySelectorAll('.admin-only').forEach(item => {
+                        item.style.display = 'flex';
+                    });
+                    
+                    // Hide manager-only elements for admin
+                    document.querySelectorAll('.manager-only').forEach(item => {
+                        item.style.display = 'none';
+                    });
+                    
+                    // Hide dashboard nav item for admin
+                    const dashboardNav = document.getElementById('dashboard');
+                    if (dashboardNav) {
+                        dashboardNav.style.display = 'none';
+                    }
+                    
+                    // Redirect admin to the main dashboard with employee section
+                    window.location.href = 'dashboard.html#employee-management';
                 }
-                if (isManager) {
+                // For manager, remove employee, department, and clinic management access
+                else if (isManager) {
                     document.body.classList.add('manager-visible');
+                    
+                    // Hide admin-only elements for managers
+                    document.querySelectorAll('.admin-only').forEach(item => {
+                        item.style.display = 'none';
+                    });
+                    
+                    // Show manager-only elements
+                    document.querySelectorAll('.manager-only').forEach(item => {
+                        item.style.display = 'flex';
+                    });
                 }
-
-                // Hide admin-only elements for non-admins
-                document.querySelectorAll('.admin-only').forEach(item => {
-                    item.style.display = isAdmin ? 'flex' : 'none';
-                });
-
-                // Hide manager-only elements for non-managers
-                document.querySelectorAll('.manager-only').forEach(item => {
-                    item.style.display = isManager ? 'flex' : 'none';
-                });
+                // For regular employees, hide both admin and manager elements
+                else {
+                    document.querySelectorAll('.admin-only, .manager-only').forEach(item => {
+                        item.style.display = 'none';
+                    });
+                }
 
                 // Setup sidebar item click events
                 document.querySelectorAll('.sidebar .nav-item').forEach(item => {
@@ -943,6 +982,12 @@
 
                         if (id === 'clinic-management-nav') {
                             window.location.href = 'dashboard.html#clinic-management';
+                            return;
+                        }
+                        
+                        // Special handling for approve time off
+                        if (id === 'approve-time-off') {
+                            window.location.href = 'dashboard.html#approve-time-off';
                             return;
                         }
 

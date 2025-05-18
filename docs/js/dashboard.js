@@ -63,32 +63,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Fetch initial leave balances
     fetchLeaveBalances();
 
-    // Get user info to check permissions
-    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-    const userRole = (userInfo.role || '').toLowerCase();
-
-    // Hide Employee Management section for non-admin/manager users
-    const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
-    console.log('User role:', userRole, 'Is admin or manager:', isAdminOrManager);
-
-    // Add admin-visible class to body if user is admin/manager
-    if (isAdminOrManager) {
-        document.body.classList.add('admin-visible');
-        document.body.classList.add('manager-visible');
-    } else {
-        document.body.classList.remove('admin-visible');
-        document.body.classList.remove('manager-visible');
-    }
-
-    // Show/hide Employee Management based on role
-    const employeeManagementItem = document.getElementById('employee-management');
-    if (employeeManagementItem) {
-        if (!isAdminOrManager) {
-            employeeManagementItem.style.display = 'none';
-        } else {
-            employeeManagementItem.style.display = 'flex';
-        }
-    }
+    // Check user role and set up permissions using the checkUserRole function
+    await checkUserRole();
 
     // Set up event listeners for sidebar navigation
     document.querySelector('.nav-item:has(i.fa-clock)').addEventListener('click', showTimeOffSection);
@@ -430,8 +406,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             // Get the item text for identifying which section to show
             const itemText = this.textContent.trim();
 
+            // Get user info to determine role
+            const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+            const userRole = (userInfo.role || '').toLowerCase();
+            const isAdmin = userRole === 'admin';
+            
             // Check if employee management was clicked but user doesn't have permissions
-            if (itemText === 'Employee Management' && !isAdminOrManager) {
+            if (itemText === 'Employee Management' && !isAdmin) {
                 alert('You do not have permission to access Employee Management. Please contact your administrator.');
                 return; // Exit early - don't activate this section
             }
@@ -463,8 +444,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             } else if (itemText === 'Employee Management') {
                 document.querySelector('.employee-section').style.display = 'block';
-                // Only load employee data for admin/manager
-                if (isAdminOrManager) {
+                // Only load employee data for admin
+                const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+                const userRole = (userInfo.role || '').toLowerCase();
+                const isAdmin = userRole === 'admin';
+                
+                if (isAdmin) {
                     loadEmployees();
                 }
             } else if (itemText === 'Time Off') {
@@ -666,10 +651,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     // Initialize filters after calendar is set up
-    populateEmployeeFilter();
+    // Get user info to determine role
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const userRole = (userInfo.role || '').toLowerCase();
+    const isAdmin = userRole === 'admin';
+    const isManager = userRole === 'manager';
 
-    // After calendar initialization, populate employee filter for admins/managers
-    if (isAdminOrManager) {
+    // Populate employee filters for admins (since they manage employees)
+    if (isAdmin) {
         populateEmployeeFilter();
     }
 });
@@ -708,10 +697,10 @@ function showCreateEmployeeModal() {
     // Check user permissions
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const userRole = (userInfo.role || '').toLowerCase();
-    const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
+    const isAdmin = userRole === 'admin';
 
-    if (!isAdminOrManager) {
-        alert('Only administrators and managers can create new employees.');
+    if (!isAdmin) {
+        alert('Only administrators can create new employees.');
         return;
     }
 
@@ -1618,11 +1607,16 @@ async function loadTimeOffHistory() {
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const userId = userInfo.userId;
 
-        // Determine if user is manager/admin to show all requests or just their own
-        const isAdminOrManager = userInfo.role === 'admin' || userInfo.role === 'manager';
-
+        // Determine user role
+        const userRole = userInfo.role ? userInfo.role.toLowerCase() : '';
+        const isAdmin = userRole === 'admin';
+        const isManager = userRole === 'manager';
+        
+        // Only admins should see all time off requests
         let endpoint = `${window.API_BASE_URL}/timeoff/`;
-        if (!isAdminOrManager) {
+        
+        // Managers and regular employees only see their own requests
+        if (!isAdmin) {
             endpoint += `employee/${userId}`;
         }
 
@@ -1819,7 +1813,9 @@ async function viewTimeOffRequest(requestId) {
 
         // Get user info to check role
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-        const isAdminOrManager = userInfo.role === 'admin' || userInfo.role === 'manager';
+        const userRole = userInfo.role ? userInfo.role.toLowerCase() : '';
+        const isAdmin = userRole === 'admin';
+        const isManager = userRole === 'manager';
 
     // Populate the details modal
         document.getElementById('request-employee-name').textContent = request.employeeName || 'Employee Name';
@@ -1860,10 +1856,8 @@ async function viewTimeOffRequest(requestId) {
                 <span class="detail-value">${request.reason || 'No notes provided'}</span>
         </div>
     `;
-
-        // Add schedule conflicts and staff replacement suggestions if they exist
-        // ONLY for admin/manager roles
-        if (isAdminOrManager && request.hasScheduleConflicts) {
+        
+        if ((isAdmin || isManager) && request.hasScheduleConflicts) {
             let conflictHTML = `
                 <div class="detail-section schedule-conflicts">
                     <h3 class="section-title">
@@ -2006,13 +2000,14 @@ async function viewTimeOffRequest(requestId) {
         }
 
         // Show or hide manager actions based on user role and request status
-    const managerActions = document.querySelector('.manager-actions');
-
-        if (isAdminOrManager && request.status === 'Pending') {
-        managerActions.style.display = 'flex';
-    } else {
-        managerActions.style.display = 'none';
-    }
+        const managerActions = document.querySelector('.manager-actions');
+        
+        // Both managers and admins can approve/reject time off requests
+        if ((isAdmin || isManager) && request.status === 'Pending') {
+            managerActions.style.display = 'flex';
+        } else {
+            managerActions.style.display = 'none';
+        }
 
     // Show the modal
     document.getElementById('timeOffDetailsModal').style.display = 'block';
@@ -4923,11 +4918,11 @@ async function handleSwapRequestSubmit(event) {
     }
 }
 
-// Helper function to check if current user is a manager or admin
+// Helper function to check if current user is a manager
 function isManager() {
     const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
     const role = userInfo.role ? userInfo.role.toLowerCase() : '';
-    return role === 'manager' || role === 'admin';
+    return role === 'manager'; // Only manager is considered manager, not admin
 }
 
 async function loadSwapRequests() {
@@ -5966,38 +5961,101 @@ function filterCalendarEvents() {
 }
 
 // Function to check user role and set up permissions
+// Admin: Only has access to employee, department, and clinic management
+// Manager: Has access to all manager features EXCEPT employee, department, and clinic management
 async function checkUserRole() {
     try {
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
         const userRole = (userInfo.role || '').toLowerCase();
-        const isAdminOrManager = userRole === 'admin' || userRole === 'manager';
         const isAdmin = userRole === 'admin';
+        const isManager = userRole === 'manager';
 
-        // Add admin-visible class to body if user is admin/manager
-        if (isAdminOrManager) {
+        // Reset all classes first
+        document.body.classList.remove('admin-visible');
+        document.body.classList.remove('manager-visible');
+
+        // For admin, only allow employee, department, and clinic management
+        if (isAdmin) {
             document.body.classList.add('admin-visible');
+            
+            // First, hide all nav items that are not admin-specific
+            document.querySelectorAll('.nav-item:not(#employee-management):not(#department-management-nav):not(#clinic-management-nav)').forEach(item => {
+                item.style.display = 'none';
+            });
+            
+            // Admin should only see employee, department, and clinic management
+            const employeeManagementItem = document.getElementById('employee-management');
+            if (employeeManagementItem) {
+                employeeManagementItem.style.display = 'flex';
+            }
+
+            // Show department management for admin
+            const departmentManagementNav = document.getElementById('department-management-nav');
+            if (departmentManagementNav) {
+                departmentManagementNav.style.display = 'flex';
+            }
+            
+            // Show clinic management for admin
+            const clinicManagementNav = document.getElementById('clinic-management-nav');
+            if (clinicManagementNav) {
+                clinicManagementNav.style.display = 'flex';
+            }
+            
+            // Hide other manager-only items for admin
+            document.querySelectorAll('.manager-only').forEach(item => {
+                item.style.display = 'none';
+            });
+            
+            // Hide dashboard nav item for admin
+            const dashboardNav = document.querySelector('.nav-item[class*="active"]');
+            if (dashboardNav) {
+                dashboardNav.style.display = 'none';
+            }
+            
+            // Hide dashboard section and show employee management section by default for admin users
+            document.querySelectorAll('.main-content > div[class$="-section"]').forEach(section => {
+                section.style.display = 'none';
+            });
+            const employeeSection = document.querySelector('.employee-section');
+            if (employeeSection) {
+                employeeSection.style.display = 'block';
+                // Load employee data when showing the section
+                if (typeof loadEmployees === 'function') {
+                    loadEmployees();
+                }
+            }
+        } 
+        // For manager, remove access to employee, department, and clinic management
+        else if (isManager) {
             document.body.classList.add('manager-visible');
+            
+            // Hide employee management for managers
+            const employeeManagementItem = document.getElementById('employee-management');
+            if (employeeManagementItem) {
+                employeeManagementItem.style.display = 'none';
+            }
+            
+            // Hide department management for managers
+            const departmentManagementNav = document.getElementById('department-management-nav');
+            if (departmentManagementNav) {
+                departmentManagementNav.style.display = 'none';
+            }
+            
+            // Hide clinic management for managers
+            const clinicManagementNav = document.getElementById('clinic-management-nav');
+            if (clinicManagementNav) {
+                clinicManagementNav.style.display = 'none';
+            }
+            
+            // Show other manager-only elements
+            document.querySelectorAll('.manager-only').forEach(item => {
+                item.style.display = 'flex';
+            });
         } else {
-            document.body.classList.remove('admin-visible');
-            document.body.classList.remove('manager-visible');
-        }
-
-        // Show/hide Employee Management based on role
-        const employeeManagementItem = document.getElementById('employee-management');
-        if (employeeManagementItem) {
-            employeeManagementItem.style.display = isAdminOrManager ? 'flex' : 'none';
-        }
-
-        // Show/hide Clinic Management based on role (admin only)
-        const clinicManagementNav = document.getElementById('clinic-management-nav');
-        if (clinicManagementNav) {
-            clinicManagementNav.style.display = isAdmin ? 'flex' : 'none';
-        }
-
-        // Show/hide Generate Shifts based on role
-        const generateShiftsNav = document.getElementById('generate-shifts-nav');
-        if (generateShiftsNav) {
-            generateShiftsNav.style.display = isAdminOrManager ? 'flex' : 'none';
+            // Regular employee - hide all admin and manager items
+            document.querySelectorAll('.admin-only, .manager-only').forEach(item => {
+                item.style.display = 'none';
+            });
         }
 
         return userRole;
