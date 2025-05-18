@@ -104,19 +104,42 @@ const createUser = async (req, res) => {
         let clinicId = null;
         
         try {
-            // Load the postal code mapping
-            const singaporePostalMapping = require('../utils/singapore_postal_mapping_full.json');
-            const postalPrefix = postalCode.substring(0, 2);
+            // Get all clinics
+            const [clinics] = await connection.execute("SELECT clinicId, postalCode FROM clinics WHERE postalCode IS NOT NULL AND postalCode != ''");
+            let minDistance = Infinity;
+            let nearestClinicId = null;
             
-            if (singaporePostalMapping[postalPrefix]) {
-                // Find a clinic with matching postal code prefix
-                const [clinics] = await connection.execute(
-                    "SELECT clinicId FROM clinics WHERE SUBSTRING(postalCode, 1, 2) = ? LIMIT 1",
-                    [postalPrefix]
-                );
+            clinics.forEach(clinic => {
+                if (clinic.postalCode && clinic.postalCode.length >= 6 && postalCode.length >= 6) {
+                    // Use absolute difference as proxy for distance
+                    const dist = Math.abs(parseInt(clinic.postalCode) - parseInt(postalCode));
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        nearestClinicId = clinic.clinicId;
+                    }
+                }
+            });
+            
+            if (nearestClinicId) {
+                clinicId = nearestClinicId;
+                console.log(`Auto-assigned user to clinic ID ${clinicId} based on postal code ${postalCode}`);
+            } else {
+                // Fallback to the original method if the new method finds no clinic
+                // Load the postal code mapping
+                const singaporePostalMapping = require('../utils/singapore_postal_mapping_full.json');
+                const postalPrefix = postalCode.substring(0, 2);
                 
-                if (clinics.length > 0) {
-                    clinicId = clinics[0].clinicId;
+                if (singaporePostalMapping[postalPrefix]) {
+                    // Find a clinic with matching postal code prefix
+                    const [prefixClinics] = await connection.execute(
+                        "SELECT clinicId FROM clinics WHERE SUBSTRING(postalCode, 1, 2) = ? LIMIT 1",
+                        [postalPrefix]
+                    );
+                    
+                    if (prefixClinics.length > 0) {
+                        clinicId = prefixClinics[0].clinicId;
+                        console.log(`Fallback assignment: assigned user to clinic ID ${clinicId} based on postal prefix ${postalPrefix}`);
+                    }
                 }
             }
         } catch (err) {
@@ -138,7 +161,11 @@ const createUser = async (req, res) => {
         //command .execute is used over .query because we are handling async functions 
         connection.execute(q, data);
 
-        return res.status(200).json({message: "User created successfully"});
+        return res.status(200).json({
+            message: "User created successfully",
+            clinicAssigned: clinicId !== null,
+            clinicId: clinicId
+        });
 
     }catch(err) {
         console.error(err);
