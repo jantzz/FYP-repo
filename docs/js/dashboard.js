@@ -7628,8 +7628,6 @@ function combineDateTime(dateStr, timeStr) {
         // Set time components
         combinedDate.setHours(hours, minutes, seconds, 0);
         
-        combinedDate.setDate(combinedDate.getDate() + 1);
-        
         // Check if the date is valid
         if (isNaN(combinedDate.getTime())) {
             console.error('Invalid date/time combination in combineDateTime:', {datePart, timePart});
