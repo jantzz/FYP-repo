@@ -148,18 +148,27 @@ async function generateShift(connection, clinicId) {
                 const eligibleEmployees = categorizedEmployees[role];
                 let selectedEmployees = [];
                 
-                if(eligibleEmployees.length < shifts.length*roleCounts[role]-1+roleCounts[role]) {
-                    eligibleEmployees.push(...eligibleEmployees);
-                }
+                const sortedEligible = eligibleEmployees
+                .filter(empId => !dailyAssigned[`${empId}_${currentDt.toISOString().split('T')[0]}`]) //make sure employees are not already assigned today
+                .sort((emp1, emp2) => {
+                    const emp1Pref = employeeAvailability[emp1] || {};
+                    const emp2Pref = employeeAvailability[emp2] || {};
+                    //give employees a score based on preferences, 
+                    const emp1Score = ((emp1Pref.days?.has(dayAbbreviation) ? 1 : 0) + 
+                                (emp1Pref.shiftTime === shiftTime.id ? 1 : 0));
+                    const emp2Score = ((emp2Pref.days?.has(dayAbbreviation) ? 1 : 0) + 
+                                (emp2Score.shiftTime === shiftTime.id ? 1 : 0));
+                    //sort by the score then number of shifts already assigned to the employee
+                    if (emp2Score !== emp1Score) return emp2Score - emp1Score;
+                    return (shiftCounts[emp1] || 0) - (shiftCounts[emp2] || 0);
+                });
+
                 selectedEmployees = [];
-                for (const empId of eligibleEmployees) {
+                for (const empId of sortedEligible) {
                     const maxReached = (shiftCounts[empId] || 0) >= 22;
                     const empDateKey = `${empId}_${currentDt.toISOString().split('T')[0]}`;
                     
-                    const empAvailability = employeeAvailability[empId];
-                    
-                    // Check if employee has any availability
-                    if (!empAvailability) continue;
+                    const empAvailability = employeeAvailability[empId] || { days: new Set(['SN', 'M', 'T', 'W', 'TH', 'F', 'S']) }; //Default of all days if no given availability
                     
                     // Check if this day is in the employee's preferred days
                     const isPreferredDay = empAvailability.days.has(dayAbbreviation);
