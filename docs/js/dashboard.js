@@ -7628,6 +7628,14 @@ function combineDateTime(dateStr, timeStr) {
         // Set time components
         combinedDate.setHours(hours, minutes, seconds, 0);
         
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+        const userRole = userInfo.role?.toLowerCase() || '';
+
+        // Add a day for employee role to fix date - case insensitive check
+        if (userRole === 'employee' || userRole === 'Employee' || userInfo.role?.toUpperCase() === 'EMPLOYEE') {
+            combinedDate.setDate(combinedDate.getDate() + 1);
+        }
+
         // Check if the date is valid
         if (isNaN(combinedDate.getTime())) {
             console.error('Invalid date/time combination in combineDateTime:', {datePart, timePart});
