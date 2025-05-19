@@ -52,7 +52,7 @@ async function generateShift(connection, clinicId) {
 
     console.log('Start generating shifts:', parseTime(startOfMonth), parseTime(endOfMonth));
     await connection.execute(
-        "DELETE FROM pendingshift WHERE clinicId = ? AND shiftDate >= ? AND shiftDate <= ?",
+        "DELETE FROM pendingShift WHERE clinicId = ? AND shiftDate >= ? AND shiftDate <= ?",
         [clinicId, startOfMonth, endOfMonth]
     );
     console.log('Previous shift records deleted');
@@ -109,7 +109,7 @@ async function generateShift(connection, clinicId) {
 
     // 4. Check the number of shifts each employee has this month
     const [existingShifts] = await connection.execute(
-        "SELECT employeeId, COUNT(*) as shiftCount FROM pendingshift WHERE clinicId = ? AND shiftDate >= ? AND shiftDate <= ? GROUP BY employeeId",
+        "SELECT employeeId, COUNT(*) as shiftCount FROM pendingShift WHERE clinicId = ? AND shiftDate >= ? AND shiftDate <= ? GROUP BY employeeId",
         [clinicId, startOfMonth, endOfMonth]
     );
 
@@ -157,7 +157,7 @@ async function generateShift(connection, clinicId) {
                     const emp1Score = ((emp1Pref.days?.has(dayAbbreviation) ? 1 : 0) + 
                                 (emp1Pref.shiftTime === shiftTime.id ? 1 : 0));
                     const emp2Score = ((emp2Pref.days?.has(dayAbbreviation) ? 1 : 0) + 
-                                (emp2Score.shiftTime === shiftTime.id ? 1 : 0));
+                                (emp2Pref.shiftTime === shiftTime.id ? 1 : 0));
                     //sort by the score then number of shifts already assigned to the employee
                     if (emp2Score !== emp1Score) return emp2Score - emp1Score;
                     return (shiftCounts[emp1] || 0) - (shiftCounts[emp2] || 0);
@@ -200,7 +200,7 @@ async function generateShift(connection, clinicId) {
         for (const employeeId of employees) {
             try{
                 await connection.execute(
-                    "INSERT INTO pendingshift (employeeId, shiftDate, startDate, endDate, title, status, clinicId) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO pendingShift (employeeId, shiftDate, startDate, endDate, title, status, clinicId) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     [employeeId, parseTime(shiftDate), startDate, endDate, `${shiftTimeId} shift for ${employeeId}`, 'Pending', clinicId]
                 );
             }catch (err){
