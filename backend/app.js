@@ -21,7 +21,7 @@ const app = express();
 
 // Allow requests from your frontend
 app.use(cors({
-    origin: ["http://127.0.0.1:8800", "http://localhost:8800"],  // Allow both origins
+    origin: ["http://127.0.0.1:8800", "http://localhost:8800", "https://fyp-emproster-frontend.onrender.com"],
     methods: "GET,POST,PUT,DELETE",  // Allow HTTP methods
     credentials: true  // Allow auth headers
 }));
