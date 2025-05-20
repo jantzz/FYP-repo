@@ -191,19 +191,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         },
         eventDidMount: function(info) {
-                // Enhanced logging to show more details about each event
-                console.log('Event mounted in calendar:', {
-                id: info.event.id,
-                title: info.event.title,
-                start: info.event.start,
-                end: info.event.end,
-                type: info.event.extendedProps.type,
-                status: info.event.extendedProps.status,
-                originalStatus: info.event.extendedProps.originalStatus,
-                allExtendedProps: info.event.extendedProps,
-                element: info.el
-            });
-            
             // Double-check no availability events are being displayed
             const eventType = info.event.extendedProps.type;
             const eventTitle = info.event.title || '';
@@ -300,7 +287,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         },
         eventContent: function(eventInfo) {
-            console.log('Event content requested for 291:', eventInfo.event);
             // Check if it's a time off event
             const type = eventInfo.event.extendedProps.type || 'regular';
 
@@ -658,7 +644,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const isManager = userRole === 'manager';
 
     // Populate employee filters for admins (since they manage employees)
-    if (isAdmin) {
+    if (isAdmin || isManager) {
         populateEmployeeFilter();
     }
 });
@@ -5479,139 +5465,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('swap-date-filter')?.addEventListener('change', loadSwapRequests);
 });
 
-// Handle form submission for generating shifts
-document.getElementById('generateShiftsForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    // Show loading indicator
-    const submitBtn = this.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-    submitBtn.disabled = true;
-
-    const startDate = document.getElementById('startDate').value;
-    const endDate = document.getElementById('endDate').value;
-
-    try {
-        // Generate shifts
-        const response = await fetch(`${window.API_BASE_URL}/shift/generate`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-                start: startDate,
-                end: endDate
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to generate shifts');
-        }
-
-        const data = await response.json();
-
-        // Show success message
-        showNotification('Shifts generated successfully', 'success');
-
-        // Add success message to the page
-        const cardBody = this.closest('.card-body');
-        if (cardBody) {
-            // Remove any existing success message
-            const existingMessage = cardBody.querySelector('.success-message');
-            if (existingMessage) {
-                existingMessage.remove();
-            }
-
-            // Create success message
-            const successMessage = document.createElement('div');
-            successMessage.className = 'success-message';
-            successMessage.innerHTML = `
-                <div class="success-icon">✓</div>
-                <div class="success-content">
-                    <h4>Shifts Generated Successfully!</h4>
-                    <p>Shifts have been generated from ${formatDate(startDate)} to ${formatDate(endDate)}.</p>
-                    <p>You can view these pending shifts in the calendar. They will appear with a purple background.</p>
-                </div>
-            `;
-
-            // Insert after the form
-            cardBody.appendChild(successMessage);
-        }
-
-        try {
-            // Refresh both calendars
-            if (window.calendar) {
-                await window.calendar.refetchEvents();
-            }
-            if (window.employeeCalendar) {
-                await window.employeeCalendar.refetchEvents();
-            }
-
-            // Clear existing shift cards
-            const shiftsContainer = document.querySelector('.shifts-container');
-            if (shiftsContainer) {
-                shiftsContainer.innerHTML = '';
-            }
-
-            // Fetch both regular and pending shifts
-            const [regularShifts, pendingShifts] = await Promise.all([
-                fetchShifts(),
-                fetchPendingShifts()
-            ]);
-
-            // Combine all shifts
-            const allShifts = [...(regularShifts || []), ...(pendingShifts || [])];
-
-            // Track future shifts
-            let hasFutureShifts = false;
-
-            // Add only regular shifts to the upcoming shifts section (no time off or availability)
-            allShifts.forEach(shift => {
-                // Skip time off events and availability events
-                if (shift.sourceType === 'timeoff' || 
-                    (shift.extendedProps && shift.extendedProps.type === 'timeoff') ||
-                    (shift.title && shift.title.toLowerCase().includes('availability'))) {
-                    console.log('Skipping non-shift event in upcoming shifts:', shift.title);
-                    return; // Skip this iteration
-                }
-                
-                const isNearFuture = isShiftInNearFuture(new Date(shift.start));
-
-                addShiftToUpcomingSection(
-                    shift.title,
-                    new Date(shift.start),
-                    new Date(shift.end),
-                    shift.extendedProps.status,
-                    !isNearFuture // Hide if not today/tomorrow
-                );
-
-                if (!isNearFuture) {
-                    hasFutureShifts = true;
-                }
-            });
-
-            // Show "Show More" button if we have future shifts
-            const showMoreButton = document.querySelector('.show-more-shifts');
-            if (showMoreButton) {
-                showMoreButton.style.display = hasFutureShifts ? 'block' : 'none';
-            }
-        } catch (refreshError) {
-            console.error('Error refreshing display:', refreshError);
-            showNotification('Shifts were generated but there was an error refreshing the display. Please refresh the page.', 'warning');
-        }
-    } catch (error) {
-        console.error('Error generating shifts:', error);
-        showNotification('Failed to generate shifts. Please try again.', 'error');
-    } finally {
-        // Restore button state
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-    }
-});
-
 // Helper function to format date for display
 function formatDate(dateString) {
     const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
@@ -6083,53 +5936,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error('Error initializing dashboard:', error);
         showNotification('Error initializing dashboard. Please try again.', 'error');
-    }
-});
-
-// Modify the generate shifts function to consider availability preferences
-document.getElementById('generateShiftsForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const submitBtn = this.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-    submitBtn.disabled = true;
-
-    const startDate = document.getElementById('startDate').value;
-    const endDate = document.getElementById('endDate').value;
-
-    try {
-        // Generate shifts with availability preferences
-        const response = await fetch(`${window.API_BASE_URL}/shift/generate`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-                start: startDate,
-                end: endDate,
-                considerAvailability: true // New flag to consider availability preferences
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to generate shifts');
-        }
-
-        const data = await response.json();
-        showNotification('Shifts generated successfully', 'success');
-
-        // Rest of the existing code for handling success...
-        await refreshCalendar();
-
-    } catch (error) {
-        console.error('Error generating shifts:', error);
-        showNotification('Failed to generate shifts. Please try again.', 'error');
-    } finally {
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
     }
 });
 
@@ -7649,5 +7455,44 @@ function combineDateTime(dateStr, timeStr) {
         return new Date();
     }
 }
+
+// Fetch and populate department filter
+async function populateDepartmentFilterDirect() {
+    try {
+        const response = await fetch(`${window.API_BASE_URL}/department/all`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        if (!response.ok) throw new Error('Failed to fetch departments');
+        const departments = await response.json();
+
+        const departmentFilter = document.getElementById('department-filter');
+        if (!departmentFilter) return;
+
+        // Clear existing options except the first one
+        while (departmentFilter.options.length > 1) {
+            departmentFilter.remove(1);
+        }
+
+        departments.forEach(dept => {
+            const option = document.createElement('option');
+            option.value = dept.departmentName;
+            option.textContent = dept.departmentName;
+            departmentFilter.appendChild(option);
+        });
+
+        departmentFilter.addEventListener('change', filterCalendarEvents);
+    } catch (error) {
+        console.error('Error populating department filter:', error);
+    }
+}
+
+// On DOMContentLoaded, always populate department filter if it exists
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('department-filter')) {
+        populateDepartmentFilterDirect();
+    }
+});
 
 

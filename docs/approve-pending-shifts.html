@@ -650,11 +650,12 @@
                     <div class="filter-options">
                         <select id="department-filter">
                             <option value="all">All Departments</option>
-                            <!-- Will be populated dynamically -->
                         </select>
                         <select id="employee-filter">
                             <option value="all">All Employees</option>
-                            <!-- Will be populated dynamically -->
+                        </select>
+                        <select id="clinic-filter">
+                            <option value="all">All Clinics</option>
                         </select>
                     </div>
 
@@ -1098,10 +1099,13 @@
 
                 const deptFilter = departmentFilter.value;
                 const empFilter = employeeFilter.value;
+                const clinicFilter = document.getElementById('clinic-filter');
+                const selectedClinic = clinicFilter.value;
 
                 const filteredShifts = allPendingShifts.filter(shift => {
                     if (deptFilter !== 'all' && shift.department !== deptFilter) return false;
                     if (empFilter !== 'all' && shift.employeeId != empFilter) return false;
+                    if (selectedClinic !== 'all' && String(shift.clinicId) !== selectedClinic) return false;
                     return true;
                 });
 
@@ -1434,6 +1438,8 @@
             // Handle filter changes
             departmentFilter.addEventListener('change', renderPendingShifts);
             employeeFilter.addEventListener('change', renderPendingShifts);
+            const clinicFilter = document.getElementById('clinic-filter');
+            clinicFilter.addEventListener('change', renderPendingShifts);
 
             // When we click outside the modal, close it
             window.onclick = function (event) {
@@ -1512,6 +1518,7 @@
             // Initial data load
             fetchData();
             initSidebar();
+            fetchAndPopulateClinics();
         });
         function closeSigleConfirmDialog() {
             document.getElementById('singleConfirmDialog').style.display = 'none';
@@ -1560,6 +1567,29 @@
             } catch (error) {
                 console.error('Error approving shift:', error);
                 showNotification(`Error: ${error.message}`, 'error');
+            }
+        }
+        async function fetchAndPopulateClinics() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_BASE_URL}/clinic/getClinics`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (!response.ok) throw new Error('Failed to fetch clinics');
+                const allClinics = await response.json();
+
+                const clinicFilter = document.getElementById('clinic-filter');
+                clinicFilter.innerHTML = '<option value="all">All Clinics</option>';
+                allClinics.forEach(clinic => {
+                    const option = document.createElement('option');
+                    option.value = clinic.clinicId;
+                    option.textContent = clinic.clinicName;
+                    clinicFilter.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error fetching clinics:', error);
             }
         }
     </script>

@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const addClinicForm = document.getElementById('add-clinic-form');
     const editClinicForm = document.getElementById('edit-clinic-form');
     const clinicsTableBody = document.getElementById('clinics-table-body');
+    const clinicFilter = document.getElementById('clinic-filter');
     
     // Check if we should auto-show the clinic section (e.g., if URL has a marker)
     const urlParams = new URLSearchParams(window.location.search);
@@ -542,4 +543,37 @@ document.addEventListener('DOMContentLoaded', function() {
         addClinicForm.reset();
         addClinicModal.style.display = 'block';
     }
+    
+    // Function to populate the clinic filter dropdown
+    async function populateClinicFilter() {
+        if (!clinicFilter) return;
+        // Clear existing options except 'All Clinics'
+        clinicFilter.innerHTML = '<option value="all">All Clinics</option>';
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const baseUrl = window.API_BASE_URL || '/api';
+        const endpoint = `${baseUrl}/clinic/getClinics`;
+        try {
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (!response.ok) return;
+            const clinics = await response.json();
+            clinics.forEach(clinic => {
+                const option = document.createElement('option');
+                option.value = clinic.clinicId;
+                option.textContent = clinic.clinicName;
+                clinicFilter.appendChild(option);
+            });
+        } catch (err) {
+            console.error('Failed to populate clinic filter:', err);
+        }
+    }
+    
+    // At the end of DOMContentLoaded
+    populateClinicFilter();
 }); 
