@@ -21,7 +21,7 @@ async function getEmployeeId() {
 }
 
 //connects to backend via socket.io
-const socket = io('http://localhost:8800');
+const socket = io('https://emp-roster-backend.onrender.com');
 
 //handle socket connection
 socket.on("connect", async () => {
