@@ -17,7 +17,7 @@ async function start() {
 
         const io = new Server(server, {
             cors: {
-                origin: ["http://127.0.0.1:8800", "http://localhost:8800", "https://emp-roster-backend.onrender.com"],
+                origin: ["http://127.0.0.1:8800", "http://localhost:8800", "https://fyp-emproster-frontend.onrender.com"],
                 methods: ["GET", "POST", "PUT", "DELETE"],
                 credentials: true
             }
