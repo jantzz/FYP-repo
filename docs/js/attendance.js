@@ -6,7 +6,7 @@ const attendanceChartInstances = {
 };
 
 // API Base URL
-const API_BASE_URL = 'http://localhost:8800/api';
+const API_BASE_URL = 'https://emp-roster-backend.onrender.com/api';
 
 // Current user info
 let currentUser = null;

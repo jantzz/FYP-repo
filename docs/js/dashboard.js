@@ -54,7 +54,7 @@ function isShiftInNearFuture(shiftDate) {
 // Initialize calendar and page functionality
 document.addEventListener('DOMContentLoaded', async function() {
     // Define API base URL globally at the top level
-    window.API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
+    window.API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://emp-roster-backend.onrender.com/api';
     console.log('Using API base URL:', window.API_BASE_URL);
 
     // Check authentication when page loads
