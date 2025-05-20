@@ -1005,7 +1005,7 @@ async function initEmployeeLookup() {
         
         if (!employeeSelect) return;
         
-        const response = await fetch('/api/user/all', {
+        const response = await fetch('https://emp-roster-backend.onrender.com/api/user/all', {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
