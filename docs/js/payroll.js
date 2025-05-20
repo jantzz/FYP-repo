@@ -610,7 +610,7 @@ async function viewPayslip(payrollId) {
         showNotification('Fetching payslip...', 'info');
         
         // Get API base URL or use default if not set
-        const apiUrl = window.API_BASE_URL || 'http://localhost:8800/api';
+        const apiUrl = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
         console.log(`Fetching payslip for ID: ${payrollId} from ${apiUrl}/payroll/payslip/${payrollId}`);
         
         // Fetch payslip data from API

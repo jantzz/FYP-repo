@@ -54,7 +54,7 @@ function isShiftInNearFuture(shiftDate) {
 // Initialize calendar and page functionality
 document.addEventListener('DOMContentLoaded', async function() {
     // Define API base URL globally at the top level
-    window.API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://emp-roster-backend.onrender.com/api';
+    window.API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://emp-roster-backend.onrender.com/';
     console.log('Using API base URL:', window.API_BASE_URL);
 
     // Check authentication when page loads
@@ -106,9 +106,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     try {
         const shifts = await fetchShifts();
         console.log('Initial shifts loaded:', shifts);
-
-        // Sort shifts by start date in ascending order
-        shifts.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
         // Track if we have future shifts
         let hasFutureShifts = false;
@@ -4482,7 +4479,7 @@ function closeSwapRequestModal() {
 
 async function loadMyShifts() {
     try {
-        window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+        window.API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
 
         // Get the user info from localStorage to get the user ID
         const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
@@ -4613,7 +4610,7 @@ async function loadMyShifts() {
 
 async function loadAvailableEmployees() {
     try {
-        window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+        window.API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
 
         // Since there's no specific endpoint for available employees, let's use the getUsers endpoint
         // and provide a fallback to mock data
@@ -4682,7 +4679,7 @@ async function handleTargetEmployeeChange(event) {
     }
 
     try {
-        window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+        window.API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
 
         // Try to fetch the employee's shifts
         const response = await fetch(`${window.API_BASE_URL}/shift/${employeeId}`, {
@@ -4858,7 +4855,7 @@ function isManager() {
 
 async function loadSwapRequests() {
     try {
-        window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+        window.API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
 
         // Get the token and user info
         const token = getToken();

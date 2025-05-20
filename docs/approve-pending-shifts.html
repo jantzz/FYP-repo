@@ -844,7 +844,7 @@
         let clinics = [];
         let singleShiftId = null;
         // Get API base URL from localStorage or use default
-        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://emp-roster-backend.onrender.com/api';
+        const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://emp-roster-backend.onrender.com/';
         function closeConfirmDialog() {
             document.getElementById('confirmDialog').style.display = 'none';
         }
@@ -854,7 +854,7 @@
 
             const bulkApproveBtn = document.getElementById('approveAllButton');
             const resultDiv = document.getElementById('result');
-            const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'http://localhost:8800/api';
+            const API_BASE_URL = localStorage.getItem('apiBaseUrl') || 'https://emp-roster-backend.onrender.com/';
 
             // Show loading state on button
             bulkApproveBtn.disabled = true;

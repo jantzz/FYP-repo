@@ -2,7 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     // Set API base URL if not already set
-    window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:8800/api';
+    window.API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
     
     // Debug flag - set to true to enable debug logs
     window.DEPARTMENT_DEBUG = true;
