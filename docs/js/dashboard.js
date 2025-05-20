@@ -107,6 +107,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         const shifts = await fetchShifts();
         console.log('Initial shifts loaded:', shifts);
 
+        // Sort shifts by start date in ascending order
+        shifts.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
         // Track if we have future shifts
         let hasFutureShifts = false;
 
@@ -118,15 +121,23 @@ document.addEventListener('DOMContentLoaded', async function() {
             if(shift.extendedProps.employeeId === JSON.parse(localStorage.getItem('userInfo')).userId){
                 // Use the global addShiftToUpcomingSection function
                 if(isNearFuture){
+                    // If shift is today or tomorrow, DO NOT hide it
                     addShiftToUpcomingSection(
                         shift.title,
                         shift.start,
                         shift.end,
                         shift.extendedProps.status,
-                        true // Show if today/tomorrow
+                        false // Do not hide
                     );
-                }
-                if (!isNearFuture) {
+                } else {
+                    // If shift is after tomorrow, hide it and indicate there are future shifts
+                    addShiftToUpcomingSection(
+                        shift.title,
+                        shift.start,
+                        shift.end,
+                        shift.extendedProps.status,
+                        true // Hide this future shift
+                    );
                     hasFutureShifts = true;
                 }
             }
@@ -308,14 +319,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             // const shiftTitle = eventInfo.event.title;
             const shiftTitle = eventInfo.event.extendedProps.employeeName;
 
-            // Format the time display based on shift name
+            // Format the time display based on shift name(Calendar)
             let timeDisplay;
-            if (shiftTitle.includes('Morning')) {
-                timeDisplay = '6:00 AM - 2:00 PM';
-            } else if (shiftTitle.includes('Afternoon')) {
-                timeDisplay = '2:00 PM - 10:00 PM';
-            } else if (shiftTitle.includes('Night')) {
-                timeDisplay = '10:00 PM - 6:00 AM';
+            if (shiftTitle.includes('Day')) {
+                timeDisplay = '9:00 AM - 5:00 PM';
+            } else if (shiftTitle.includes('Evening')) {
+                timeDisplay = '5:00 PM - 1:00 AM';
             } else {
                 // Default to using the event times
                 const start = eventInfo.event.start;
@@ -2925,14 +2934,12 @@ function initEmployeeCalendar() {
             // Get the shift title
             const shiftTitle = eventInfo.event.title;
 
-            // Format the time display based on shift name
+            // Format the time display based on shift name (SHIFT TITLE)
             let timeDisplay;
-            if (shiftTitle.includes('Morning')) {
-                timeDisplay = '6:00 AM - 2:00 PM';
-            } else if (shiftTitle.includes('Afternoon')) {
-                timeDisplay = '2:00 PM - 10:00 PM';
-            } else if (shiftTitle.includes('Night')) {
-                timeDisplay = '10:00 PM - 6:00 AM';
+            if (shiftTitle.includes('Day')) {
+                timeDisplay = '9:00 AM - 5:00 PM';
+            } else if (shiftTitle.includes('Evening')) {
+                timeDisplay = '5:00 PM - 1:00 AM';
             } else {
                 // Default to using the event times
                 const start = eventInfo.event.start;
@@ -3817,35 +3824,6 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
             }
         }
 
-        // Ensure end date is after start date
-        if (endDate <= startDate) {
-            console.log('End date is not after start date, adjusting');
-            // Create a new end date 8 hours after start date for a full shift
-            endDate = new Date(startDate);
-            endDate.setHours(endDate.getHours() + 8); // Set to 8 hours later for a standard shift
-
-            // If the shift title contains specific words, set appropriate durations
-            if (typeof title === 'string') {
-                if (title.includes('Morning')) {
-                    // Morning shift: 6:00 AM - 2:00 PM (8 hours)
-                    startDate.setHours(6, 0, 0, 0);
-                    endDate = new Date(startDate);
-                    endDate.setHours(14, 0, 0, 0);
-                } else if (title.includes('Afternoon')) {
-                    // Afternoon shift: 2:00 PM - 10:00 PM (8 hours)
-                    startDate.setHours(14, 0, 0, 0);
-                    endDate = new Date(startDate);
-                    endDate.setHours(22, 0, 0, 0);
-                } else if (title.includes('Night')) {
-                    // Night shift: 10:00 PM - 6:00 AM (8 hours)
-                    startDate.setHours(22, 0, 0, 0);
-                    endDate = new Date(startDate);
-                    endDate.setDate(endDate.getDate() + 1); // Next day
-                    endDate.setHours(6, 0, 0, 0);
-                }
-            }
-        }
-
         // Log the parsed dates for debugging
         console.log('Final parsed dates:', {
             startDate: startDate.toString(),
@@ -3889,15 +3867,13 @@ function addShiftToUpcomingSection(title, start, end, status = 'Pending', hide =
             });
         }
 
-        // Format time based on shift title
+        // Format time based on shift title (Used for the shift card)
         let timeDisplay;
         if (typeof title === 'string') {
-            if (title.includes('Morning')) {
-                timeDisplay = '6:00 AM - 2:00 PM';
-            } else if (title.includes('Afternoon')) {
-                timeDisplay = '2:00 PM - 10:00 PM';
+            if (title.includes('Day')) {
+                timeDisplay = '9:00 AM - 5:00 PM';
             } else if (title.includes('Night')) {
-                timeDisplay = '10:00 PM - 6:00 AM';
+                timeDisplay = '5:00 PM - 1:00 AM';
             } else {
                 // Default formatting using the date objects
                 const startTimeStr = formatTime(startDate);

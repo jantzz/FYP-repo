@@ -36,52 +36,76 @@ const getShifts = async (req, res) => {
 };
 
 const addShift = async (req, res, io) => {
-    const { employeeId, startDate, endDate, status } = req.body;
+    // Accept title and clinicId from request body
+    const { employeeId, startDate, endDate, title, clinicId } = req.body;
     //to validate required fields are provided
-    if (!employeeId || !startDate || !endDate || !status) {
-        return res.status(400).json({ error: "All fields are required." });
+    if (!employeeId || !startDate || !endDate) {
+        return res.status(400).json({ error: "Employee ID, start date, and end date are required." });
     }
 
     let connection;
     try {
         connection = await db.getConnection();
-        //query to insert a new shift into DB
-        const q = "INSERT INTO shift (employeeId, startDate, endDate, status) VALUES (?, ?, ?, ?)";
-        const data = [employeeId, startDate, endDate, status];
 
-        await connection.execute(q, data);
-        //connection.release();
+        // Parse dates and extract date and time parts
+        const startDateTime = new Date(startDate);
+        const endDateTime = new Date(endDate);
+
+        // Format date for the shiftDate column (YYYY-MM-DD)
+        const shiftDate = startDateTime.toISOString().split('T')[0];
+
+        // Format times for the startDate and endDate columns (HH:MM:SS)
+        // Ensure padding for single digits
+        const startTime = `${String(startDateTime.getHours()).padStart(2, '0')}:${String(startDateTime.getMinutes()).padStart(2, '0')}:${String(startDateTime.getSeconds()).padStart(2, '0')}`;
+        const endTime = `${String(endDateTime.getHours()).padStart(2, '0')}:${String(endDateTime.getMinutes()).padStart(2, '0')}:${String(endDateTime.getSeconds()).padStart(2, '0')}`;
+
+        // query to insert a new shift into DB
+        // Include shiftDate, title, status, and clinicId
+        const q = "INSERT INTO shift (employeeId, shiftDate, startDate, endDate, title, status, clinicId) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        // Set status to 'Scheduled' for direct additions
+        const data = [employeeId, shiftDate, startTime, endTime, title || 'Scheduled Shift', 'Scheduled', clinicId || null]; // Use null if clinicId is not provided
+
+        const [result] = await connection.execute(q, data);
+        console.log('Insert result:', result);
+
          //get the employee's name
          const employeeQuery = "SELECT name FROM user WHERE userId = ?";
          const [employee] = await connection.execute(employeeQuery, [employeeId]);
 
          //if no employee found, handle the error
         if (employee.length === 0) {
+            // Rollback the shift insert if employee not found
+            await connection.rollback();
             return res.status(404).json({ error: "Employee not found." });
         }
 
         const employeeName = employee[0].name;
-        //notification message
-        const notificationMessage = `New shift added for ${employeeName} from ${startDate} to ${endDate}. Status: ${status}`;
+        //notification message (optional for direct add, can be adjusted)
+        const notificationMessage = `New shift scheduled for ${employeeName} on ${shiftDate} from ${startTime} to ${endTime}.`;
 
          //insert the notification into the database
          const insertNotificationQuery = "INSERT INTO notifications (userId, message) VALUES (?, ?)";
          await connection.execute(insertNotificationQuery, [employeeId, notificationMessage]);
 
         //notification for a new shift
-        const io = req.app.get('io');
+        const io = req.app.get('io'); // Make sure io is available via app.set
         if (io) {
             //emit notification to the specific user's room
-            io.to(`user_${employeeId}`).emit("shift_added", { message: "New shift added!" });
+            io.to(`user_${employeeId}`).emit("shift_added", { message: "New shift added!" }); // Use a different event name if needed
         } else {
-            console.error("Socket.io not initialized");
+            console.error("Socket.io not initialized for addShift");
         }
 
-        return res.status(201).json({ message: "Shift added successfully." });
+        // Commit the transaction after successful operations
+        await connection.commit();
+
+        return res.status(201).json({ message: "Shift added successfully.", shiftId: result.insertId });
 
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Internal Server Error." });
+        // Ensure rollback on error
+        if (connection) await connection.rollback();
+        res.status(500).json({ error: "Internal Server Error during shift creation." });
     } finally { //close the connection after executing sql scripts
         if (connection) connection.release(); //if connection is not released no response will be given
     }
@@ -653,9 +677,17 @@ const addPendingShift = async (req, res) => {
     let connection;
     try {
         connection = await db.getConnection();
-        //query to insert a new pending shift into DB
-        const q = "INSERT INTO pendingShift (employeeId, startDate, endDate, status, title) VALUES (?, ?, ?, ?, ?)";
-        const data = [employeeId, startDate, endDate, "Pending", title || `Pending shift for ${employeeId}`];
+
+        const startDateTime = new Date(startDate);
+        const endDateTime = new Date(endDate);
+
+        const shiftDate = startDateTime.toISOString().split('T')[0];
+
+        const startTime = `${String(startDateTime.getHours()).padStart(2, '0')}:${String(startDateTime.getMinutes()).padStart(2, '0')}:${String(startDateTime.getSeconds()).padStart(2, '0')}`;
+        const endTime = `${String(endDateTime.getHours()).padStart(2, '0')}:${String(endDateTime.getMinutes()).padStart(2, '0')}:${String(endDateTime.getSeconds()).padStart(2, '0')}`;
+
+        const q = "INSERT INTO pendingshift (employeeId, shiftDate, startDate, endDate, status, title) VALUES (?, ?, ?, ?, ?, ?)";
+        const data = [employeeId, shiftDate, startTime, endTime, "Pending", title || `Pending shift for ${employeeId}`];
 
         const [result] = await connection.execute(q, data);
         console.log('Insert result:', result);
@@ -667,9 +699,9 @@ const addPendingShift = async (req, res) => {
 
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Internal Server Error." });
-    } finally { //close the connection after executing sql scripts
-        if (connection) connection.release(); //if connection is not released no response will be given
+        res.status(500).json({ error: "Internal Server Error during pending shift creation." });
+    } finally {
+        if (connection) connection.release();
     }
 };
 

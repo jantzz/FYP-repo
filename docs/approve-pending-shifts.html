@@ -618,6 +618,11 @@
         <div class="main-content">
             <div class="content-header">
                 <h1>Approve Pending Shifts</h1>
+                <div style="float: right;">
+                    <button id="createShiftBtn" class="btn-primary">
+                        <i class="fas fa-plus"></i> Create Shift
+                    </button>
+                </div>
             </div>
 
             <div class="approve-shifts-content">
@@ -785,6 +790,52 @@
             </div>
         </div>
     </div>
+    <!-- Create Shift Modal -->
+    <div id="createShiftModal" class="edit-modal">
+        <div class="edit-modal-content">
+            <span class="close-modal" onclick="closeCreateShiftModal()">&times;</span>
+            <h2>Create New Shift</h2>
+            <form id="createShiftForm">
+                <div class="form-group">
+                    <label for="create-shift-employee">Employee</label>
+                    <select id="create-shift-employee" required>
+                        <!-- Will be populated dynamically -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="create-shift-title">Shift Type/Title</label>
+                    <select id="create-shift-title" required>
+                        <option value="">Select Shift Type</option>
+                        <option value="Day Shift">Day Shift (9:00 AM - 5:00 PM)</option>
+                        <option value="Evening Shift">Evening Shift (5:00 PM - 1:00 AM)</option>
+                        <!-- Add other shift types here -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="create-shift-date">Date</label>
+                    <input type="date" id="create-shift-date" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="create-shift-start-time">Start Time</label>
+                        <input type="time" id="create-shift-start-time" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="create-shift-end-time">End Time</label>
+                        <input type="time" id="create-shift-end-time" required>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Create Shift
+                    </button>
+                    <button type="button" class="btn-danger" onclick="closeCreateShiftModal()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
     <script>
         // Define functions in global scope
         let allPendingShifts = [];
@@ -893,8 +944,7 @@
             const confirmDialog = document.getElementById('confirmDialog');
             const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
             const confirmApproveBtn = document.getElementById('confirmApproveBtn');
-
-
+            const createShiftBtn = document.getElementById('createShiftBtn');
 
             console.log('Using API URL:', API_BASE_URL);
 
@@ -1085,7 +1135,10 @@
             // Populate employee filter
             function populateEmployeeFilter() {
                 employeeFilter.innerHTML = '<option value="all">All Employees</option>';
-                employees.forEach(emp => {
+                // Filter out employees with role 'admin'
+                const nonAdminEmployees = employees.filter(emp => (emp.role || '').toLowerCase() !== 'admin');
+
+                nonAdminEmployees.forEach(emp => {
                     const option = document.createElement('option');
                     option.value = emp.userId;
                     option.textContent = emp.name || emp.email;
@@ -1309,7 +1362,10 @@
                 const employeeSelect = document.getElementById('edit-shift-employee');
                 employeeSelect.innerHTML = '';
 
-                employees.forEach(emp => {
+                // Filter out employees with role 'admin'
+                const nonAdminEmployeesForEdit = employees.filter(emp => (emp.role || '').toLowerCase() !== 'admin');
+
+                nonAdminEmployeesForEdit.forEach(emp => {
                     const option = document.createElement('option');
                     option.value = emp.userId;
                     option.textContent = emp.name || emp.email;
@@ -1515,6 +1571,103 @@
                 toggleIcon.classList.add('fa-chevron-right');
             }
 
+            // Show modal on button click
+            createShiftBtn.addEventListener('click', openCreateShiftModal);
+
+            // Handle form submission
+            document.getElementById('createShiftForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const employeeId = document.getElementById('create-shift-employee').value;
+                const titleSelect = document.getElementById('create-shift-title');
+                const title = titleSelect.options[titleSelect.selectedIndex].text; // Get the full text for title
+                const date = document.getElementById('create-shift-date').value;
+                const startTime = document.getElementById('create-shift-start-time').value;
+                const endTime = document.getElementById('create-shift-end-time').value;
+
+                if (!employeeId || !title || !date || !startTime || !endTime) {
+                    showNotification('Please fill in all fields', 'error');
+                    return;
+                }
+
+                // Combine date and time for API (send as full datetime strings)
+                const startDate = `${date}T${startTime}:00`;
+                const endDate = `${date}T${endTime}:00`;
+
+                // Find the selected employee to get their clinicId
+                const selectedEmployee = employees.find(emp => emp.userId == employeeId);
+                const clinicId = selectedEmployee ? selectedEmployee.clinicId : null;
+
+                // Show loading state on submit button
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalBtnText = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+
+                try {
+                    const token = localStorage.getItem('token');
+                    // Change fetch URL to the add shift endpoint
+                    const response = await fetch(`${API_BASE_URL}/shift/add`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            employeeId,
+                            startDate, // Send as full datetime string
+                            endDate, // Send as full datetime string
+                            title, // Include title
+                            clinicId // Include clinicId
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ error: 'Unknown error occurred' }));
+                        throw new Error(errorData.error || `Failed to create shift: ${response.status} ${response.statusText}`);
+                    }
+
+                    showNotification('Shift created successfully and added to calendar!', 'success');
+                    closeCreateShiftModal();
+                    // We might need to refresh the calendar view here, not the pending shifts
+                    // Depending on your application structure, you might need to navigate or trigger a calendar refresh event
+                    // For now, we'll just log a message.
+                    console.log('Shift created, calendar view needs refresh.');
+
+                } catch (error) {
+                    console.error('Error creating shift:', error);
+                    showNotification(`Error: ${error.message}`, 'error');
+                } finally {
+                     // Reset button state
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
+                }
+            });
+
+            // Add event listener for shift type selection to auto-populate times
+            document.getElementById('create-shift-title').addEventListener('change', function() {
+                // Get the selected option element
+                const selectedOption = this.options[this.selectedIndex];
+                // Get the value of the selected option
+                const selectedValue = selectedOption.value;
+
+                const startTimeInput = document.getElementById('create-shift-start-time');
+                const endTimeInput = document.getElementById('create-shift-end-time');
+
+                // Clear previous times
+                startTimeInput.value = '';
+                endTimeInput.value = '';
+
+                // Set times based on selected shift type value
+                if (selectedValue === 'Day Shift') {
+                    startTimeInput.value = '09:00';
+                    endTimeInput.value = '17:00';
+                } else if (selectedValue === 'Evening Shift') {
+                    startTimeInput.value = '17:00';
+                    endTimeInput.value = '01:00'; // Note: This spans midnight
+                }
+                // Add more conditions for other shift types
+            });
+
             // Initial data load
             fetchData();
             initSidebar();
@@ -1591,6 +1744,67 @@
             } catch (error) {
                 console.error('Error fetching clinics:', error);
             }
+        }
+        function openCreateShiftModal() {
+            // Populate employee dropdown
+            const employeeSelect = document.getElementById('create-shift-employee');
+            employeeSelect.innerHTML = '';
+
+            // Check if employees array is already populated. If not, attempt to fetch again.
+            if (employees.length === 0) {
+                console.log('Employees not loaded in modal, attempting to fetch...');
+                fetchData().then(() => {
+                     // Now that employees are fetched, filter out admins and populate the dropdown
+                    const nonAdminEmployeesForCreate = employees.filter(emp => (emp.role || '').toLowerCase() !== 'admin');
+
+                    if (nonAdminEmployeesForCreate.length > 0) {
+                        nonAdminEmployeesForCreate.forEach(emp => {
+                            const option = document.createElement('option');
+                            option.value = emp.userId;
+                            option.textContent = emp.name || emp.email;
+                            employeeSelect.appendChild(option);
+                        });
+                    } else {
+                         console.error('Failed to fetch or no non-admin employees found for modal.');
+                         const option = document.createElement('option');
+                         option.value = '';
+                         option.textContent = 'No employees available'; // More specific message
+                         employeeSelect.appendChild(option);
+                         employeeSelect.disabled = true; // Disable if no employees
+                    }
+                }).catch(error => {
+                    console.error('Error fetching employees in modal:', error);
+                     const option = document.createElement('option');
+                     option.value = '';
+                     option.textContent = 'Error loading employees';
+                     employeeSelect.appendChild(option);
+                     employeeSelect.disabled = true;
+                });
+            } else {
+                // Employees array is already populated, filter out admins and just use it
+                const nonAdminEmployeesForCreate = employees.filter(emp => (emp.role || '').toLowerCase() !== 'admin');
+
+                nonAdminEmployeesForCreate.forEach(emp => {
+                    const option = document.createElement('option');
+                    option.value = emp.userId;
+                    option.textContent = emp.name || emp.email;
+                    employeeSelect.appendChild(option);
+                });
+                 // Disable if no employees found after filtering
+                if (nonAdminEmployeesForCreate.length === 0) {
+                     const option = document.createElement('option');
+                     option.value = '';
+                     option.textContent = 'No employees available';
+                     employeeSelect.appendChild(option);
+                     employeeSelect.disabled = true;
+                }
+            }
+
+            document.getElementById('createShiftModal').style.display = 'block';
+        }
+
+        function closeCreateShiftModal() {
+            document.getElementById('createShiftModal').style.display = 'none';
         }
     </script>
 </body>
