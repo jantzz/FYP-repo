@@ -1,7 +1,7 @@
 //fetch the current logged-in user's employeeId from the backend
 async function getEmployeeId() {
     try {
-        const response = await fetch('https://emp-roster-backend.onrender.com//user/me', {
+        const response = await fetch('https://emp-roster-backend.onrender.com/api/user/me', {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}` 

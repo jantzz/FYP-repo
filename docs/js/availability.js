@@ -441,7 +441,7 @@ async function submitAvailability(formData) {
         
         console.log('Submitting availability data:', requestData);
         
-        const response = await fetch('https://emp-roster-backend.onrender.com//availability/submit', {
+        const response = await fetch('https://emp-roster-backend.onrender.com/api/availability/submit', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -485,7 +485,7 @@ async function loadEmployeeAvailability() {
             throw new Error('User not logged in');
         }
 
-        const response = await fetch(`https://emp-roster-backend.onrender.com//availability/employee/${userInfo.userId}`, {
+        const response = await fetch(`https://emp-roster-backend.onrender.com/api/availability/employee/${userInfo.userId}`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }

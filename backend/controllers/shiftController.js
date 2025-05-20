@@ -66,7 +66,7 @@ const addShift = async (req, res, io) => {
         const data = [employeeId, shiftDate, startTime, endTime, title || 'Scheduled Shift', 'Scheduled', clinicId || null]; // Use null if clinicId is not provided
 
         const [result] = await connection.execute(q, data);
-        console.log('Insert result:', result);
+        //console.log('Insert result:', result);
 
          //get the employee's name
          const employeeQuery = "SELECT name FROM user WHERE userId = ?";
@@ -179,13 +179,13 @@ const updateSwap = async (req, res) => {
             // grab the coreesponding shifts from the swap request
             const getShiftQuery = `SELECT currentShift, swapWith FROM swap WHERE swapId = ?`;
             const [shifts] = await connection.execute(getShiftQuery, [swapId]);
-            console.log(shifts);
+            //console.log(shifts);
 
             //grab the employees assigned to each shift
             const [emp1] = await connection.execute("SELECT employeeId FROM shift WHERE shiftId = ?", [shifts[0].currentShift]);
             const [emp2] = await connection.execute("SELECT employeeId FROM shift WHERE shiftId = ?", [shifts[0].swapWith]);
 
-            console.log (emp1, emp2);
+            //console.log (emp1, emp2);
             //update the shifts with the new assigned employees
             await connection.execute(`UPDATE shift SET employeeId = ? WHERE shiftId = ?`, [emp2[0].employeeId, shifts[0].currentShift]);
             await connection.execute(`UPDATE shift SET employeeId = ? WHERE shiftId = ?`, [emp1[0].employeeId, shifts[0].swapWith]);
@@ -345,7 +345,7 @@ const generateShift = async (req, res) => {
                     for (const person of sortedPreferred) {
                         const { employeeId, department } = person;
                         if ( department == dep.departmentName && depCount[department] < 2 && count[employeeId] < 6 && !assignedToday.has(`${employeeId}:${formattedDate}`)) {
-                            console.log(`Adding preferred shift for employee ${employeeId} on ${formattedDate}`);
+                            //console.log(`Adding preferred shift for employee ${employeeId} on ${formattedDate}`);
                             shifts.push({
                                 employeeId,
                                 startDate: formattedDate,
@@ -367,7 +367,7 @@ const generateShift = async (req, res) => {
                     for (const person of sortedNonPreferred) {
                         const { userId, department } = person;
                         if ( department == dep.departmentName && depCount[department] < 2 && count[userId] < 6 && !assignedToday.has(`${userId}:${formattedDate}`) ) {
-                            console.log(`Adding regular shift for employee ${userId} on ${formattedDate}`);
+                            //console.log(`Adding regular shift for employee ${userId} on ${formattedDate}`);
                             shifts.push({
                                 employeeId: userId,
                                 startDate: formattedDate,
@@ -397,7 +397,7 @@ const generateShift = async (req, res) => {
                             for (const person of sortedOtherPreferred) {
                                 const { employeeId, department } = person;
                                 if ( department == dep.departmentName && depCount[department] < 2 && count[employeeId] < 6 && !assignedToday.has(`${employeeId}:${formattedDate}`)) {
-                                    console.log(`Adding preferred shift for employee ${employeeId} on ${formattedDate}`);
+                                    /*console.log(`Adding preferred shift for employee ${employeeId} on ${formattedDate}`);
                                     shifts.push({
                                         employeeId,
                                         startDate: formattedDate,
@@ -405,7 +405,7 @@ const generateShift = async (req, res) => {
                                         status: "Pending",
                                         title: `Generated shift for ${employeeId}`,
                                         clinicId: otherClinic.clinicId
-                                    });
+                                    });*/
                                     depCount[department]++;
                                     count[employeeId]++;
                                     assignedToday.add(`${employeeId}:${formattedDate}`);
@@ -424,7 +424,7 @@ const generateShift = async (req, res) => {
             return res.status(400).json({ error: "No shifts could be generated for the given date range." });
         }
 
-        console.log(`Generated ${shifts.length} shifts`);
+        //console.log(`Generated ${shifts.length} shifts`);
 
         // Begin transaction for saving shifts
         await connection.beginTransaction();
@@ -434,13 +434,13 @@ const generateShift = async (req, res) => {
 
             for (const shift of shifts) {
                 const { employeeId, startDate, endDate, status, title, clinicId } = shift;
-                console.log('Inserting shift:', { employeeId, startDate, endDate, status, title, clinicId });
+                //console.log('Inserting shift:', { employeeId, startDate, endDate, status, title, clinicId });
                 const [result] = await connection.execute(shiftQuery, [employeeId, startDate, endDate, status, title, clinicId]);
-                console.log('Insert result:', result);
+                //console.log('Insert result:', result);
             }
 
             await connection.commit();
-            console.log('Transaction committed');
+            //console.log('Transaction committed');
 
             res.status(200).json({
                 message: "Pending Shifts generated successfully.",
@@ -475,7 +475,7 @@ const getPendingShifts = async (req, res) => {
         // First get a count of all pending shifts
         const countQuery = `SELECT COUNT(*) as count FROM pendingShift`;
         const [countResult] = await connection.execute(countQuery);
-        console.log('Total pending shifts:', countResult[0].count);
+        //console.log('Total pending shifts:', countResult[0].count);
 
         // Get all pending shifts regardless of status
         const query = `
@@ -487,7 +487,7 @@ const getPendingShifts = async (req, res) => {
         `;
 
         const [pendingShifts] = await connection.execute(query);
-        console.log('Raw pending shifts result:', pendingShifts);
+        //console.log('Raw pending shifts result:', pendingShifts);
 
         // Format dates for better compatibility
         const formattedShifts = pendingShifts.map(shift => ({
@@ -522,11 +522,11 @@ const approvePendingShifts = async (req, res) => {
             const { employeeId } = shift;
             userIds.push(employeeId);
         }
-        console.log('496',userIds)
+        //console.log('496',userIds)
         // send email
         const userEmailsQuery = `SELECT DISTINCT(email) FROM user WHERE userId IN (${userIds.map(() => '?').join(', ')})`;
         const [userEmailsResult] = await connection.execute(userEmailsQuery, userIds);
-        console.log('500',userEmailsResult)
+        //console.log('500',userEmailsResult)
         userEmailsResult.map(row => {
             sendEmail(row.email, "Your shift has been approved");
         });
@@ -690,7 +690,7 @@ const addPendingShift = async (req, res) => {
         const data = [employeeId, shiftDate, startTime, endTime, "Pending", title || `Pending shift for ${employeeId}`];
 
         const [result] = await connection.execute(q, data);
-        console.log('Insert result:', result);
+        //console.log('Insert result:', result);
 
         return res.status(201).json({
             message: "Pending shift added successfully.",
@@ -710,7 +710,7 @@ const getSwaps = async (req, res) => {
     let connection;
 
     try {
-        console.log('getSwaps endpoint called');
+        //console.log('getSwaps endpoint called');
         connection = await db.getConnection();
 
         // First check if the swap table exists
@@ -719,23 +719,23 @@ const getSwaps = async (req, res) => {
 
             if (tableCheck.length === 0) {
                 // Table doesn't exist, return empty array instead of error
-                console.log('Swap table does not exist');
+                //console.log('Swap table does not exist');
                 return res.status(200).json([]);
             }
 
             // Check if the swap table has records
             const [countResult] = await connection.execute('SELECT COUNT(*) as count FROM swap');
-            console.log('Number of swap records:', countResult[0].count);
+            //console.log('Number of swap records:', countResult[0].count);
 
             if (countResult[0].count === 0) {
                 // No swap records, return empty array
-                console.log('No swap records found');
+                //console.log('No swap records found');
                 return res.status(200).json([]);
             }
 
                 // Get basic swap data without joins to diagnose possible issues
                 const [basicSwapData] = await connection.execute('SELECT * FROM swap');
-            console.log('Basic swap data found:', basicSwapData.length);
+            //console.log('Basic swap data found:', basicSwapData.length);
 
             // Use a simpler query first to avoid join issues
             const query = `
@@ -789,7 +789,7 @@ const getSwaps = async (req, res) => {
                 enhancedSwaps.push(enhancedSwap);
             }
 
-            console.log('Enhanced swap data:', enhancedSwaps);
+            //console.log('Enhanced swap data:', enhancedSwaps);
 
         // Format dates for consistency
             const formattedSwaps = enhancedSwaps.map(swap => {
@@ -801,7 +801,7 @@ const getSwaps = async (req, res) => {
                     const date = new Date(value);
                     return date instanceof Date && !isNaN(date) ? date.toISOString() : null;
                 } catch (error) {
-                    console.log('Date formatting error:', error, 'for value:', value);
+                    //console.log('Date formatting error:', error, 'for value:', value);
                     return null;
                 }
             };
@@ -816,7 +816,7 @@ const getSwaps = async (req, res) => {
             };
         });
 
-        console.log('Formatted swap data:', formattedSwaps);
+        //console.log('Formatted swap data:', formattedSwaps);
 
         return res.status(200).json(formattedSwaps);
 
@@ -848,7 +848,7 @@ const recommendEmployee = async (req, res) => {
 
         const [shifts] = await connection.execute(`SELECT * FROM shift WHERE shiftId = ?`,[shiftId]);
         if (shifts.length === 0) {
-            console.log('No shifts found');
+            //console.log('No shifts found');
             return res.status(200).json([]);
         }
 
@@ -857,7 +857,7 @@ const recommendEmployee = async (req, res) => {
         // Get clinic
         const [clinics] = await connection.execute(`SELECT * FROM clinic WHERE clinicId = ?`,[shift.clinicId]);
         if (clinics.length === 0){
-            console.log('No clinics found');
+            //console.log('No clinics found');
             return res.status(200).json([]);
         }
         const clinic = clinics[0];
@@ -868,7 +868,7 @@ const recommendEmployee = async (req, res) => {
         const singaporePostalMapping = require('../utils/singapore_postal_mapping_full.json');
         const clinicPostalCodes = singaporePostalMapping[clinicPostalCode];
         if (!clinicPostalCodes || clinicPostalCodes.length === 0) {
-            console.log('No clinicPostalCodes found');
+            //console.log('No clinicPostalCodes found');
             return res.status(200).json([]);
         }
         // clinicCity is in array format like [ '01', '04', '06', '07' ]
@@ -878,7 +878,7 @@ const recommendEmployee = async (req, res) => {
         // Query employees based on clinic ID, postal code, and where userId is not equal to shift.employeeId
         const [employees] = await connection.execute(`SELECT * FROM user WHERE clinicId = ? AND ? AND userId != ?`,[clinic.clinicId, likeConditions, shift.employeeId]);
         if (employees.length === 0){
-            console.log('No employees found');
+            //console.log('No employees found');
             return res.status(200).json([]);
         }
         let employee = employees[0];

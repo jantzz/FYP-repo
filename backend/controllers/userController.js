@@ -122,7 +122,7 @@ const createUser = async (req, res) => {
             
             if (nearestClinicId) {
                 clinicId = nearestClinicId;
-                console.log(`Auto-assigned user to clinic ID ${clinicId} based on postal code ${postalCode}`);
+                //console.log(`Auto-assigned user to clinic ID ${clinicId} based on postal code ${postalCode}`);
             } else {
                 // Fallback to the original method if the new method finds no clinic
                 // Load the postal code mapping
@@ -138,7 +138,7 @@ const createUser = async (req, res) => {
                     
                     if (prefixClinics.length > 0) {
                         clinicId = prefixClinics[0].clinicId;
-                        console.log(`Fallback assignment: assigned user to clinic ID ${clinicId} based on postal prefix ${postalPrefix}`);
+                        //console.log(`Fallback assignment: assigned user to clinic ID ${clinicId} based on postal prefix ${postalPrefix}`);
                     }
                 }
             }
@@ -297,7 +297,7 @@ const getMe = async (req, res) => {
         const userData = users[0];
         
         // Log the data being returned (for debugging)
-        console.log('User data being returned:', userData);
+        //console.log('User data being returned:', userData);
         
         res.status(200).json(userData);
     } catch (error) {
@@ -378,7 +378,7 @@ const updateUserBaseSalary = async (req, res) => {
         );
 
         // Log the update for debugging
-        console.log(`Updated user ${userId} base salary to ${baseSalary}. Affected rows: ${result.affectedRows}`);
+        //console.log(`Updated user ${userId} base salary to ${baseSalary}. Affected rows: ${result.affectedRows}`);
 
         return res.status(200).json({ 
             message: "Base salary updated successfully",
@@ -430,7 +430,7 @@ const assignUser = async (req, res) => {
                     "UPDATE user SET clinicId = ? WHERE userId = ?",
                     [clinic.clinicId, user.userId]
                 );
-                console.log(`Updated user ${user.userId} clinicId to ${clinic.clinicId}. Affected rows: ${result.affectedRows}`);
+                //console.log(`Updated user ${user.userId} clinicId to ${clinic.clinicId}. Affected rows: ${result.affectedRows}`);
             }
 
         }

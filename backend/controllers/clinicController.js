@@ -50,7 +50,7 @@ const createClinic = async (req, res) => {
         return res.status(201).json({ message: 'Clinic created successfully. Employees reassigned if this is their nearest clinic.' });
 
     } catch(err){
-        console.error(err);
+        //console.error(err);
         return res.status(500).json({ message: 'Internal server error' });
     } finally{
         if (connection)  connection.release();

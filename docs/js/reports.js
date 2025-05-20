@@ -96,7 +96,7 @@ async function populateClinicFilter() {
     clinicFilter.innerHTML = '<option value="all">All Clinics</option>';
     try {
         const token = localStorage.getItem('token');
-        const API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
+        const API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/api';
         const response = await fetch(`${API_BASE_URL}/clinic/getClinics`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -155,7 +155,7 @@ async function fetchAttendanceReportData(period = 'yearly') {
                 const defaultOneYearAgo = new Date(today); defaultOneYearAgo.setFullYear(today.getFullYear() - 1);
                 startDate = defaultOneYearAgo.toISOString().split('T')[0];
         }
-        const API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
+        const API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/api';
         
         let url;
         // For both admin and managers - show all attendance data
@@ -1105,7 +1105,7 @@ async function populateWorkingHoursClinicFilter() {
     
     try {
         const token = localStorage.getItem('token');
-        const API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
+        const API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/api';
         const response = await fetch(`${API_BASE_URL}/clinic/getClinics`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -1212,7 +1212,7 @@ async function fetchWorkingHoursData() {
             console.error('Working hours table body not found in DOM');
         }
         
-        const API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/';
+        const API_BASE_URL = window.API_BASE_URL || 'https://emp-roster-backend.onrender.com/api';
         const url = `${API_BASE_URL}/attendance/working-hours?month=${month}&year=${year}&clinicId=${clinicId}`;
         console.log(`Fetching from URL: ${url}`);
         

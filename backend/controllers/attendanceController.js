@@ -28,18 +28,18 @@ const clockIn = async (req, res) => {
         // Get today's date in local time zone format YYYY-MM-DD
         const now = new Date();
         // For logging, keep track of what we're doing
-        console.log('Clock in attempt:', {
+        /*console.log('Clock in attempt:', {
             shift: shift,
             shiftId: shiftId,
             employeeId: employeeId,
             currentTime: now.toISOString(),
-        });
+        });*/
         
         let allowClockIn = false;
         
         // Check if startDate is just a time format (HH:MM:SS)
         if (shift.startDate && shift.startDate.includes(':') && shift.startDate.length <= 8) {
-            console.log('Time-only format detected, allowing clock in');
+           // console.log('Time-only format detected, allowing clock in');
             allowClockIn = true;
         }
         
@@ -54,11 +54,11 @@ const clockIn = async (req, res) => {
             const tomorrow = new Date(today);
             tomorrow.setDate(tomorrow.getDate() + 1);
             
-            console.log('Date range for validation:', {
+            /*console.log('Date range for validation:', {
                 yesterday: yesterday.toISOString().split('T')[0],
                 today: today.toISOString().split('T')[0],
                 tomorrow: tomorrow.toISOString().split('T')[0]
-            });
+            }); */
             
             // Try to get a valid date from the shift
             let shiftDate = null;
@@ -67,7 +67,7 @@ const clockIn = async (req, res) => {
             if (shift.shiftDate) {
                 try {
                     shiftDate = new Date(shift.shiftDate);
-                    console.log('Using shiftDate field:', shiftDate.toISOString().split('T')[0]);
+                    //console.log('Using shiftDate field:', shiftDate.toISOString().split('T')[0]);
                 } catch (err) {
                     console.error('Error parsing shiftDate:', err);
                 }
@@ -79,7 +79,7 @@ const clockIn = async (req, res) => {
                 if (shift.startDate.includes('-') || shift.startDate.includes('T')) {
                     try {
                         shiftDate = new Date(shift.startDate);
-                        console.log('Using startDate field:', shiftDate.toISOString().split('T')[0]);
+                        //console.log('Using startDate field:', shiftDate.toISOString().split('T')[0]);
                     } catch (err) {
                         console.error('Error parsing startDate:', err);
                     }
@@ -100,7 +100,7 @@ const clockIn = async (req, res) => {
                     shiftDateOnly.getTime() === today.getTime() ||
                     shiftDateOnly.getTime() === tomorrow.getTime()
                 ) {
-                    console.log('Shift date is within the allowed range, allowing clock in');
+                    //console.log('Shift date is within the allowed range, allowing clock in');
                     allowClockIn = true;
                 }
             }
@@ -301,7 +301,7 @@ const getEmployeeAttendance = async (req, res) => {
 const getAllAttendance = async (req, res) => {
     const { startDate, endDate, department, clinicId } = req.query;
     
-    console.log('Getting all attendance records with params:', { startDate, endDate, department, clinicId });
+    //console.log('Getting all attendance records with params:', { startDate, endDate, department, clinicId });
     
     let connection;
     try {
@@ -336,12 +336,12 @@ const getAllAttendance = async (req, res) => {
         
         query += " ORDER BY a.date DESC, u.name ASC";
         
-        console.log('Executing query:', query);
-        console.log('With params:', params);
+        //console.log('Executing query:', query);
+        //console.log('With params:', params);
         
         const [attendanceRecords] = await connection.execute(query, params);
         
-        console.log(`Found ${attendanceRecords.length} attendance records`);
+        //console.log(`Found ${attendanceRecords.length} attendance records`);
         
         return res.status(200).json(attendanceRecords);
     } catch (err) {
@@ -513,13 +513,13 @@ function determineStatus(clockInTime, shift) {
         const expectedStartTime = new Date(shiftDate);
         expectedStartTime.setHours(startHour, startMinute, 0, 0);
         
-        console.log('Determining status:', {
+       /*console.log('Determining status:', {
             clockInTime: clockInTime.toISOString(),
             expectedStartTime: expectedStartTime.toISOString(),
             shift: shift.title || 'Unnamed shift',
             shiftId: shift.shiftId,
             startTime: shift.startDate
-        });
+        }); */
         
         // Calculate time difference in minutes
         const timeDifferenceMs = clockInTime - expectedStartTime;
@@ -537,7 +537,7 @@ function determineStatus(clockInTime, shift) {
     } catch (error) {
         // If we can't determine the shift time, mark as Present by default
         console.error('Error determining status:', error.message);
-        console.log('Unable to determine lateness. Marking as Present by default.');
+        //console.log('Unable to determine lateness. Marking as Present by default.');
         return 'Present';
     }
 }
@@ -572,7 +572,7 @@ const syncTimeOffWithAttendance = async (req, res) => {
             currentDate.setDate(currentDate.getDate() + 1);
         }
         
-        console.log(`Processing ${dates.length} leave days for employee ${employeeId}`);
+        //console.log(`Processing ${dates.length} leave days for employee ${employeeId}`);
         
         // Process each date
         for (const date of dates) {
@@ -584,7 +584,7 @@ const syncTimeOffWithAttendance = async (req, res) => {
             
             if (existingRecords.length > 0) {
                 // Update existing record
-                console.log(`Updating existing attendance record for ${date} to Leave status`);
+                //console.log(`Updating existing attendance record for ${date} to Leave status`);
                 await connection.execute(
                     "UPDATE attendance SET status = 'Leave', clockInTime = NULL, clockOutTime = NULL WHERE attendanceId = ?",
                     [existingRecords[0].attendanceId]
@@ -617,7 +617,7 @@ const syncTimeOffWithAttendance = async (req, res) => {
                 }
                 
                 // Create new attendance record with Leave status
-                console.log(`Creating new Leave attendance record for ${date} with shiftId=${shiftId}`);
+                //console.log(`Creating new Leave attendance record for ${date} with shiftId=${shiftId}`);
                 await connection.execute(
                     "INSERT INTO attendance (employeeId, shiftId, date, status, notes) VALUES (?, ?, ?, 'Leave', 'Approved leave')",
                     [employeeId, shiftId, date]
@@ -689,11 +689,11 @@ const getEmployeeWorkingHours = async (req, res) => {
         
         query += " ORDER BY u.name, a.date";
         
-        console.log('Executing query:', query);
-        console.log('With params:', params);
+        //console.log('Executing query:', query);
+        //console.log('With params:', params);
         
         const [records] = await connection.execute(query, params);
-        console.log(`Found ${records.length} records`);
+        //console.log(`Found ${records.length} records`);
         
         // Process records to calculate hours for each employee
         const employeeMap = {};

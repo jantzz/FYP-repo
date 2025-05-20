@@ -48,7 +48,7 @@ const submitAvailability = async (req, res) => {
 //function for managers to approve/decline availabilities
 const updateAvailabilityStatus = async (req, res) => {
     const { availabilityId, managerId, status } = req.body;
-    console.log('Updating availability status:', { availabilityId, managerId, status });
+   // console.log('Updating availability status:', { availabilityId, managerId, status });
 
     if (!availabilityId || !managerId || !status) {
         console.error('Missing required fields:', { availabilityId, managerId, status });
@@ -69,7 +69,7 @@ const updateAvailabilityStatus = async (req, res) => {
             "SELECT role FROM user WHERE userId = ?",
             [managerId]
         );
-        console.log('Found manager:', managers[0]);
+        //console.log('Found manager:', managers[0]);
 
         if (managers.length === 0 || !['Manager', 'Admin'].includes(managers[0].role)) {
             console.error('User is not authorized:', managers[0]?.role);
@@ -82,7 +82,7 @@ const updateAvailabilityStatus = async (req, res) => {
             "SELECT * FROM availability WHERE availabilityId = ?",
             [availabilityId]
         );
-        console.log('Found availability:', availabilityCheck[0]);
+        //console.log('Found availability:', availabilityCheck[0]);
 
         if (availabilityCheck.length === 0) {
             console.error('Availability request not found:', availabilityId);
@@ -119,7 +119,7 @@ const updateAvailabilityStatus = async (req, res) => {
         const insertNotificationQuery = "INSERT INTO notifications (userId, message) VALUES (?, ?)";
         try {
             const [result] = await connection.execute(insertNotificationQuery, [employeeId, availabilityMessage]);
-            console.log('Notification inserted:', result);
+            //console.log('Notification inserted:', result);
         } catch (err) {
             console.error('Error inserting notification:', err);
         }
@@ -150,7 +150,7 @@ const updateAvailabilityStatus = async (req, res) => {
 // get availability for a specific employee
 const getEmployeeAvailability = async (req, res) => {
     const { employeeId } = req.params;
-    console.log('Getting availability for employee:', employeeId);
+    //console.log('Getting availability for employee:', employeeId);
 
     if (!employeeId) {
         return res.status(400).json({ error: "Employee ID is required." });

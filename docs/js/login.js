@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setButtonLoading(submitButton, true);
         
         try {
-            const response = await fetch('https://emp-roster-backend.onrender.com//user/login', {
+            const response = await fetch('https://emp-roster-backend.onrender.com/api/user/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Now fetch user details using the token
                 try {
-                    const userResponse = await fetch('https://emp-roster-backend.onrender.com//user/me', {
+                    const userResponse = await fetch('https://emp-roster-backend.onrender.com/api/user/me', {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${data.token}`,
