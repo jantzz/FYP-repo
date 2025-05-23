@@ -35,7 +35,7 @@ async function loadPayrollData() {
     
     try {
         // Check if user is a manager or admin
-        const response = await fetch('/api/user/me', {
+        const response = await fetch('https://emp-roster-backend.onrender.com/api/user/me', {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -72,7 +72,7 @@ async function showEmployeePayrollView(employeeId) {
         document.getElementById('admin-payroll-view').style.display = 'none';
         
         // Fetch employee payroll data
-        const response = await fetch(`/api/payroll/employee/${employeeId}`, {
+        const response = await fetch(`https://emp-roster-backend.onrender.com/api/payroll/employee/${employeeId}`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -149,7 +149,7 @@ async function showAdminPayrollView() {
         document.getElementById('admin-payroll-view').style.display = 'block';
         
         // Fetch all departments for filter
-        const deptResponse = await fetch('/api/department/all', {
+        const deptResponse = await fetch('https://emp-roster-backend.onrender.com/api/department/all', {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -205,7 +205,7 @@ async function loadAllPayrollData() {
         const year = document.getElementById('payroll-year-filter').value;
         const department = document.getElementById('payroll-department-filter').value;
         
-        let url = '/api/payroll/all';
+        let url = 'https://emp-roster-backend.onrender.com/api/payroll/all';
         const queryParams = [];
         
         if (month !== 'all') queryParams.push(`month=${month}`);
@@ -323,7 +323,7 @@ async function calculatePayroll() {
             
             // Update the user's base salary
             try {
-                const updateResponse = await fetch('/api/user/updateBaseSalary', {
+                const updateResponse = await fetch('https://emp-roster-backend.onrender.com/api/user/updateBaseSalary', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -357,7 +357,7 @@ async function calculatePayroll() {
             }
         }
         
-        const response = await fetch('/api/payroll/calculate', {
+        const response = await fetch('https://emp-roster-backend.onrender.com/api/payroll/calculate', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -399,7 +399,7 @@ async function recalculatePayroll(employeeId, month, year) {
     try {
         const token = getToken();
         
-        const response = await fetch('/api/payroll/recalculate', {
+        const response = await fetch('https://emp-roster-backend.onrender.com/api/payroll/recalculate', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -435,7 +435,7 @@ async function updatePayrollStatus(payrollId, status) {
     try {
         const token = getToken();
         
-        const response = await fetch(`/api/payroll/status/${payrollId}`, {
+        const response = await fetch(`https://emp-roster-backend.onrender.com/api/payroll/status/${payrollId}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${token}`,
