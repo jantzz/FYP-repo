@@ -470,7 +470,7 @@ async function loadPayrollStats() {
         const year = document.getElementById('payroll-year-filter').value;
         const department = document.getElementById('payroll-department-filter').value;
         
-        let url = '/api/payroll/stats';
+        let url = 'https://emp-roster-backend.onrender.com/api/payroll/stats';
         const queryParams = [];
         
         if (month !== 'all') queryParams.push(`month=${month}`);
