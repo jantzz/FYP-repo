@@ -535,9 +535,6 @@
     <!-- Header -->
     <div class="header">
         <div class="logo">ShiftRoster</div>
-        <div class="search-bar">
-            <input type="text" placeholder="Search...">
-        </div>
         <div class="header-right">
             <div class="notification-icon">
                 <i class="fas fa-bell"></i>
@@ -811,9 +808,15 @@
                         <!-- Add other shift types here -->
                     </select>
                 </div>
-                <div class="form-group">
-                    <label for="create-shift-date">Date</label>
-                    <input type="date" id="create-shift-date" required>
+                <div class="form-row">
+                    <div class="form-group half-width">
+                        <label for="create-shift-start-date">Start Date</label>
+                        <input type="date" id="create-shift-start-date" required>
+                    </div>
+                    <div class="form-group half-width">
+                        <label for="create-shift-end-date">End Date</label>
+                        <input type="date" id="create-shift-end-date" required>
+                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group half-width">
@@ -827,7 +830,7 @@
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">
-                        <i class="fas fa-save"></i> Create Shift
+                        <i class="fas fa-save"></i> Create Shifts
                     </button>
                     <button type="button" class="btn-danger" onclick="closeCreateShiftModal()">
                         <i class="fas fa-times"></i> Cancel
@@ -1580,18 +1583,23 @@
                 const employeeId = document.getElementById('create-shift-employee').value;
                 const titleSelect = document.getElementById('create-shift-title');
                 const title = titleSelect.options[titleSelect.selectedIndex].text; // Get the full text for title
-                const date = document.getElementById('create-shift-date').value;
+                const startDate = document.getElementById('create-shift-start-date').value;
+                const endDate = document.getElementById('create-shift-end-date').value;
                 const startTime = document.getElementById('create-shift-start-time').value;
                 const endTime = document.getElementById('create-shift-end-time').value;
 
-                if (!employeeId || !title || !date || !startTime || !endTime) {
+                if (!employeeId || !title || !startDate || !endDate || !startTime || !endTime) {
                     showNotification('Please fill in all fields', 'error');
                     return;
                 }
 
-                // Combine date and time for API (send as full datetime strings)
-                const startDate = `${date}T${startTime}:00`;
-                const endDate = `${date}T${endTime}:00`;
+                // Validate date range
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                if (end < start) {
+                    showNotification('End date cannot be before start date', 'error');
+                    return;
+                }
 
                 // Find the selected employee to get their clinicId
                 const selectedEmployee = employees.find(emp => emp.userId == employeeId);
@@ -1605,39 +1613,66 @@
 
                 try {
                     const token = localStorage.getItem('token');
-                    // Change fetch URL to the add shift endpoint
-                    const response = await fetch(`${API_BASE_URL}/shift/add`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            employeeId,
-                            startDate, // Send as full datetime string
-                            endDate, // Send as full datetime string
-                            title, // Include title
-                            clinicId // Include clinicId
-                        })
-                    });
+                    let successCount = 0;
+                    let failureCount = 0;
 
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({ error: 'Unknown error occurred' }));
-                        throw new Error(errorData.error || `Failed to create shift: ${response.status} ${response.statusText}`);
+                    // Create array of dates between start and end
+                    const dates = [];
+                    let currentDate = new Date(start);
+                    while (currentDate <= end) {
+                        dates.push(new Date(currentDate));
+                        currentDate.setDate(currentDate.getDate() + 1);
                     }
 
-                    showNotification('Shift created successfully and added to calendar!', 'success');
+                    // Create shifts for each date
+                    for (const date of dates) {
+                        const formattedDate = date.toISOString().split('T')[0];
+                        const shiftStartDate = `${formattedDate}T${startTime}:00`;
+                        const shiftEndDate = `${formattedDate}T${endTime}:00`;
+
+                        try {
+                            const response = await fetch(`${API_BASE_URL}/shift/add`, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    employeeId,
+                                    startDate: shiftStartDate,
+                                    endDate: shiftEndDate,
+                                    title,
+                                    clinicId
+                                })
+                            });
+
+                            if (response.ok) {
+                                successCount++;
+                            } else {
+                                failureCount++;
+                                console.error(`Failed to create shift for ${formattedDate}`);
+                            }
+                        } catch (error) {
+                            failureCount++;
+                            console.error(`Error creating shift for ${formattedDate}:`, error);
+                        }
+                    }
+
+                    // Show results notification
+                    if (successCount > 0) {
+                        showNotification(`Successfully created ${successCount} shifts${failureCount > 0 ? ` (${failureCount} failed)` : ''}`, 'success');
+                    } else {
+                        showNotification('Failed to create any shifts', 'error');
+                    }
+
                     closeCreateShiftModal();
-                    // We might need to refresh the calendar view here, not the pending shifts
-                    // Depending on your application structure, you might need to navigate or trigger a calendar refresh event
-                    // For now, we'll just log a message.
-                    console.log('Shift created, calendar view needs refresh.');
+                    console.log('Shifts created, calendar view needs refresh.');
 
                 } catch (error) {
-                    console.error('Error creating shift:', error);
+                    console.error('Error creating shifts:', error);
                     showNotification(`Error: ${error.message}`, 'error');
                 } finally {
-                     // Reset button state
+                    // Reset button state
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalBtnText;
                 }
@@ -1645,9 +1680,7 @@
 
             // Add event listener for shift type selection to auto-populate times
             document.getElementById('create-shift-title').addEventListener('change', function() {
-                // Get the selected option element
                 const selectedOption = this.options[this.selectedIndex];
-                // Get the value of the selected option
                 const selectedValue = selectedOption.value;
 
                 const startTimeInput = document.getElementById('create-shift-start-time');
@@ -1663,9 +1696,17 @@
                     endTimeInput.value = '17:00';
                 } else if (selectedValue === 'Evening Shift') {
                     startTimeInput.value = '17:00';
-                    endTimeInput.value = '01:00'; // Note: This spans midnight
+                    endTimeInput.value = '01:00';
                 }
-                // Add more conditions for other shift types
+            });
+
+            // Add event listener for start date to set minimum end date
+            document.getElementById('create-shift-start-date').addEventListener('change', function() {
+                const endDateInput = document.getElementById('create-shift-end-date');
+                endDateInput.min = this.value;
+                if (endDateInput.value && endDateInput.value < this.value) {
+                    endDateInput.value = this.value;
+                }
             });
 
             // Initial data load
