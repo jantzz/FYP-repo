@@ -107,37 +107,33 @@ document.addEventListener('DOMContentLoaded', async function() {
         const shifts = await fetchShifts();
         console.log('Initial shifts loaded:', shifts);
 
-        // Track if we have future shifts
+        const shiftsContainer = document.querySelector('.shifts-container');
+        if (shiftsContainer) shiftsContainer.innerHTML = '';
+
         let hasFutureShifts = false;
 
-        // Add shifts to the upcoming shifts section
-        shifts.forEach(shift => {
-            const isNearFuture = isShiftInNearFuture(shift.start);
+        // Filter and deduplicate relevant shifts
+        const userId = JSON.parse(localStorage.getItem('userInfo')).userId;
+        const seen = new Set();
+        const relevantShifts = shifts.filter(shift => {
+            // Only for current user
+            if (shift.extendedProps.employeeId !== userId) return false;
+            // Only for today/tomorrow
+            if (!isShiftInNearFuture(shift.start)) return false;
+            // Avoid duplicates (by shift id)
+            if (seen.has(shift.id)) return false;
+            seen.add(shift.id);
+            return true;
+        });
 
-            // current user
-            if(shift.extendedProps.employeeId === JSON.parse(localStorage.getItem('userInfo')).userId){
-                // Use the global addShiftToUpcomingSection function
-                if(isNearFuture){
-                    // If shift is today or tomorrow, DO NOT hide it
-                    addShiftToUpcomingSection(
-                        shift.title,
-                        shift.start,
-                        shift.end,
-                        shift.extendedProps.status,
-                        false // Do not hide
-                    );
-                } else {
-                    // If shift is after tomorrow, hide it and indicate there are future shifts
-                    addShiftToUpcomingSection(
-                        shift.title,
-                        shift.start,
-                        shift.end,
-                        shift.extendedProps.status,
-                        true // Hide this future shift
-                    );
-                    hasFutureShifts = true;
-                }
-            }
+        relevantShifts.forEach(shift => {
+            addShiftToUpcomingSection(
+                shift.title,
+                shift.start,
+                shift.end,
+                shift.extendedProps.status,
+                false
+            );
         });
 
         // Show the "Show More" button if we have future shifts
